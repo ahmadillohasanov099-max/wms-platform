@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Database Service
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: skladcontrol_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 0000
+      POSTGRES_DB: skladcontrol
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Backend App Service (Optional - can be run via docker-compose up)
+  backend_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skladcontrol_api
+    restart: always
+    ports:
+      - '4000:4000'
+    environment:
+      APP_PORT: 4000
+      DATABASE_URL: postgresql://postgres:0000@postgres_db:5432/skladcontrol?schema=public
+      JWT_SECRET: your-super-secret-jwt-key
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key
+      MAIL_USER: ahmadillohasanov099@gmail.com
+      MAIL_PASSWORD: iihi ujzj knag aiox
+      ALLOWED_ORIGINS: http://localhost:5173
+    depends_on:
+      - postgres_db
+
+volumes:
+  pgdata:

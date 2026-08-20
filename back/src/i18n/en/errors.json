@@ -1,0 +1,17 @@
+{
+  "NOT_FOUND": "Information not found",
+  "PRODUCT_NOT_FOUND": "Product not found",
+  "USER_NOT_FOUND": "Employee not found",
+  "DEPARTMENT_NOT_FOUND": "Department not found",
+  "OPERATION_NOT_FOUND": "Operation not found",
+  "ALREADY_EXISTS": "This information already exists",
+  "DEPT_EXISTS": "Department with this name already exists",
+  "ACTIVE_ASSETS_EXIST": "Product has active assets, cannot be deleted",
+  "DEPT_HAS_USERS": "Department has employees, cannot be deleted",
+  "DEPT_HAS_ASSETS": "Department has assets, cannot be deleted",
+  "INVENTORY_QTY_REQUIRED": "Exactly {quantity} inventory numbers must be sent for assets!",
+  "INVENTORY_DUPLICATES": "There are duplicates among the entered inventory numbers!",
+  "INVENTORY_NUMBER_BUSY": "One of the inventory numbers is already busy in the database: {number}",
+  "PRODUCT_IN_STOCK": "Product is in stock, cannot be deleted",
+  "PRODUCT_IN_DEPTS": "This product is in departments, cannot be deleted"
+}

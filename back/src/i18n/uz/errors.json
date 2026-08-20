@@ -1,0 +1,17 @@
+{
+  "NOT_FOUND": "Ma'lumot topilmadi",
+  "PRODUCT_NOT_FOUND": "Mahsulot topilmadi",
+  "USER_NOT_FOUND": "Xodim topilmadi",
+  "DEPARTMENT_NOT_FOUND": "Bo'lim topilmadi",
+  "OPERATION_NOT_FOUND": "Operatsiya topilmadi",
+  "ALREADY_EXISTS": "Bu ma'lumot allaqachon mavjud",
+  "DEPT_EXISTS": "Bu nomdagi bo'lim allaqachon mavjud",
+  "ACTIVE_ASSETS_EXIST": "Mahsulotda aktiv jihozlar bor, o'chirib bo'lmaydi",
+  "DEPT_HAS_USERS": "Bo'limda xodimlar mavjud, o'chirib bo'lmaydi",
+  "DEPT_HAS_ASSETS": "Bo'limda jihozlar mavjud, o'chirib bo'lmaydi",
+  "INVENTORY_QTY_REQUIRED": "Jihozlar uchun aynan {quantity} ta inventar raqam yuborilishi shart!",
+  "INVENTORY_DUPLICATES": "Kiritilgan inventar raqamlari ichida takrorlanishlar mavjud!",
+  "INVENTORY_NUMBER_BUSY": "Inventar raqamlaridan biri bazada allaqachon band: {number}",
+  "PRODUCT_IN_STOCK": "Mahsulot omborda mavjud, o'chirib bo'lmaydi",
+  "PRODUCT_IN_DEPTS": "Ushbu mahsulot bo'limlarda mavjud, o'chirib bo'lmaydi"
+}
