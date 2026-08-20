@@ -20,6 +20,14 @@ dist-ssr/
 */.env.*
 !*/.env.example
 
+# Excel & Data files
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+*.tsv
+*.ods
+
 # Logs
 logs/
 *.log
