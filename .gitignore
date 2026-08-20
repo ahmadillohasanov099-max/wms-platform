@@ -28,6 +28,10 @@ dist-ssr/
 *.tsv
 *.ods
 
+# Internal task notes & documentation
+daily-tasks.md
+*daily-tasks*.md
+
 # Logs
 logs/
 *.log
