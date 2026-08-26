@@ -299,9 +299,27 @@ export default function Topbar({}: TopbarProps) {
 
   const lowStockList: any[] = Array.isArray(lowStock) ? lowStock : [];
   const lowStockCount = lowStockList.length;
-  const pendingRequestsList: DeletionRequest[] = Array.isArray(deletionReqsData)
+
+  // For Ministry: reviews all pending structural and regional requests
+  // For Regional orgs: ONLY reviews internal employee ASSET requests; NEVER reviews self-requests or structural requests awaiting Ministry!
+  const rawPendingRequests: DeletionRequest[] = Array.isArray(deletionReqsData)
     ? deletionReqsData
     : (deletionReqsData as any)?.data || [];
+
+  const pendingRequestsList: DeletionRequest[] = rawPendingRequests.filter((req: any) => {
+    // 1. Anti-fraud: Never show your own request as a task for you to approve
+    if (req.requestedById === user?.id || req.requestedBy?.id === user?.id) {
+      return false;
+    }
+
+    if (isMinistry) {
+      return true;
+    }
+
+    // Regional admins / omborchis only approve employee internal ASSET requests
+    return req.entityType === 'ASSET';
+  });
+
   const pendingReqCount = canManageRequests ? pendingRequestsList.length : 0;
 
   // Filter employee's recent reviewed requests that are unread
@@ -694,10 +712,18 @@ export default function Topbar({}: TopbarProps) {
                         >
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-semibold text-[10px] text-teal-800 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/70 px-2 py-0.5 rounded-full">
-                              {reqType === "Ta'mirlash" ? "🛠️ Ta'mirlash so'rovi" : "📦 Qaytarish so'rovi"}
+                              {req.entityType === 'PRODUCT'
+                                ? `🗑️ Mahsulot (${req.organization?.name || 'Boshqarma'})`
+                                : req.entityType === 'USER'
+                                ? `👤 Xodim (${req.organization?.name || 'Boshqarma'})`
+                                : req.entityType === 'DEPARTMENT'
+                                ? `🏢 Bo'lim (${req.organization?.name || 'Boshqarma'})`
+                                : reqType === "Ta'mirlash"
+                                ? "🛠️ Ta'mirlash so'rovi"
+                                : "📦 Qaytarish so'rovi"}
                             </span>
                             <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
-                              {req.requestedBy?.fullName || 'Xodim'}
+                              {req.requestedBy?.fullName || req.requestedBy?.username || 'Mas\'ul'}
                             </span>
                           </div>
 

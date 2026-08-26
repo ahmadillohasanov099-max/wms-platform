@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { EventsGateway } from '../events/events.gateway';
 import { TelegramService } from '../nodemailer/telegram.service';
@@ -135,6 +140,45 @@ export class RequestsService {
       throw new BadRequestException("Ushbu so'rov allaqachon ko'rib chiqilgan");
     }
 
+    // Fetch reviewer information
+    const reviewer = await this.prisma.user.findUnique({
+      where: { id: reviewerId },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    if (!reviewer) {
+      throw new NotFoundException("Ko'rib chiquvchi foydalanuvchi topilmadi");
+    }
+
+    const isMinistryAdmin =
+      reviewer.role === 'SUPER_ADMIN' ||
+      reviewer.role === 'VAZIRLIK_OMBORCHI';
+
+    // 1. Anti-fraud check: Nobody can approve their own request
+    if (request.requestedById === reviewerId) {
+      throw new BadRequestException(
+        "O'zingiz yuborgan so'rovni o'zingiz tasdiqlay olmaysiz!",
+      );
+    }
+
+    // 2. Permission check: Structural resource deletions MUST be approved ONLY by Ministry
+    if (
+      request.entityType === EntityType.PRODUCT ||
+      request.entityType === EntityType.USER ||
+      request.entityType === EntityType.DEPARTMENT
+    ) {
+      if (!isMinistryAdmin) {
+        throw new ForbiddenException(
+          "Ushbu tizimli resursni o'chirish/tasdiqlash faqat Bosh Vazirlik (Super Admin) huquqida!",
+        );
+      }
+    } else if (request.entityType === EntityType.ASSET) {
+      // Internal employee return/repair: Must belong to the reviewer's organization unless ministry
+      if (!isMinistryAdmin && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+        throw new ForbiddenException("Siz boshqa tashkilot jihoz so'rovini tasdiqlay olmaysiz");
+      }
+    }
+
     const now = new Date();
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -163,7 +207,7 @@ export class RequestsService {
             data: { status: AssetStatus.ACTIVE },
           });
 
-          // 3. Increment central warehouse inventory quantity (+1)
+          // 3. Increment warehouse inventory quantity (+1)
           await tx.inventory.updateMany({
             where: { productId: asset.productId },
             data: { quantity: { increment: 1 } },
@@ -195,44 +239,112 @@ export class RequestsService {
         }
       } else if (request.entityType === EntityType.PRODUCT) {
         const product = await tx.product.findFirst({
-          where: { id: request.entityId },
+          where: { id: request.entityId, deletedAt: null },
+          include: { inventory: true },
         });
 
-        if (product) {
-          await tx.product.update({
-            where: { id: request.entityId },
-            data: { deletedAt: now },
-          });
-
-          // Record WRITE_OFF Operation in History
-          await tx.operation.create({
-            data: {
-              type: OperationType.WRITE_OFF,
-              quantity: 1,
-              organizationId: request.organizationId,
-              productId: product.id,
-              userId: request.requestedById,
-              performedById: reviewerId,
-              documentNumber: `DEL-${request.id.slice(-6).toUpperCase()}`,
-              note: dto.reviewComment
-                ? `[So'rov bo'yicha hisobdan chiqarildi]: ${request.reason} (Izoh: ${dto.reviewComment})`
-                : `[So'rov bo'yicha hisobdan chiqarildi]: ${request.reason}`,
-            },
-          });
+        if (!product) {
+          throw new NotFoundException("O'chirilishi so'ralayotgan mahsulot topilmadi yoki allaqachon o'chirilgan");
         }
+
+        // 1. Strict Integrity: Check active assignments with employees
+        const activeAssignments = await tx.assignment.count({
+          where: {
+            asset: { productId: product.id },
+            returnedAt: null,
+          },
+        });
+
+        if (activeAssignments > 0) {
+          throw new BadRequestException(
+            `Ushbu mahsulot (${activeAssignments} ta) xodimlar zimmasida biriktirilgan! Uni o'chirish yoki hisobdan chiqarish uchun avval barcha xodimlardan omborga qaytarib olinishi shart.`,
+          );
+        }
+
+        // 2. Strict Integrity: Check department allocations
+        const deptAssets = await tx.departmentAsset.aggregate({
+          where: { productId: product.id },
+          _sum: { quantity: true },
+        });
+
+        if (deptAssets._sum.quantity && deptAssets._sum.quantity > 0) {
+          throw new BadRequestException(
+            `Ushbu mahsulot (${deptAssets._sum.quantity} ta) bo'limlar hisobida mavjud! Avval bo'limlardan omborga qaytarib olinishi shart.`,
+          );
+        }
+
+        // 3. Strict Integrity: Check warehouse balance
+        if (product.inventory && product.inventory.quantity > 0) {
+          throw new BadRequestException(
+            `Ushbu mahsulot omborda mavjud (qoldiq: ${product.inventory.quantity} ta)! Omborda bor tovar o'chirilmaydi.`,
+          );
+        }
+
+        // Soft delete product
+        await tx.product.update({
+          where: { id: request.entityId },
+          data: { deletedAt: now },
+        });
+
+        // Soft delete asset records
+        await tx.asset.updateMany({
+          where: { productId: product.id, deletedAt: null },
+          data: { deletedAt: now },
+        });
+
+        // Record WRITE_OFF Operation in History
+        await tx.operation.create({
+          data: {
+            type: OperationType.WRITE_OFF,
+            quantity: 1,
+            organizationId: request.organizationId,
+            productId: product.id,
+            userId: request.requestedById,
+            performedById: reviewerId,
+            documentNumber: `DEL-${request.id.slice(-6).toUpperCase()}`,
+            note: dto.reviewComment
+              ? `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason} (Izoh: ${dto.reviewComment})`
+              : `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason}`,
+          },
+        });
       } else if (request.entityType === EntityType.USER) {
+        const userAssignments = await tx.assignment.count({
+          where: { userId: request.entityId, returnedAt: null },
+        });
+
+        if (userAssignments > 0) {
+          throw new BadRequestException(
+            `Xodim zimmasida (${userAssignments} ta) qaytarilmagan jihozlar mavjud! Avval barcha jihozlar omborga qaytarilishi shart.`,
+          );
+        }
+
         await tx.user.updateMany({
           where: { id: request.entityId },
           data: { deletedAt: now, isActive: false },
         });
+
+        await tx.refreshToken.updateMany({
+          where: { userId: request.entityId, revokedAt: null },
+          data: { revokedAt: now },
+        });
       } else if (request.entityType === EntityType.DEPARTMENT) {
+        const deptUsers = await tx.user.count({
+          where: { departmentId: request.entityId, deletedAt: null },
+        });
+
+        if (deptUsers > 0) {
+          throw new BadRequestException(
+            `Bo'limda (${deptUsers} ta) faol xodimlar mavjud! Avval xodimlarni boshqa bo'limga o'tkazing.`,
+          );
+        }
+
         await tx.department.updateMany({
           where: { id: request.entityId },
           data: { deletedAt: now },
         });
       }
 
-      // 5. Update request status to APPROVED
+      // Update request status to APPROVED
       return tx.deletionRequest.update({
         where: { id },
         data: {
@@ -254,7 +366,7 @@ export class RequestsService {
       void this.telegramService.sendUserNotificationAlert(
         result.requestedById,
         "So'rov / Murojaat Tasdiqlandi",
-        `Siz yuborgan so'rov/murojaat administrator va omborchi tomonidan ko'rib chiqilib, tasdiqlandi. ${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
+        `Siz yuborgan so'rov/murojaat Bosh Vazirlik tomonidan ko'rib chiqilib, tasdiqlandi. ${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
       );
     }
     return result;
@@ -265,6 +377,44 @@ export class RequestsService {
 
     if (request.status !== RequestStatus.PENDING) {
       throw new BadRequestException("Ushbu so'rov allaqachon ko'rib chiqilgan");
+    }
+
+    // Fetch reviewer information
+    const reviewer = await this.prisma.user.findUnique({
+      where: { id: reviewerId },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    if (!reviewer) {
+      throw new NotFoundException("Ko'rib chiquvchi foydalanuvchi topilmadi");
+    }
+
+    const isMinistryAdmin =
+      reviewer.role === 'SUPER_ADMIN' ||
+      reviewer.role === 'VAZIRLIK_OMBORCHI';
+
+    // 1. Anti-fraud check: Nobody can reject their own request
+    if (request.requestedById === reviewerId) {
+      throw new BadRequestException(
+        "O'zingiz yuborgan so'rovni o'zingiz rad eta olmaysiz!",
+      );
+    }
+
+    // 2. Permission check: Structural resource deletions MUST be rejected ONLY by Ministry
+    if (
+      request.entityType === EntityType.PRODUCT ||
+      request.entityType === EntityType.USER ||
+      request.entityType === EntityType.DEPARTMENT
+    ) {
+      if (!isMinistryAdmin) {
+        throw new ForbiddenException(
+          "Ushbu so'rovni rad etish faqat Bosh Vazirlik (Super Admin) huquqida!",
+        );
+      }
+    } else if (request.entityType === EntityType.ASSET) {
+      if (!isMinistryAdmin && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+        throw new ForbiddenException("Siz boshqa tashkilot so'rovini rad eta olmaysiz");
+      }
     }
 
     const comment = dto.reviewComment || dto.rejectionReason || 'Sabab ko‘rsatilmadi';
