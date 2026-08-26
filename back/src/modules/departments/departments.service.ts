@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -322,10 +323,10 @@ export class DepartmentsService {
 
     const oldDepartment = await this.findOne(id);
 
-    if (!isSuperOrMinistry && deleterUser?.organizationId) {
-      if (oldDepartment.organizationId && oldDepartment.organizationId !== deleterUser.organizationId) {
-        throw new BadRequestException("Siz boshqa tashkilot bo'limini o'chira olmaysiz");
-      }
+    if (!isSuperOrMinistry) {
+      throw new ForbiddenException(
+        "Quyi tashkilotlar uchun bo'limni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
+      );
     }
 
     const userCount = await this.prisma.user.count({

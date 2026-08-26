@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -465,6 +466,21 @@ export class UsersService {
   }
 
   async remove(id: string, deletedBy: string) {
+    const deleterUser = await this.prisma.user.findUnique({
+      where: { id: deletedBy },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    const isSuperOrMinistry =
+      deleterUser?.role === 'SUPER_ADMIN' ||
+      deleterUser?.role === 'VAZIRLIK_OMBORCHI';
+
+    if (!isSuperOrMinistry) {
+      throw new ForbiddenException(
+        "Quyi tashkilotlar uchun xodimni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
+      );
+    }
+
     await this.findOne(id);
 
     const activeAssignments = await this.prisma.assignment.count({

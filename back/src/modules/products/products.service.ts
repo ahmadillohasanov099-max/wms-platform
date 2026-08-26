@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -170,12 +171,11 @@ export class ProductsService {
       throw new NotFoundException(t('errors.PRODUCT_NOT_FOUND', {}, 'Mahsulot topilmadi'));
     }
 
-    if (!isSuperOrMinistry && deleterUser?.organizationId) {
-      if (product.organizationId && product.organizationId !== deleterUser.organizationId) {
-        throw new BadRequestException("Siz boshqa tashkilot mahsulotini o'chira olmaysiz");
-      }
+    if (!isSuperOrMinistry) {
+      throw new ForbiddenException(
+        "Quyi tashkilotlar uchun mahsulotni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
+      );
     }
-
 
     if (product.inventory && product.inventory.quantity > 0) {
       throw new BadRequestException(
