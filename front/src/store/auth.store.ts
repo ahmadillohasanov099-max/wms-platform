@@ -37,11 +37,11 @@ export const useAuthStore = create<AuthState>()(
       },
       isSubOrgUser: () => {
         const role = get().user?.role;
-        return role === 'ORG_ADMIN' || role === 'ORG_OMBORCHI';
+        return role !== 'SUPER_ADMIN' && role !== 'VAZIRLIK_OMBORCHI';
       },
       canDirectDelete: () => {
         const role = get().user?.role;
-        return role === 'SUPER_ADMIN' || role === 'ADMIN';
+        return role === 'SUPER_ADMIN' || role === 'VAZIRLIK_OMBORCHI';
       },
     }),
     {
