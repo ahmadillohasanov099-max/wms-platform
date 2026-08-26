@@ -5,6 +5,7 @@ import { TelegramService } from '../nodemailer/telegram.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ReviewRequestDto } from './dto/review-request.dto';
 import { AssetStatus, EntityType, OperationType, RequestStatus } from '@prisma/client';
+import { enforceTenantOrgId } from 'src/common/helper/tenant.helper';
 
 @Injectable()
 export class RequestsService {
@@ -72,10 +73,11 @@ export class RequestsService {
     return newRequest;
   }
 
-  async findAll(status?: RequestStatus, organizationId?: string) {
+  async findAll(status?: RequestStatus, targetOrgId?: string, currentUser?: any) {
+    const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
     const where: any = {};
     if (status) where.status = status;
-    if (organizationId) where.organizationId = organizationId;
+    if (resolvedOrgId) where.organizationId = resolvedOrgId;
 
     return this.prisma.deletionRequest.findMany({
       where,
@@ -88,12 +90,14 @@ export class RequestsService {
     });
   }
 
-  async findMyRequests(userId?: string, organizationId?: string) {
+  async findMyRequests(userId?: any, organizationId?: any) {
+    const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : typeof userId === 'string' ? userId : '';
+    const actualOrgId = typeof organizationId === 'string' ? organizationId : '';
     const where: any = {};
-    if (userId) {
-      where.requestedById = userId;
-    } else if (organizationId) {
-      where.organizationId = organizationId;
+    if (actualUserId) {
+      where.requestedById = actualUserId;
+    } else if (actualOrgId) {
+      where.organizationId = actualOrgId;
     }
 
     return this.prisma.deletionRequest.findMany({
