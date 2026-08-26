@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { usersApi, deletionRequestsApi } from '../../api';
+import { usersApi, requestsApi } from '../../api';
 import { socketService } from '../../lib/socket';
 import { PageLoader } from '../../components/ui/spinner';
 import PageHeader from '../../components/ui/page-header';
@@ -29,10 +29,10 @@ export default function ProfileAssetsPage() {
     enabled: !!user?.id,
   });
 
-  // Fetch employee's active deletion/return requests from API
+  // Fetch employee's active requests from API
   const { data: myRequestsData } = useQuery({
-    queryKey: ['my-deletion-requests', user?.id],
-    queryFn: () => deletionRequestsApi.getMy(),
+    queryKey: ['my-requests', user?.id],
+    queryFn: () => requestsApi.getMy(),
     enabled: !!user?.id,
     refetchInterval: 8000,
   });
@@ -42,16 +42,21 @@ export default function ProfileAssetsPage() {
     const socket = socketService.getSocket() || socketService.connect();
 
     const handleRefetch = () => {
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['profile-history'] });
     };
 
+    socket.on('request:created', handleRefetch);
+    socket.on('request:updated', handleRefetch);
     socket.on('deletion-request:created', handleRefetch);
     socket.on('deletion-request:updated', handleRefetch);
     socket.on('assignment:updated', handleRefetch);
 
     return () => {
+      socket.off('request:created', handleRefetch);
+      socket.off('request:updated', handleRefetch);
       socket.off('deletion-request:created', handleRefetch);
       socket.off('deletion-request:updated', handleRefetch);
       socket.off('assignment:updated', handleRefetch);

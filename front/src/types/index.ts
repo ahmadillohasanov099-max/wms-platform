@@ -6,5 +6,5 @@ export * from "./inventory.types";
 export * from "./operation.types";
 export * from "./stats.types";
 export * from "./organization.types";
-export * from "./deletion-request.types";
+export * from "./request.types";
 export * from "./audit.types";

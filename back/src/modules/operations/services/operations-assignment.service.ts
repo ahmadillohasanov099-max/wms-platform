@@ -834,7 +834,7 @@ export class OperationsAssignmentService {
           },
         });
 
-        this.eventsGateway.broadcastDeletionRequestCreated(notif);
+        this.eventsGateway.broadcastRequestCreated(notif);
       }
 
       this.eventsGateway.broadcastAssignmentUpdated({

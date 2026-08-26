@@ -66,7 +66,8 @@ export const translations = {
       "profileActivity": "So'nggi harakatlar",
       "profileSecurity": "Parolni almashtirish",
       "logout": "Chiqish",
-      "deletionRequests": "O'chirish so'rovlari",
+      "requests": "So'rovlar va Bildirishnomalar",
+      "deletionRequests": "So'rovlar va Bildirishnomalar",
       "organizations": "Tashkilotlar",
       "assignedAssets": "Berilgan jihozlar",
       "auditLogs": "Audit Loglar"

@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import Modal from '../../../components/ui/modal';
 import Button from '../../../components/ui/button';
 import { RotateCcw, Wrench, CheckCircle2 } from 'lucide-react';
-import { deletionRequestsApi } from '../../../api';
+import { requestsApi } from '../../../api';
 
 interface Props {
   assetItem: any | null;
@@ -28,8 +28,8 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
     try {
       const typePrefix = requestType === 'RETURN' ? "Qaytarish: " : "Ta'mirlash: ";
       
-      await deletionRequestsApi.create({
-        entityType: 'ASSET' as any,
+      await requestsApi.create({
+        entityType: 'ASSET',
         entityId: assetItem.asset.id,
         reason: `${typePrefix}${requestReason.trim()}`,
       });

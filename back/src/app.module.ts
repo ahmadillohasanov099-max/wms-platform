@@ -20,7 +20,7 @@ import { StatsModule } from './modules/stats';
 import { MailModule } from './modules/nodemailer';
 import { EventsModule } from './modules/events';
 import { OrganizationsModule } from './modules/organizations';
-import { DeletionRequestsModule } from './modules/deletion-requests';
+import { RequestsModule } from './modules/requests';
 import { AuditModule, AuditInterceptor } from './modules/audit';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -62,7 +62,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     AuditModule,
     AuthModule,
     OrganizationsModule,
-    DeletionRequestsModule,
+    RequestsModule,
     CommonModule,
     DepartmentsModule,
     UsersModule,

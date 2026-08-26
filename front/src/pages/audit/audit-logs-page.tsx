@@ -139,6 +139,7 @@ export default function AuditLogsPage() {
     { value: 'PRODUCT', label: t('inventory.productName') },
     { value: 'DEPARTMENT', label: t('dashboard.departments') },
     { value: 'INVENTORY', label: t('menu.inventory') },
+    { value: 'REQUEST', label: "So'rovlar va Bildirishnomalar" },
     { value: 'DELETION_REQUEST', label: t('menu.deletionRequests') },
   ];
 

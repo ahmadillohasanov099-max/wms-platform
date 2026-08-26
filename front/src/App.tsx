@@ -21,7 +21,7 @@ import ProfileDepartmentPage from "./pages/profile/profile-department-page";
 import ProfileAssetsPage from "./pages/profile/profile-assets-page";
 import ProfileActivityPage from "./pages/profile/profile-activity-page";
 import ProfileSecurityPage from "./pages/profile/profile-security-page";
-import DeletionRequestsPage from "./pages/deletion-requests/deletion-requests-page";
+import RequestsPage from "./pages/requests/requests-page";
 import AuditLogsPage from "./pages/audit/audit-logs-page";
 import AuditLogDetailPage from "./pages/audit/audit-log-detail-page";
 import OrganizationsPage from "./pages/organizations/organizations-page";
@@ -99,8 +99,13 @@ export default function App() {
           />
 
           <Route
+            path="/requests"
+            element={<RequestsPage />}
+          />
+
+          <Route
             path="/deletion-requests"
-            element={<DeletionRequestsPage />}
+            element={<RequestsPage />}
           />
 
           <Route

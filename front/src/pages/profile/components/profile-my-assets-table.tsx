@@ -51,6 +51,8 @@ export default function ProfileMyAssetsTable({
       toast.success(res?.message || "Jihoz muvaffaqiyatli qabul qilindi!");
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
     },
     onError: (err: any) => {
@@ -65,6 +67,8 @@ export default function ProfileMyAssetsTable({
       toast.success(res?.message || "Jihoz rad etildi va omborga qaytarildi");
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
       setRejectingItem(null);
     },

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import Modal from '../ui/modal';
 import Button from '../ui/button';
-import { deletionRequestsApi } from '../../api';
+import { requestsApi } from '../../api';
 import type { DeletionEntityType } from '../../types';
 
 interface RequestDeletionModalProps {
@@ -41,7 +41,7 @@ export default function RequestDeletionModal({
 
     setLoading(true);
     try {
-      await deletionRequestsApi.create({
+      await requestsApi.create({
         entityType,
         entityId,
         reason: reason.trim(),

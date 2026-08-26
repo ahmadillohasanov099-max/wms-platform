@@ -39,6 +39,7 @@ export default function DepartmentAssetsTab({
       toast.success(res?.message || "Bo'lim jihozi muvaffaqiyatli qabul qilindi!");
       queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-department-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
     },
     onError: (err: any) => {
@@ -53,6 +54,7 @@ export default function DepartmentAssetsTab({
       toast.success(res?.message || "Jihoz rad etildi va omborga qaytarildi");
       queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-department-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
       setRejectingItem(null);
     },

@@ -38,8 +38,14 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ─── REALTIME BROADCAST METHODLARI ──────────────────
 
-  broadcastDeletionRequestCreated(data: any) {
+  broadcastRequestCreated(data: any) {
     if (this.server) {
+      this.server.emit('request:created', {
+        type: 'REQUEST_CREATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+      // Backward compatibility
       this.server.emit('deletion-request:created', {
         type: 'DELETION_REQUEST_CREATED',
         timestamp: new Date().toISOString(),
@@ -48,14 +54,28 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  broadcastDeletionRequestUpdated(data: any) {
+  broadcastDeletionRequestCreated(data: any) {
+    this.broadcastRequestCreated(data);
+  }
+
+  broadcastRequestUpdated(data: any) {
     if (this.server) {
+      this.server.emit('request:updated', {
+        type: 'REQUEST_UPDATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+      // Backward compatibility
       this.server.emit('deletion-request:updated', {
         type: 'DELETION_REQUEST_UPDATED',
         timestamp: new Date().toISOString(),
         data,
       });
     }
+  }
+
+  broadcastDeletionRequestUpdated(data: any) {
+    this.broadcastRequestUpdated(data);
   }
 
   broadcastOffboardingStarted(data: any) {

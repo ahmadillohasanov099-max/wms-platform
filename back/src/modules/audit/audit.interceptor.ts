@@ -125,9 +125,11 @@ export class AuditInterceptor implements NestInterceptor {
   private resolveActionName(method: string, url: string, payload: any): string {
     if (url.includes('/auth/login')) return 'USER_LOGIN';
     if (url.includes('/auth/logout')) return 'USER_LOGOUT';
-    if (url.includes('/deletion-requests') && method === 'POST') return 'CREATE_DELETION_REQUEST';
-    if (url.includes('/deletion-requests') && url.includes('/approve')) return 'APPROVE_DELETION_REQUEST';
-    if (url.includes('/deletion-requests') && url.includes('/reject')) return 'REJECT_DELETION_REQUEST';
+    if ((url.includes('/requests') || url.includes('/deletion-requests')) && method === 'POST') {
+      if (url.includes('/approve')) return 'APPROVE_REQUEST';
+      if (url.includes('/reject')) return 'REJECT_REQUEST';
+      return 'CREATE_REQUEST';
+    }
 
     const segments = url.split('?')[0].split('/').filter(Boolean);
     const mainSegment = segments[segments.length - 1] || segments[0] || 'RESOURCE';
@@ -155,7 +157,7 @@ export class AuditInterceptor implements NestInterceptor {
     if (cleanUrl.includes('/departments')) return 'DEPARTMENT';
     if (cleanUrl.includes('/organizations')) return 'ORGANIZATION';
     if (cleanUrl.includes('/operations')) return 'OPERATION';
-    if (cleanUrl.includes('/deletion-requests')) return 'DELETION_REQUEST';
+    if (cleanUrl.includes('/requests') || cleanUrl.includes('/deletion-requests')) return 'REQUEST';
     if (cleanUrl.includes('/auth')) return 'AUTH';
     return 'SYSTEM';
   }

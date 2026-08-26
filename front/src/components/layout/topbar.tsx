@@ -782,11 +782,11 @@ export default function Topbar({}: TopbarProps) {
                 <button
                   onClick={() => {
                     setBellOpen(false);
-                    navigate('/deletion-requests');
+                    navigate('/requests');
                   }}
                   className="w-full py-1.5 px-3 rounded-lg text-teal-600 hover:text-teal-700 dark:text-teal-400 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>So'rovlar tarixi</span>
+                  <span>Barcha so'rov va bildirishnomalar</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

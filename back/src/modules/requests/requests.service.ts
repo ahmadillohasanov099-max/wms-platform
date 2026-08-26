@@ -2,19 +2,19 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from 'src/prisma';
 import { EventsGateway } from '../events/events.gateway';
 import { TelegramService } from '../nodemailer/telegram.service';
-import { CreateDeletionRequestDto } from './dto/create-deletion-request.dto';
-import { ReviewDeletionRequestDto } from './dto/review-deletion-request.dto';
+import { CreateRequestDto } from './dto/create-request.dto';
+import { ReviewRequestDto } from './dto/review-request.dto';
 import { AssetStatus, EntityType, OperationType, RequestStatus } from '@prisma/client';
 
 @Injectable()
-export class DeletionRequestsService {
+export class RequestsService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
     private telegramService: TelegramService,
   ) {}
 
-  async create(userId: any, organizationId: string, dto: CreateDeletionRequestDto) {
+  async create(userId: any, organizationId: string, dto: CreateRequestDto) {
     const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : String(userId || '');
     const user = await this.prisma.user.findUnique({ where: { id: actualUserId } });
     if (!user) throw new NotFoundException("Foydalanuvchi topilmadi");
@@ -36,19 +36,19 @@ export class DeletionRequestsService {
         where: { id: dto.entityId },
         include: { product: true },
       });
-      if (!asset) throw new NotFoundException("O'chirish/qaytarish so'ralayotgan jihoz (Asset) topilmadi");
+      if (!asset) throw new NotFoundException("So'ralayotgan jihoz (Asset) topilmadi");
       entityName = entityName || `${asset.product?.name || 'Jihoz'} (Inv: ${asset.inventoryNumber})`;
     } else if (dto.entityType === EntityType.PRODUCT) {
       const product = await this.prisma.product.findUnique({ where: { id: dto.entityId } });
-      if (!product) throw new NotFoundException("O'chirish so'ralayotgan mahsulot (Product) topilmadi");
+      if (!product) throw new NotFoundException("So'ralayotgan mahsulot (Product) topilmadi");
       entityName = entityName || product.name;
     } else if (dto.entityType === EntityType.USER) {
       const u = await this.prisma.user.findUnique({ where: { id: dto.entityId } });
-      if (!u) throw new NotFoundException("O'chirish so'ralayotgan xodim topilmadi");
+      if (!u) throw new NotFoundException("So'ralayotgan xodim topilmadi");
       entityName = entityName || u.fullName;
     } else if (dto.entityType === EntityType.DEPARTMENT) {
       const dept = await this.prisma.department.findUnique({ where: { id: dto.entityId } });
-      if (!dept) throw new NotFoundException("O'chirish so'ralayotgan bo'lim topilmadi");
+      if (!dept) throw new NotFoundException("So'ralayotgan bo'lim topilmadi");
       entityName = entityName || dept.name;
     }
 
@@ -68,7 +68,7 @@ export class DeletionRequestsService {
       },
     });
 
-    this.eventsGateway.broadcastDeletionRequestCreated(newRequest);
+    this.eventsGateway.broadcastRequestCreated(newRequest);
     return newRequest;
   }
 
@@ -124,7 +124,7 @@ export class DeletionRequestsService {
     return req;
   }
 
-  async approve(id: string, reviewerId: string, dto: ReviewDeletionRequestDto) {
+  async approve(id: string, reviewerId: string, dto: ReviewRequestDto) {
     const request = await this.findOne(id);
 
     if (request.status !== RequestStatus.PENDING) {
@@ -245,7 +245,7 @@ export class DeletionRequestsService {
       });
     });
 
-    this.eventsGateway.broadcastDeletionRequestUpdated(result);
+    this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
       void this.telegramService.sendUserNotificationAlert(
         result.requestedById,
@@ -256,7 +256,7 @@ export class DeletionRequestsService {
     return result;
   }
 
-  async reject(id: string, reviewerId: string, dto: ReviewDeletionRequestDto) {
+  async reject(id: string, reviewerId: string, dto: ReviewRequestDto) {
     const request = await this.findOne(id);
 
     if (request.status !== RequestStatus.PENDING) {
@@ -279,7 +279,7 @@ export class DeletionRequestsService {
       },
     });
 
-    this.eventsGateway.broadcastDeletionRequestUpdated(result);
+    this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
       void this.telegramService.sendUserNotificationAlert(
         result.requestedById,
@@ -290,3 +290,5 @@ export class DeletionRequestsService {
     return result;
   }
 }
+
+export { RequestsService as DeletionRequestsService };
