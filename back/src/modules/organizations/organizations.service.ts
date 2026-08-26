@@ -154,7 +154,38 @@ export class OrganizationsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const org = await this.findOne(id);
+    if (org.type === 'MINISTRY') {
+      throw new BadRequestException("Bosh Vazirlik (Markaziy tashkilot)ni o'chirish mutlaqo taqiqlanadi!");
+    }
+
+    const activeUsers = await this.prisma.user.count({
+      where: { organizationId: id, deletedAt: null },
+    });
+    if (activeUsers > 0) {
+      throw new BadRequestException(
+        `Ushbu tashkilotda (${activeUsers} ta) faol xodimlar mavjud! Avval xodimlarni boshqa tashkilotga o'tkazing yoki tizimdan chiqaring.`,
+      );
+    }
+
+    const activeDepts = await this.prisma.department.count({
+      where: { organizationId: id, deletedAt: null },
+    });
+    if (activeDepts > 0) {
+      throw new BadRequestException(
+        `Ushbu tashkilotda (${activeDepts} ta) bo'limlar mavjud! Avval bo'limlarni o'chiring.`,
+      );
+    }
+
+    const activeProducts = await this.prisma.product.count({
+      where: { organizationId: id, deletedAt: null },
+    });
+    if (activeProducts > 0) {
+      throw new BadRequestException(
+        `Ushbu tashkilot omborida mahsulotlar mavjud! Avval omborni tozalang.`,
+      );
+    }
+
     return this.prisma.organization.update({
       where: { id },
       data: { deletedAt: new Date() },

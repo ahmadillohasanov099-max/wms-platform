@@ -50,6 +50,13 @@ export class OperationsAssignmentService {
     });
     if (!user) throw new NotFoundException('Xodim topilmadi');
 
+    if (!user.isActive) {
+      throw new BadRequestException("Nofaol (bloklangan) xodimga jihoz berish taqiqlangan!");
+    }
+    if (user.employmentStatus && user.employmentStatus !== 'ACTIVE') {
+      throw new BadRequestException("Ishdan bo'shash jarayonidagi yoki bo'shatilgan xodimga jihoz berish taqiqlangan!");
+    }
+
     if (!isSuperOrMinistry && performerOrgId) {
       if (user.organizationId && user.organizationId !== performerOrgId) {
         throw new BadRequestException('Ushbu xodim sizning tashkilotingizga tegishli emas!');
@@ -429,6 +436,13 @@ export class OperationsAssignmentService {
       where: { id: dto.toUserId, deletedAt: null },
     });
     if (!toUser) throw new NotFoundException('Xodim topilmadi');
+
+    if (!toUser.isActive) {
+      throw new BadRequestException("Qabul qiluvchi xodim nofaol (bloklangan)!");
+    }
+    if (toUser.employmentStatus && toUser.employmentStatus !== 'ACTIVE') {
+      throw new BadRequestException("Qabul qiluvchi xodim ishdan bo'shash jarayonida!");
+    }
 
     if (!isSuperOrMinistry && performerOrgId && toUser.organizationId && toUser.organizationId !== performerOrgId) {
       throw new BadRequestException('Qabul qiluvchi xodim sizning tashkilotingizga tegishli emas!');

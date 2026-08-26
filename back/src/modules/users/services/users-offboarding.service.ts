@@ -136,6 +136,11 @@ export class UsersOffboardingService {
         data: { returnedAt: now },
       });
 
+      await this.prisma.asset.update({
+        where: { id: assignment.assetId },
+        data: { status: 'ACTIVE' },
+      });
+
       await this.prisma.inventory.updateMany({
         where: { productId: assignment.asset.productId },
         data: { quantity: { increment: 1 } },
