@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { operationsApi, departmentsApi, historyApi } from '../../api';
+import { operationsApi, departmentsApi } from '../../api';
 import Modal from '../../components/ui/modal';
 import Input from '../../components/ui/input';
 import Select from '../../components/ui/select';
@@ -40,33 +40,49 @@ export default function ReturnFromDeptModal({ open, onClose }: Props) {
     queryFn: () => departmentsApi.getAll(),
     enabled: open,
   });
-  const { data: deptHistoryData } = useQuery({
-    queryKey: ['dept-assigned-history-for-return', selectedDepartmentId],
-    queryFn: () => historyApi.getAll({ departmentId: selectedDepartmentId, limit: 100 }),
+  const { data: deptDetailData } = useQuery({
+    queryKey: ['dept-detail-for-return', selectedDepartmentId],
+    queryFn: () => departmentsApi.getOne(selectedDepartmentId),
     enabled: !!selectedDepartmentId && open,
   });
   const deptOptions = (deptsData ?? []).map((d: any) => ({
     value: d.id,
     label: d.name,
   }));
-  const deptHistoryItems: any[] = deptHistoryData?.items ?? [];
-  const itemOptionsMap = new Map<string, { value: string; productId: string; assetId?: string; isAsset: boolean; label: string }>();
-  deptHistoryItems.forEach((item: any) => {
-    if (item.productId && item.product) {
-      const isAsset = item.product.productType === 'BERILADIGAN';
-      const key = isAsset && (item.assetId || item.asset?.id) ? `${item.productId}_${item.assetId || item.asset?.id}` : item.productId;
-      const invText = item.asset?.inventoryNumber ? ` [Inv: ${item.asset.inventoryNumber}]` : '';
-      if (!itemOptionsMap.has(key)) {
-        itemOptionsMap.set(key, {
-          value: key,
-          productId: item.productId,
-          assetId: item.assetId || item.asset?.id,
-          isAsset,
-          label: `${item.product.name}${invText}`,
-        });
-      }
+
+  const itemOptionsMap = new Map<string, { value: string; productId: string; assetId?: string; isAsset: boolean; label: string; maxQuantity: number }>();
+
+  const deptAssignments: any[] = deptDetailData?.assignments ?? [];
+  deptAssignments.forEach((asgn: any) => {
+    if (asgn.asset && asgn.asset.product) {
+      const key = `${asgn.asset.productId}_${asgn.assetId}`;
+      const invText = asgn.asset.inventoryNumber ? ` [Inv: ${asgn.asset.inventoryNumber}]` : '';
+      itemOptionsMap.set(key, {
+        value: key,
+        productId: asgn.asset.productId,
+        assetId: asgn.assetId,
+        isAsset: true,
+        maxQuantity: 1,
+        label: `${asgn.asset.product.name}${invText} (Asosiy vosita)`,
+      });
     }
   });
+
+  const deptAssets: any[] = deptDetailData?.departmentAssets ?? [];
+  deptAssets.forEach((da: any) => {
+    if (da.quantity > 0 && da.product) {
+      const key = da.productId;
+      itemOptionsMap.set(key, {
+        value: key,
+        productId: da.productId,
+        assetId: undefined,
+        isAsset: false,
+        maxQuantity: da.quantity,
+        label: `${da.product.name} (Qoldiq: ${da.quantity} ${da.product.unit || 'dona'})`,
+      });
+    }
+  });
+
   const selectedItemMeta = selectedKey ? itemOptionsMap.get(selectedKey) : null;
   useEffect(() => {
     if (selectedItemMeta?.isAsset) {

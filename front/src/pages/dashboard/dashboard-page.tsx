@@ -77,7 +77,7 @@ export default function DashboardPage() {
           value={statsLoading ? '...' : stats?.totalProducts ?? 0}
           icon={<Boxes className="w-5 h-5" />}
           color="green"
-          onClick={() => navigate('/products')}
+          onClick={() => navigate('/inventory')}
         />
         <StatCard
           label={t('dashboard.activeUsers')}
@@ -91,7 +91,7 @@ export default function DashboardPage() {
           value={statsLoading ? '...' : stats?.lowStockCount ?? 0}
           icon={<AlertTriangle className="w-5 h-5" />}
           color="red"
-          onClick={() => navigate('/products')}
+          onClick={() => navigate('/inventory')}
         />
         <StatCard
           label={t('dashboard.assignedAssets')}
