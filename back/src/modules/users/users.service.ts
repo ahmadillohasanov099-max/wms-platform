@@ -11,8 +11,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { t } from 'src/common';
-import * as xlsx from 'xlsx';
-import * as ExcelJS from 'exceljs';
 import { EventsGateway } from '../events/events.gateway';
 import { ActiveUser } from 'src/common/interfaces';
 import { TelegramService } from '../nodemailer/telegram.service';
