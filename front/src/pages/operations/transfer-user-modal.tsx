@@ -37,12 +37,33 @@ export default function TransferUserModal({ open, onClose }: Props) {
     queryFn: () => usersApi.getAssignments(fromUserId),
     enabled: !!fromUserId,
   });
-  const users = usersData?.items ?? [];
+  const rawUsers = usersData as any;
+  const allUsers: any[] = Array.isArray(rawUsers)
+    ? rawUsers
+    : Array.isArray(rawUsers?.items)
+    ? rawUsers.items
+    : Array.isArray(rawUsers?.data)
+    ? rawUsers.data
+    : [];
+
+  const activeUsers = allUsers.filter(
+    (u: any) => u.isActive !== false && (!u.employmentStatus || u.employmentStatus === 'ACTIVE')
+  );
+
   const assignments = assignmentsData ?? [];
-  const userOptions = users.map((u: any) => ({
+
+  const fromUserOptions = activeUsers.map((u: any) => ({
     value: u.id,
     label: `${u.fullName} (${u.department?.name ?? ''})`,
   }));
+
+  const toUserOptions = activeUsers
+    .filter((u: any) => u.id !== fromUserId)
+    .map((u: any) => ({
+      value: u.id,
+      label: `${u.fullName} (${u.department?.name ?? ''})`,
+    }));
+
   const assetOptions = assignments.map((a: any) => ({
     value: a.asset?.id,
     label: `${a.asset?.inventoryNumber} — ${a.asset?.product?.name}`,
@@ -84,7 +105,7 @@ export default function TransferUserModal({ open, onClose }: Props) {
       <div className="space-y-4">
         <Select
           label={t('operations.fromEmployee')}
-          options={userOptions}
+          options={fromUserOptions}
           placeholder={t('operations.validationEmployee')}
           error={errors.fromUserId?.message}
           required
@@ -103,7 +124,7 @@ export default function TransferUserModal({ open, onClose }: Props) {
         />
         <Select
           label={t('operations.toEmployee')}
-          options={userOptions}
+          options={toUserOptions}
           placeholder={t('operations.validationEmployee')}
           error={errors.toUserId?.message}
           required

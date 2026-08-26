@@ -93,15 +93,17 @@ export default function GiveToUserModal({ open, onClose }: Props) {
     ? rawUsersData.data.items
     : [];
 
-  const filteredUsers = usersList.filter((u: any) => {
-    const q = userSearch.toLowerCase().trim();
-    if (!q) return true;
-    const name = String(u.fullName || '').toLowerCase();
-    const uname = String(u.username || '').toLowerCase();
-    const dept = String(u.department?.name || '').toLowerCase();
-    const pos = String(u.position || '').toLowerCase();
-    return name.includes(q) || uname.includes(q) || dept.includes(q) || pos.includes(q);
-  });
+  const filteredUsers = usersList
+    .filter((u: any) => u.isActive !== false && (!u.employmentStatus || u.employmentStatus === 'ACTIVE'))
+    .filter((u: any) => {
+      const q = userSearch.toLowerCase().trim();
+      if (!q) return true;
+      const name = String(u.fullName || '').toLowerCase();
+      const uname = String(u.username || '').toLowerCase();
+      const dept = String(u.department?.name || '').toLowerCase();
+      const pos = String(u.position || '').toLowerCase();
+      return name.includes(q) || uname.includes(q) || dept.includes(q) || pos.includes(q);
+    });
 
   // Parse Products & Inventory List
   const rawInventoryData = inventoryData as any;

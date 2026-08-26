@@ -296,14 +296,23 @@ export class UsersExcelService {
 
     const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
 
+    const performer = await this.prisma.user.findUnique({
+      where: { id: performedById },
+      select: { id: true, role: true, organizationId: true },
+    });
+    const isSuperOrMinistry =
+      performer?.role === UserRole.SUPER_ADMIN ||
+      performer?.role === UserRole.VAZIRLIK_OMBORCHI;
+    const targetOrgId = performer?.organizationId || null;
+
     const existingUsers = await this.prisma.user.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...(targetOrgId ? { organizationId: targetOrgId } : {}) },
       select: { id: true, username: true },
     });
     const usernameSet = new Set(existingUsers.map((u) => u.username.toLowerCase()));
 
     const existingDepts = await this.prisma.department.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...(targetOrgId ? { organizationId: targetOrgId } : {}) },
       select: { id: true, name: true },
     });
     const deptMap = new Map<string, string>();
@@ -336,7 +345,11 @@ export class UsersExcelService {
 
       let userRole: UserRole = UserRole.XODIM;
       if (rawRole && Object.values(UserRole).includes(rawRole as UserRole)) {
-        userRole = rawRole as UserRole;
+        if (!isSuperOrMinistry && (rawRole === UserRole.SUPER_ADMIN || rawRole === UserRole.VAZIRLIK_OMBORCHI)) {
+          userRole = UserRole.XODIM;
+        } else {
+          userRole = rawRole as UserRole;
+        }
       }
 
       let deptId: string | undefined = undefined;
@@ -346,7 +359,7 @@ export class UsersExcelService {
           deptId = deptMap.get(key);
         } else {
           const newDept = await this.prisma.department.create({
-            data: { name: rawDeptName },
+            data: { name: rawDeptName, organizationId: targetOrgId },
           });
           deptId = newDept.id;
           deptMap.set(key, deptId);
@@ -404,6 +417,7 @@ export class UsersExcelService {
             passport: rawPassport,
             pinfl: rawPinfl,
             address: rawAddress,
+            organizationId: targetOrgId,
           },
         });
         usernameSet.add(rawUsername);
