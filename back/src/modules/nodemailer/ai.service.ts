@@ -214,8 +214,8 @@ export class AiService {
       `Murojaatchi oddiy XODIM: ${boundUser.fullName} (Lavozimi: ${boundUser.position || 'Xodim'}).\n\n` +
       `QAT'IY RUXSAT QOIDALARI:\n` +
       `1. Oddiy xodimlarga umumiy ombor qoldiqlari, zaxirasi kamaygan tovarlar, boshqa xodimlarning jihozlari, tizim statistikasi, barcha operatsiyalar tarixi va qaytarishlar hisobotlari KO'RSATILMAYDI.\n` +
-      `2. Agar foydalanuvchi taqiqlangan mavzular (ombor qoldiqlari, barcha bo'limlar, statistika, tarix, kam qolganlar, qaytarishlar) haqida so'rasa, QAT'IY TARZDA rad eting: "Kechirasiz, sizda umumiy ombor va boshqa xodimlar ma'lumotlarini ko'rish uchun ruxsat yo'q. Siz faqat '✍️ Omborchiga Murojaat' tugmasi orqali omborchiga murojaat yuborishingiz, o'zingizga biriktirilgan jihozlar yoki qo'llanmani ko'rishingiz mumkin."\n` +
-      `3. RUXSAT ETILGAN MAVZULAR: Qo'llanma, Administrator ma'lumotlari, Tizim holati, Bot maqsadi, Omborchiga murojaat yuborish, shaxsiy jihozlar, shaxsiy bo'lim va shaxsiy tarix.\n` +
+      `2. Agar foydalanuvchi taqiqlangan mavzular (ombor qoldiqlari, barcha bo'limlar, statistika, tarix, kam qolganlar, qaytarishlar) haqida so'rasa, QAT'IY TARZDA rad eting: "Kechirasiz, sizda umumiy ombor va boshqa xodimlar ma'lumotlarini ko'rish uchun ruxsat yo'q. Siz faqat o'zingizga biriktirilgan jihozlar yoki qo'llanmani ko'rishingiz mumkin."\n` +
+      `3. RUXSAT ETILGAN MAVZULAR: Qo'llanma, Administrator ma'lumotlari, Tizim holati, Bot maqsadi, shaxsiy jihozlar, shaxsiy bo'lim va shaxsiy tarix.\n` +
       `4. SALOMLASHMANG! HTML teglaridan (<b>, <code>, <i>) foydalaning.\n\n` +
       `XODIMNING SHAXSIY MA'LUMOTLARI:\n` +
       `- Biriktirilgan jihozlari:\n${context.userAssetsStr}\n\n` +
@@ -322,7 +322,7 @@ export class AiService {
       (q.includes('xodim') && !q.includes('bo\'lim') && !q.includes('hamkasb')) ||
       (q.includes('barcha') && !q.includes('jihoz'))
     ) {
-      return `⛔ <b>Ruxsat etilmadi!</b>\n\nKechirasiz, sizda ombor qoldiqlari, statistika va boshqa xodimlar ma'lumotlarini ko'rish uchun ruxsat yo'q. Siz "✍️ Omborchiga Murojaat" tugmasi orqali omborchiga murojaat yuborishingiz yoki o'zingizga biriktirilgan jihozlarni ko'rishingiz mumkin.`;
+      return `⛔ <b>Ruxsat etilmadi!</b>\n\nKechirasiz, sizda ombor qoldiqlari, statistika va boshqa xodimlar ma'lumotlarini ko'rish uchun ruxsat yo'q. Siz o'zingizga biriktirilgan jihozlarni ko'rishingiz mumkin.`;
     }
 
     // 1. Qo'llanma / Help
@@ -333,7 +333,6 @@ export class AiService {
         `• <b>📱 Mening Jihozlarim</b> — nomingizdagi aktiv va TMZ lar\n` +
         `• <b>🏢 Mening Bo'limim</b> — bo'limdagi hamkasblar\n` +
         `• <b>📜 Mening Tarixim</b> — topshirgan va olgan jihozlaringiz tarixi\n` +
-        `• <b>✍️ Omborchiga Murojaat</b> — omborchiga so'rov/murojaat yuborish\n` +
         `• <b>📞 Ichki Aloqa</b> — vazirlik mas'ullari telefon raqamlari`
       );
     }
@@ -344,8 +343,7 @@ export class AiService {
         `👨‍💼 <b>WMS ADMINISTRATOR VA OMBORCHILAR:</b>\n\n` +
         `📦 Bosh Omborchi: <b>Urinbadalov Abdulaziz</b> (+998 71 200 00 00)\n` +
         `👩‍💼 Kadrlar Bo'limi: <b>Karimova Shahnoza</b>\n` +
-        `💻 IT Admin: <b>Hasanov Ahmadillo</b>\n\n` +
-        `💡 <i>To'g'ridan-to'g'ri xabar yuborish uchun "✍️ Omborchiga Murojaat" tugmasidan foydalaning.</i>`
+        `💻 IT Admin: <b>Hasanov Ahmadillo</b>`
       );
     }
 
@@ -353,15 +351,7 @@ export class AiService {
     if (q.includes('tizim') || q.includes('maqsad') || q.includes('bot')) {
       return (
         `🏛 <b>WMS TIZIMI VA BOT MAQSADI:</b>\n\n` +
-        `Bot O'zbekiston Respublikasi Qurilish va Uy-Joy Kommunal Xo'jaligi Vazirligining ombor va moddiy aktivlarini hisobga olish, xodimlarga TMZ biriktirish hamda tezkor murojaatlar uchun mo'ljallangan.`
-      );
-    }
-
-    // 4. Murojaat
-    if (q.includes('murojaat') || q.includes('yozish') || q.includes('so\'rov')) {
-      return (
-        `✍️ <b>OMBORCHIGA MUROJAAT YUBORISH:</b>\n\n` +
-        `Omborchiga xabar yoki talabnoma yuborish uchun pastdagi <b>✍️ Omborchiga Murojaat</b> tugmasini bosing yoki matnni <code>murojaat: xabar matni</code> shaklida yuboring.`
+        `Bot O'zbekiston Respublikasi Qurilish va Uy-Joy Kommunal Xo'jaligi Vazirligining ombor va moddiy aktivlarini hisobga olish hamda xodimlarga TMZ biriktirish ma'lumotlarini ko'rish uchun mo'ljallangan.`
       );
     }
 

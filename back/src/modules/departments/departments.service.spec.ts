@@ -63,6 +63,15 @@ describe('DepartmentsService', () => {
       expect(prisma.department.findFirst).toHaveBeenCalledWith({
         where: { id: '1', deletedAt: null },
         include: {
+          leader: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              position: true,
+              phone: true,
+            },
+          },
           users: {
             where: { deletedAt: null, isActive: true },
             select: {

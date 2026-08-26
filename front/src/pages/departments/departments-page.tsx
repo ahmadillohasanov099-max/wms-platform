@@ -144,6 +144,11 @@ export default function DepartmentsPage() {
                   <h3 className="font-bold text-slate-900 dark:text-white text-base group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors duration-300">
                     {row.name}
                   </h3>
+                  {row.leader && (
+                    <p className="text-xs font-medium text-teal-600 dark:text-teal-400 flex items-center gap-1">
+                      <span className="text-slate-400 font-normal">Boshliq:</span> {row.leader.fullName}
+                    </p>
+                  )}
                   {row.description && (
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 transition-colors duration-300">
                       {row.description}

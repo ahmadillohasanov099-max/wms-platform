@@ -26,13 +26,12 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
 
     setLoading(true);
     try {
-      const typeLabel = requestType === 'RETURN' ? "[OMBORGA QAYTARISH]" : "[TA'MIRLASH/SERVIS]";
-      const assetInfo = `${assetItem?.asset?.product?.name || 'Jihoz'} (Inv: ${assetItem?.asset?.inventoryNumber || '—'})`;
+      const typePrefix = requestType === 'RETURN' ? "Qaytarish: " : "Ta'mirlash: ";
       
       await deletionRequestsApi.create({
         entityType: 'ASSET' as any,
         entityId: assetItem.asset.id,
-        reason: `${typeLabel} Jihoz: ${assetInfo}. ${requestReason.trim()}`,
+        reason: `${typePrefix}${requestReason.trim()}`,
       });
 
       onSubmitSuccess(assetItem.asset?.id, requestType, requestReason);

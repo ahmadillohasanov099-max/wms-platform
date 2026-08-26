@@ -15,6 +15,10 @@ export const deletionRequestsApi = {
     return api.get<any, { data: DeletionRequest[] } | DeletionRequest[]>('/deletion-requests', { params });
   },
 
+  getMy: async () => {
+    return api.get<any, { data: DeletionRequest[] } | DeletionRequest[]>('/deletion-requests/my');
+  },
+
   getById: async (id: string) => {
     return api.get<any, { data: DeletionRequest } | DeletionRequest>(`/deletion-requests/${id}`);
   },

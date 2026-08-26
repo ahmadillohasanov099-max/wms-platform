@@ -21,6 +21,7 @@ export class AuthService {
       where: { username: dto.username },
       include: {
         department: { select: { id: true, name: true } },
+        ledDepartments: { select: { id: true, name: true } },
         organization: { select: { id: true, name: true, code: true, type: true } },
       },
     });
@@ -58,6 +59,8 @@ export class AuthService {
         position: user.position,
         departmentId: user.departmentId,
         department: user.department ? { id: user.department.id, name: user.department.name } : null,
+        ledDepartments: user.ledDepartments || [],
+        isDepartmentLeader: (user.ledDepartments && user.ledDepartments.length > 0) || false,
         organizationId: user.organizationId,
         organization: user.organization ? { id: user.organization.id, name: user.organization.name, code: user.organization.code, type: user.organization.type } : null,
         phone: user.phone,

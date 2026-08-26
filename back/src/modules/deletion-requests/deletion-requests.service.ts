@@ -88,8 +88,23 @@ export class DeletionRequestsService {
     });
   }
 
-  async findMyRequests(organizationId: string) {
-    return this.findAll(undefined, organizationId);
+  async findMyRequests(userId?: string, organizationId?: string) {
+    const where: any = {};
+    if (userId) {
+      where.requestedById = userId;
+    } else if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
+    return this.prisma.deletionRequest.findMany({
+      where,
+      include: {
+        organization: { select: { id: true, name: true, code: true } },
+        requestedBy: { select: { id: true, fullName: true, username: true } },
+        reviewedBy: { select: { id: true, fullName: true, username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async findOne(id: string) {
@@ -248,12 +263,13 @@ export class DeletionRequestsService {
       throw new BadRequestException("Ushbu so'rov allaqachon ko'rib chiqilgan");
     }
 
+    const comment = dto.reviewComment || dto.rejectionReason || 'Sabab ko‘rsatilmadi';
     const result = await this.prisma.deletionRequest.update({
       where: { id },
       data: {
         status: RequestStatus.REJECTED,
         reviewedById: reviewerId,
-        reviewComment: dto.reviewComment,
+        reviewComment: comment,
         reviewedAt: new Date(),
       },
       include: {

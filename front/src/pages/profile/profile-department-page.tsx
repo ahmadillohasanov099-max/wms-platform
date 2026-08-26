@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import Card, { CardHeader, CardContent } from '../../components/ui/card';
 import { RoleBadge } from '../../components/ui/badge';
+import DepartmentAssetsTab from '../departments/components/department-assets-tab';
 import { cn } from '../../lib/utils';
 import {
   Building2,
@@ -16,12 +17,15 @@ import {
   Briefcase,
   UserCheck,
   AlertCircle,
+  Package,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function ProfileDepartmentPage() {
   const { user } = useAuthStore();
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'employees' | 'assets'>('employees');
 
   // Fetch logged-in user detail
   const { data: userDetailData } = useQuery({
@@ -67,6 +71,8 @@ export default function ProfileDepartmentPage() {
 
   const deptName = department?.name || currentUser?.department?.name || t('userView.noDept');
   const deptDesc = department?.description || "Bo'lim xodimlari va apparat tarkibi";
+  const isLeader = !!(department?.leaderId && currentUser?.id && department.leaderId === currentUser.id);
+  const deptAssignments = department?.assignments || [];
 
   const filteredEmployees = employees.filter((emp) => {
     const q = search.toLowerCase().trim();
@@ -112,10 +118,20 @@ export default function ProfileDepartmentPage() {
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-100 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-300/60 dark:border-teal-800">
                       {employees.length} ta xodim
                     </span>
+                    {isLeader && (
+                      <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500 text-white shadow-xs flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Siz bo'lim boshlig'isiz
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                     {deptDesc}
                   </p>
+                  {department?.leader && !isLeader && (
+                    <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 mt-1 flex items-center gap-1">
+                      <span className="text-gray-400 font-normal">Bo'lim rahbari:</span> {department.leader.fullName}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -138,18 +154,52 @@ export default function ProfileDepartmentPage() {
             </div>
           </div>
 
-          {/* Colleagues Section */}
-          <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
-            <CardHeader
-              title={
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                    <span className="font-bold">Bo'lim xodimlari va hamkasblar</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 font-extrabold border border-teal-200 dark:border-teal-900/50">
-                      {filteredEmployees.length} ta
-                    </span>
-                  </div>
+          {/* Navigation Tabs for Department Page */}
+          <div className="flex border-b border-gray-200 dark:border-gray-800 gap-2">
+            <button
+              onClick={() => setActiveTab('employees')}
+              className={cn(
+                'px-4 py-2.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'employees'
+                  ? 'border-teal-600 text-teal-600 dark:text-teal-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              )}
+            >
+              <Users className="w-4 h-4" />
+              <span>Hamkasblar ({employees.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('assets')}
+              className={cn(
+                'px-4 py-2.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'assets'
+                  ? 'border-teal-600 text-teal-600 dark:text-teal-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              )}
+            >
+              <Package className="w-4 h-4" />
+              <span>Bo'lim jihozlari ({deptAssignments.length})</span>
+            </button>
+          </div>
+
+          {activeTab === 'assets' ? (
+            <DepartmentAssetsTab
+              assignments={deptAssignments}
+              isLoading={isDeptLoading}
+              isLeader={isLeader}
+            />
+          ) : (
+            <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
+              <CardHeader
+                title={
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                      <span className="font-bold">Bo'lim xodimlari va hamkasblar</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 font-extrabold border border-teal-200 dark:border-teal-900/50">
+                        {filteredEmployees.length} ta
+                      </span>
+                    </div>
 
                   {/* Search bar */}
                   <div className="relative w-full sm:w-64">
@@ -339,8 +389,10 @@ export default function ProfileDepartmentPage() {
               )}
             </CardContent>
           </Card>
+          )}
         </>
       )}
     </div>
   );
 }
+

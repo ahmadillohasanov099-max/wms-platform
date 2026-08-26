@@ -291,4 +291,89 @@ export class ProductsService {
       ORDER BY shortage DESC
     `;
   }
+
+  async lookupByInventoryCode(code: string, currentUser?: any) {
+    if (!code || !code.trim()) {
+      throw new BadRequestException("Inventar kodi kiritilmadi");
+    }
+    const raw = code.trim();
+    const normalized = raw.replace(/^[иИ][нН][вВ]/i, 'INV').trim();
+    const resolvedOrgId = enforceTenantOrgId(currentUser);
+    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+
+    const candidates = [
+      raw,
+      normalized,
+      raw.toUpperCase(),
+      normalized.toUpperCase(),
+      normalized.replace(/^INV\s*[-–—:]?\s*/i, ''),
+      `INV-${normalized.replace(/^INV\s*[-–—:]?\s*/i, '')}`,
+    ].filter(Boolean);
+
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        deletedAt: null,
+        ...orgFilter,
+        OR: [
+          { inventoryNumber: { in: candidates, mode: 'insensitive' } },
+          { serialNumber: { in: candidates, mode: 'insensitive' } },
+          { id: raw },
+        ],
+      },
+      include: {
+        product: true,
+        organization: true,
+        assignments: {
+          where: { returnedAt: null },
+          orderBy: { assignedAt: 'desc' },
+          take: 1,
+          include: {
+            user: { select: { id: true, fullName: true, username: true, department: { select: { name: true } } } },
+            department: { select: { id: true, name: true } },
+          },
+        },
+        operations: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          include: {
+            performedBy: { select: { id: true, fullName: true } },
+            user: { select: { id: true, fullName: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!asset) {
+      return {
+        found: false,
+        searchedCode: raw,
+        message: "Ushbu mahsulot ombor hisobiga qayd qilinmagan",
+      };
+    }
+
+    const asgn = asset.assignments?.[0];
+    return {
+      found: true,
+      asset: {
+        id: asset.id,
+        inventoryNumber: asset.inventoryNumber,
+        serialNumber: asset.serialNumber,
+        status: asset.status,
+        purchaseDate: asset.purchaseDate,
+        purchasePrice: Number(asset.purchasePrice || 0),
+        notes: asset.notes,
+        createdAt: asset.createdAt,
+      },
+      product: asset.product,
+      organization: asset.organization,
+      location: {
+        type: asgn?.userId ? 'USER' : asgn?.departmentId ? 'DEPARTMENT' : 'WAREHOUSE',
+        assignedAt: asgn?.assignedAt || null,
+        user: asgn?.user || null,
+        department: asgn?.department || asgn?.user?.department || null,
+      },
+      operations: asset.operations,
+    };
+  }
 }

@@ -13,8 +13,12 @@ export interface DeletionRequest {
   reason: string;
   status: DeletionStatus;
   rejectionReason?: string;
+  reviewComment?: string;
   requestedById: string;
   requestedBy?: User;
+  reviewedById?: string;
+  reviewedBy?: User;
+  reviewedAt?: string;
   organizationId: string;
   organization?: Organization;
   createdAt: string;

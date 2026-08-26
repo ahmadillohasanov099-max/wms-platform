@@ -74,6 +74,53 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  broadcastAssignmentCreated(data: any) {
+    if (this.server) {
+      this.server.emit('assignment:created', {
+        type: 'ASSIGNMENT_CREATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+
+      if (data?.userId) {
+        this.server.to(`user:${data.userId}`).emit('assignment:new', data);
+      }
+      if (data?.leaderId) {
+        this.server.to(`user:${data.leaderId}`).emit('assignment:new', data);
+      }
+    }
+  }
+
+  broadcastAssignmentUpdated(data: any) {
+    if (this.server) {
+      this.server.emit('assignment:updated', {
+        type: 'ASSIGNMENT_UPDATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+    }
+  }
+
+  broadcastInventoryUpdated(data: any) {
+    if (this.server) {
+      this.server.emit('inventory:updated', {
+        type: 'INVENTORY_UPDATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+    }
+  }
+
+  broadcastOperationCreated(data: any) {
+    if (this.server) {
+      this.server.emit('operation:created', {
+        type: 'OPERATION_CREATED',
+        timestamp: new Date().toISOString(),
+        data,
+      });
+    }
+  }
+
   broadcastOffboardingCompleted(data: any) {
     this.server.emit('offboarding:completed', {
       type: 'OFFBOARDING_COMPLETED',

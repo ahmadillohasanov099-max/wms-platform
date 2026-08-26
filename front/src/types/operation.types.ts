@@ -97,3 +97,9 @@ export interface WriteOffDto {
   documentNumber?: string;
   note?: string;
 }
+
+export type AssignmentStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export interface RejectAssignmentDto {
+  reason: string;
+}

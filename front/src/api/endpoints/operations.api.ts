@@ -19,4 +19,8 @@ export const operationsApi = {
     api.post('/operations/write-off', dto).then((r) => r.data),
   bulkWriteOff: (dto: any) =>
     api.post('/operations/bulk-write-off', dto).then((r) => r.data),
+  acceptAssignment: (assignmentId: string) =>
+    api.post(`/operations/assignments/${assignmentId}/accept`).then((r) => r.data),
+  rejectAssignment: (assignmentId: string, dto: { reason: string }) =>
+    api.post(`/operations/assignments/${assignmentId}/reject`, dto).then((r) => r.data),
 };

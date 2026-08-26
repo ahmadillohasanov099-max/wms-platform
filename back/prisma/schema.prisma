@@ -80,6 +80,12 @@ enum AuditAction {
   DELETE
 }
 
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 // ─── ORGANIZATION ───────────────────────────────────────
 
 model Organization {
@@ -119,10 +125,13 @@ model Department {
   name        String
   description String?
 
+  leaderId    String?
+  leader      User?   @relation("DepartmentLeader", fields: [leaderId], references: [id])
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
-  users            User[]
+  users            User[]        @relation("DepartmentMembers")
   departmentAssets DepartmentAsset[]
   operations       Operation[]
   assignments      Assignment[]
@@ -132,6 +141,7 @@ model Department {
   deletedAt DateTime?
 
   @@index([organizationId])
+  @@index([leaderId])
   @@index([deletedAt])
 }
 
@@ -158,7 +168,8 @@ model User {
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
   departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
+  department   Department?   @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  ledDepartments Department[] @relation("DepartmentLeader")
 
   assignments Assignment[]
 
@@ -298,8 +309,12 @@ model Assignment {
   departmentId String?
   assetId      String
 
-  assignedAt DateTime  @default(now())
-  returnedAt DateTime?
+  status          AssignmentStatus @default(ACCEPTED)
+  assignedAt      DateTime         @default(now())
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  returnedAt      DateTime?
 
   user       User?       @relation(fields: [userId], references: [id])
   department Department? @relation(fields: [departmentId], references: [id])
@@ -308,6 +323,7 @@ model Assignment {
   @@index([userId])
   @@index([departmentId])
   @@index([assetId])
+  @@index([status])
   @@index([userId, returnedAt])
   @@index([departmentId, returnedAt])
   @@index([assetId, returnedAt])

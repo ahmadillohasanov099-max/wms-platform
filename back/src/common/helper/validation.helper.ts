@@ -32,7 +32,6 @@ export function validateAndFormatPhone(
 
 /**
  * Pasport seriyasi va raqamini tekshiradi (2 ta harf + 7 ta raqam)
- * Masalan: AA1234567, FA1234567
  */
 export function validateAndFormatPassport(
   passport?: string | null,

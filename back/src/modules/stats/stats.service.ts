@@ -20,13 +20,14 @@ export class StatsService {
       totalOperations,
       activeAssignments,
       inventories,
-      writeOffs,
       thisMonthOpsCount,
       lastMonthOpsCount,
       thisMonthProductsCount,
       lastMonthProductsCount,
       thisMonthAssignmentsCount,
       lastMonthAssignmentsCount,
+      assignedAssetsSum,
+      writeOffStats,
     ] = await Promise.all([
       this.prisma.product.count({ where: { deletedAt: null, ...orgFilter } }),
       this.prisma.user.count({ where: { deletedAt: null, isActive: true, role: 'XODIM', ...orgFilter } }),
@@ -35,26 +36,12 @@ export class StatsService {
       this.prisma.assignment.count({
         where: {
           returnedAt: null,
-          ...(organizationId
-            ? {
-                OR: [
-                  { user: { organizationId } },
-                  { department: { organizationId } },
-                  { asset: { organizationId } },
-                ],
-              }
-            : {}),
+          ...(organizationId ? { asset: { organizationId } } : {}),
         },
       }),
       this.prisma.inventory.findMany({
         where: { product: { deletedAt: null, ...orgFilter } },
-      }),
-      this.prisma.operation.findMany({
-        where: { type: 'WRITE_OFF', ...orgFilter },
-        include: {
-          product: { include: { inventory: true } },
-          asset: true,
-        },
+        select: { quantity: true, minLevel: true, unitPrice: true },
       }),
       this.prisma.operation.count({ where: { createdAt: { gte: thisMonthStart }, ...orgFilter } }),
       this.prisma.operation.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd }, ...orgFilter } }),
@@ -64,16 +51,34 @@ export class StatsService {
         where: {
           assignedAt: { gte: thisMonthStart },
           returnedAt: null,
-          ...(organizationId ? { user: { organizationId } } : {}),
+          ...(organizationId ? { asset: { organizationId } } : {}),
         },
       }),
       this.prisma.assignment.count({
         where: {
           assignedAt: { gte: lastMonthStart, lte: lastMonthEnd },
           returnedAt: null,
-          ...(organizationId ? { user: { organizationId } } : {}),
+          ...(organizationId ? { asset: { organizationId } } : {}),
         },
       }),
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(a."purchasePrice"), 0)::float AS total
+        FROM "Assignment" asgn
+        JOIN "Asset" a ON asgn."assetId" = a.id
+        WHERE asgn."returnedAt" IS NULL
+          AND a."deletedAt" IS NULL
+          AND (${organizationId ?? null}::text IS NULL OR a."organizationId" = ${organizationId})
+      `,
+      this.prisma.$queryRaw<Array<{ total_loss: number; count: bigint }>>`
+        SELECT
+          COUNT(*)::bigint AS count,
+          COALESCE(SUM(o.quantity * COALESCE(a."purchasePrice", i."unitPrice", 0)), 0)::float AS total_loss
+        FROM "Operation" o
+        LEFT JOIN "Asset" a ON o."assetId" = a.id
+        LEFT JOIN "Inventory" i ON o."productId" = i."productId"
+        WHERE o.type::text = 'WRITE_OFF'
+          AND (${organizationId ?? null}::text IS NULL OR o."organizationId" = ${organizationId})
+      `,
     ]);
 
     const getPercentageChange = (current: number, previous: number) => {
@@ -94,29 +99,9 @@ export class StatsService {
       0,
     );
 
-    const assignedAssets = await this.prisma.asset.findMany({
-      where: {
-        assignments: { some: { returnedAt: null } },
-        deletedAt: null,
-        ...orgFilter,
-      },
-      select: { purchasePrice: true },
-    });
-
-    const totalAssignedValue = assignedAssets.reduce(
-      (sum, a) => sum + Number(a.purchasePrice ?? 0),
-      0,
-    );
-
-    const totalWriteOffCount = writeOffs.length;
-    const totalWriteOffLoss = writeOffs.reduce((sum, op) => {
-      const price = op.asset?.purchasePrice
-        ? Number(op.asset.purchasePrice)
-        : op.product?.inventory?.unitPrice
-          ? Number(op.product.inventory.unitPrice)
-          : 0;
-      return sum + Number(op.quantity) * price;
-    }, 0);
+    const totalAssignedValue = Number(assignedAssetsSum[0]?.total ?? 0);
+    const totalWriteOffCount = Number(writeOffStats[0]?.count ?? 0);
+    const totalWriteOffLoss = Number(writeOffStats[0]?.total_loss ?? 0);
 
     return {
       totalProducts,
@@ -141,93 +126,91 @@ export class StatsService {
   async getByDepartment(organizationId?: string) {
     const orgFilter = organizationId ? { organizationId } : {};
 
-    const departments = await this.prisma.department.findMany({
-      where: { deletedAt: null, ...orgFilter },
-      include: {
-        _count: { select: { users: { where: { deletedAt: null, isActive: true, role: 'XODIM' } } } },
-        departmentAssets: {
-          include: {
-            product: { select: { name: true, productType: true } },
-          },
-        },
-        assignments: {
-          where: { returnedAt: null },
-          include: { asset: true },
-        },
-        users: {
-          where: { deletedAt: null, isActive: true, role: 'XODIM' },
-          include: {
-            assignments: {
-              where: { returnedAt: null },
-              include: { asset: true },
+    const [departments, deptAssetSums] = await Promise.all([
+      this.prisma.department.findMany({
+        where: { deletedAt: null, ...orgFilter },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { users: { where: { deletedAt: null, isActive: true, role: 'XODIM' } } } },
+          departmentAssets: {
+            select: {
+              quantity: true,
+              product: { select: { name: true, productType: true } },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.$queryRaw<Array<{ department_id: string; total_value: number }>>`
+        SELECT
+          COALESCE(asgn."departmentId", u."departmentId") AS department_id,
+          COALESCE(SUM(a."purchasePrice"), 0)::float AS total_value
+        FROM "Assignment" asgn
+        LEFT JOIN "User" u ON asgn."userId" = u.id
+        JOIN "Asset" a ON asgn."assetId" = a.id
+        WHERE asgn."returnedAt" IS NULL
+          AND a."deletedAt" IS NULL
+          AND (${organizationId ?? null}::text IS NULL OR a."organizationId" = ${organizationId})
+        GROUP BY COALESCE(asgn."departmentId", u."departmentId")
+      `,
+    ]);
 
-    return departments.map((dept) => {
-      const directValue = dept.assignments.reduce(
-        (sum, a) => sum + Number(a.asset.purchasePrice ?? 0),
-        0,
-      );
+    const valueMap = new Map<string, number>();
+    for (const row of deptAssetSums) {
+      if (row.department_id) {
+        valueMap.set(row.department_id, Number(row.total_value));
+      }
+    }
 
-      const userAssetsValue = dept.users.reduce((userSum, user) => {
-        const userValue = user.assignments.reduce(
-          (sum, a) => sum + Number(a.asset.purchasePrice ?? 0),
-          0,
-        );
-        return userSum + userValue;
-      }, 0);
-
-      const totalValue = directValue + userAssetsValue;
-
-      return {
-        id: dept.id,
-        name: dept.name,
-        userCount: dept._count.users,
-        totalAssetValue: totalValue,
-        assets: dept.departmentAssets.map((da) => ({
-          productName: da.product.name,
-          productType: da.product.productType,
-          quantity: da.quantity,
-        })),
-      };
-    });
+    return departments.map((dept) => ({
+      id: dept.id,
+      name: dept.name,
+      userCount: dept._count.users,
+      totalAssetValue: valueMap.get(dept.id) || 0,
+      assets: dept.departmentAssets.map((da) => ({
+        productName: da.product.name,
+        productType: da.product.productType,
+        quantity: da.quantity,
+      })),
+    }));
   }
 
   async getByProduct(organizationId?: string) {
     const orgFilter = organizationId ? { organizationId } : {};
 
-    const operations = await this.prisma.operation.groupBy({
-      by: ['productId', 'type'],
-      where: { ...orgFilter },
-      _sum: { quantity: true },
-      _count: { id: true },
+    const [operations, products] = await Promise.all([
+      this.prisma.operation.groupBy({
+        by: ['productId', 'type'],
+        where: { ...orgFilter },
+        _sum: { quantity: true },
+      }),
+      this.prisma.product.findMany({
+        where: { deletedAt: null, ...orgFilter },
+        select: {
+          id: true,
+          name: true,
+          productType: true,
+          inventory: { select: { quantity: true, minLevel: true } },
+        },
+      }),
+    ]);
+
+    const opsMap = new Map<string, number>();
+    operations.forEach((op) => {
+      if (['GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT'].includes(op.type)) {
+        const current = opsMap.get(op.productId) || 0;
+        opsMap.set(op.productId, current + (op._sum.quantity ?? 0));
+      }
     });
 
-    const products = await this.prisma.product.findMany({
-      where: { deletedAt: null, ...orgFilter },
-      include: { inventory: { select: { quantity: true, minLevel: true } } },
-    });
-
-    return products.map((product) => {
-      const productOps = operations.filter((op) => op.productId === product.id);
-      const totalOut = productOps
-        .filter((op) =>
-          ['GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT'].includes(op.type),
-        )
-        .reduce((sum, op) => sum + (op._sum.quantity ?? 0), 0);
-
-      return {
-        id: product.id,
-        name: product.name,
-        productType: product.productType,
-        currentStock: product.inventory?.quantity ?? 0,
-        minLevel: product.inventory?.minLevel ?? 0,
-        totalOut,
-      };
-    });
+    return products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      productType: product.productType,
+      currentStock: product.inventory?.quantity ?? 0,
+      minLevel: product.inventory?.minLevel ?? 0,
+      totalOut: opsMap.get(product.id) || 0,
+    }));
   }
 
   async getLowStock(organizationId?: string) {
@@ -237,7 +220,10 @@ export class StatsService {
       where: {
         product: { deletedAt: null, ...orgFilter },
       },
-      include: {
+      select: {
+        productId: true,
+        quantity: true,
+        minLevel: true,
         product: {
           select: {
             id: true,
@@ -309,85 +295,60 @@ export class StatsService {
     );
 
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-    const orgFilter = organizationId ? { organizationId } : {};
+    const getMonthMetricsRaw = async (startDate: Date, endDate: Date) => {
+      const result = await this.prisma.$queryRaw<
+        Array<{
+          total_ops: bigint;
+          stock_in_qty: bigint;
+          stock_in_value: number;
+          stock_out_qty: bigint;
+          stock_out_value: number;
+          write_off_qty: bigint;
+          write_off_value: number;
+        }>
+      >`
+        SELECT
+          COUNT(*)::bigint AS total_ops,
+          COALESCE(SUM(CASE WHEN o.type::text = 'STOCK_IN' THEN o.quantity ELSE 0 END), 0)::bigint AS stock_in_qty,
+          COALESCE(SUM(CASE WHEN o.type::text = 'STOCK_IN' THEN o.quantity * COALESCE(a."purchasePrice", i."unitPrice", 0) ELSE 0 END), 0)::float AS stock_in_value,
+          COALESCE(SUM(CASE WHEN o.type::text IN ('GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT') THEN o.quantity ELSE 0 END), 0)::bigint AS stock_out_qty,
+          COALESCE(SUM(CASE WHEN o.type::text IN ('GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT') THEN o.quantity * COALESCE(a."purchasePrice", i."unitPrice", 0) ELSE 0 END), 0)::float AS stock_out_value,
+          COALESCE(SUM(CASE WHEN o.type::text = 'WRITE_OFF' THEN o.quantity ELSE 0 END), 0)::bigint AS write_off_qty,
+          COALESCE(SUM(CASE WHEN o.type::text = 'WRITE_OFF' THEN o.quantity * COALESCE(a."purchasePrice", i."unitPrice", 0) ELSE 0 END), 0)::float AS write_off_value
+        FROM "Operation" o
+        LEFT JOIN "Asset" a ON o."assetId" = a.id
+        LEFT JOIN "Inventory" i ON o."productId" = i."productId"
+        WHERE o."createdAt" >= ${startDate} AND o."createdAt" <= ${endDate}
+          AND (${organizationId ?? null}::text IS NULL OR o."organizationId" = ${organizationId})
+      `;
 
-    const [thisMonthOps, lastMonthOps] = await Promise.all([
-      this.prisma.operation.findMany({
-        where: {
-          createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
-          ...orgFilter,
-        },
-        include: {
-          product: { include: { inventory: true } },
-          asset: true,
-        },
-      }),
-      this.prisma.operation.findMany({
-        where: {
-          createdAt: { gte: lastMonthStart, lte: lastMonthEnd },
-          ...orgFilter,
-        },
-        include: {
-          product: { include: { inventory: true } },
-          asset: true,
-        },
-      }),
-    ]);
-
-    const calculateMetrics = (ops: any[]) => {
-      let stockInQty = 0;
-      let stockInValue = 0;
-      let stockOutQty = 0;
-      let stockOutValue = 0;
-      let writeOffQty = 0;
-      let writeOffValue = 0;
-
-      ops.forEach((op) => {
-        const unitPrice = op.asset?.purchasePrice
-          ? Number(op.asset.purchasePrice)
-          : op.product?.inventory?.unitPrice
-            ? Number(op.product.inventory.unitPrice)
-            : 0;
-
-        const opValue = Number(op.quantity) * unitPrice;
-
-        if (op.type === 'STOCK_IN') {
-          stockInQty += op.quantity;
-          stockInValue += opValue;
-        } else if (
-          ['GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT'].includes(op.type)
-        ) {
-          stockOutQty += op.quantity;
-          stockOutValue += opValue;
-        } else if (op.type === 'WRITE_OFF') {
-          writeOffQty += op.quantity;
-          writeOffValue += opValue;
-        }
-      });
+      const row = result[0] || {
+        total_ops: 0n,
+        stock_in_qty: 0n,
+        stock_in_value: 0,
+        stock_out_qty: 0n,
+        stock_out_value: 0,
+        write_off_qty: 0n,
+        write_off_value: 0,
+      };
 
       return {
-        totalOperations: ops.length,
-        stockInQty,
-        stockInValue,
-        stockOutQty,
-        stockOutValue,
-        writeOffQty,
-        writeOffValue,
+        totalOperations: Number(row.total_ops),
+        stockInQty: Number(row.stock_in_qty),
+        stockInValue: Number(row.stock_in_value),
+        stockOutQty: Number(row.stock_out_qty),
+        stockOutValue: Number(row.stock_out_value),
+        writeOffQty: Number(row.write_off_qty),
+        writeOffValue: Number(row.write_off_value),
       };
     };
 
-    const thisMonth = calculateMetrics(thisMonthOps);
-    const lastMonth = calculateMetrics(lastMonthOps);
+    const [thisMonth, lastMonth] = await Promise.all([
+      getMonthMetricsRaw(thisMonthStart, thisMonthEnd),
+      getMonthMetricsRaw(lastMonthStart, lastMonthEnd),
+    ]);
 
     const getPercentageChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? 100 : 0;
@@ -437,40 +398,59 @@ export class StatsService {
   async getByUser(organizationId?: string) {
     const orgFilter = organizationId ? { organizationId } : {};
 
-    const users = await this.prisma.user.findMany({
-      where: { deletedAt: null, isActive: true, ...orgFilter },
-      select: {
-        id: true,
-        fullName: true,
-        username: true,
-        position: true,
-        department: { select: { id: true, name: true } },
-        assignments: {
-          where: { returnedAt: null },
-          include: {
-            asset: {
-              include: {
-                product: {
-                  select: { id: true, name: true, productType: true },
-                },
+    const [users, activeAssignments] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { deletedAt: null, isActive: true, ...orgFilter },
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          position: true,
+          department: { select: { id: true, name: true } },
+        },
+        orderBy: { fullName: 'asc' },
+      }),
+      this.prisma.assignment.findMany({
+        where: {
+          returnedAt: null,
+          asset: { deletedAt: null, ...orgFilter },
+          userId: { not: null },
+        },
+        select: {
+          userId: true,
+          assignedAt: true,
+          asset: {
+            select: {
+              id: true,
+              inventoryNumber: true,
+              status: true,
+              purchasePrice: true,
+              product: {
+                select: { id: true, name: true, productType: true },
               },
             },
           },
         },
-      },
-      orderBy: { fullName: 'asc' },
-    });
+      }),
+    ]);
+
+    const assignmentsByUser = new Map<string, any[]>();
+    for (const asgn of activeAssignments) {
+      if (!asgn.userId) continue;
+      const list = assignmentsByUser.get(asgn.userId) || [];
+      list.push({
+        assetId: asgn.asset.id,
+        inventoryNumber: asgn.asset.inventoryNumber,
+        status: asgn.asset.status,
+        productName: asgn.asset.product?.name || 'Jihoz',
+        purchasePrice: asgn.asset.purchasePrice ?? 0,
+        assignedAt: asgn.assignedAt,
+      });
+      assignmentsByUser.set(asgn.userId, list);
+    }
 
     return users.map((user) => {
-      const assets = user.assignments.map((a) => ({
-        assetId: a.asset.id,
-        inventoryNumber: a.asset.inventoryNumber,
-        status: a.asset.status,
-        productName: a.asset.product.name,
-        purchasePrice: a.asset.purchasePrice ?? 0,
-        assignedAt: a.assignedAt,
-      }));
-
+      const assets = assignmentsByUser.get(user.id) || [];
       const totalValue = assets.reduce(
         (sum, a) => sum + Number(a.purchasePrice),
         0,
@@ -492,7 +472,13 @@ export class StatsService {
   async getConsolidatedStats() {
     const organizations = await this.prisma.organization.findMany({
       where: { deletedAt: null },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        type: true,
+        address: true,
+        phone: true,
         _count: {
           select: {
             users: { where: { deletedAt: null, isActive: true } },
@@ -504,8 +490,8 @@ export class StatsService {
         },
         products: {
           where: { deletedAt: null },
-          include: {
-            inventory: { select: { quantity: true, unitPrice: true, totalValue: true } },
+          select: {
+            inventory: { select: { quantity: true, unitPrice: true } },
           },
         },
       },

@@ -13,5 +13,10 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  description?: string;
+  description?: string | null;
+
+  @ApiPropertyOptional({ example: "uuid", description: "Bo'lim boshlig'i (User ID)" })
+  @IsOptional()
+  @IsString()
+  leaderId?: string | null;
 }

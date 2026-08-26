@@ -9,9 +9,11 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators';
 
@@ -20,7 +22,8 @@ import { CurrentUser } from './decorators';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @ApiOperation({ summary: 'Tizimga kirish' })
+  @ApiOperation({ summary: 'Tizimga kirish (Brute-force himoyasi bilan)' })
+  @Throttle({ short: { limit: 5, ttl: 10000 }, long: { limit: 15, ttl: 60000 } })
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -62,7 +65,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('verify-password')
-  verifyPassword(@CurrentUser() user: any, @Body('password') password?: string) {
-    return this.authService.verifyPassword(user.id, password);
+  verifyPassword(@CurrentUser() user: any, @Body() dto: VerifyPasswordDto) {
+    return this.authService.verifyPassword(user.id, dto.password);
   }
 }

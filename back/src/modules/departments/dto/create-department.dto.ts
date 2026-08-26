@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, MinLength, MaxLength } from 'class-validator';
 
 export class CreateDepartmentDto {
   @ApiProperty({ example: "Moliya bo'limi" })
   @IsString()
+  @IsNotEmpty({ message: "Bo'lim nomi bo'sh bo'lishi mumkin emas" })
   @MinLength(2)
   @MaxLength(100)
   name: string;
@@ -18,4 +19,9 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @ApiPropertyOptional({ example: "uuid", description: "Bo'lim boshlig'i (User ID)" })
+  @IsOptional()
+  @IsString()
+  leaderId?: string;
 }

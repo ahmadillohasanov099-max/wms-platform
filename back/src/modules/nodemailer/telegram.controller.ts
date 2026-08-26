@@ -3,6 +3,8 @@ import type { Response } from 'express';
 import { PrismaService } from '../../prisma';
 import { TelegramService } from './telegram.service';
 import { AiService } from './ai.service';
+import { AskAiDto } from './dto/ask-ai.dto';
+import { TelegramLoginDto } from './dto/telegram-login.dto';
 import * as bcrypt from 'bcrypt';
 
 @Controller('telegram')
@@ -14,8 +16,8 @@ export class TelegramController {
   ) {}
 
   @Post('ask-ai')
-  async handleAskAi(@Body() body: { query: string; user?: any }) {
-    const { query, user } = body;
+  async handleAskAi(@Body() dto: AskAiDto) {
+    const { query, user } = dto;
     const boundUser = user || { fullName: 'Foydalanuvchi', role: 'SUPER_ADMIN' };
     const answer = await this.aiService.askAi(query, boundUser);
     return { success: true, answer };
@@ -200,12 +202,8 @@ export class TelegramController {
    * Telegram WebApp Login Forma tekshiruvi
    */
   @Post('login-submit')
-  async handleWebappLogin(@Body() body: { username: string; password: string; chatId: string }) {
-    const { username, password, chatId } = body;
-
-    if (!username || !password || !chatId) {
-      return { success: false, message: 'Barcha maydonlarni to‘ldiring' };
-    }
+  async handleWebappLogin(@Body() dto: TelegramLoginDto) {
+    const { username, password, chatId } = dto;
 
     try {
       const user = await this.prisma.user.findFirst({

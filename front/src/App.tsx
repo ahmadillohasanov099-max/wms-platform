@@ -100,11 +100,7 @@ export default function App() {
 
           <Route
             path="/deletion-requests"
-            element={
-              <RequireRole roles={ALL_MANAGERS}>
-                <DeletionRequestsPage />
-              </RequireRole>
-            }
+            element={<DeletionRequestsPage />}
           />
 
           <Route

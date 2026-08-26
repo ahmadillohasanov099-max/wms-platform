@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { usersApi } from '../../api';
+import { usersApi, deletionRequestsApi } from '../../api';
+import { socketService } from '../../lib/socket';
 import { PageLoader } from '../../components/ui/spinner';
 import PageHeader from '../../components/ui/page-header';
 import { useAuthStore } from '../../store/auth.store';
@@ -13,16 +14,8 @@ import ProfileRequestModal from './components/profile-request-modal';
 export default function ProfileAssetsPage() {
   const { user } = useAuthStore();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [requestModalAsset, setRequestModalAsset] = useState<any | null>(null);
-
-  const [requestedAssetIds, setRequestedAssetIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(`user_requested_assets_${user?.id}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
 
   const { data: assignmentsData, isLoading: assignmentsLoading } = useQuery({
     queryKey: ['profile-assignments', user?.id],
@@ -36,10 +29,50 @@ export default function ProfileAssetsPage() {
     enabled: !!user?.id,
   });
 
+  // Fetch employee's active deletion/return requests from API
+  const { data: myRequestsData } = useQuery({
+    queryKey: ['my-deletion-requests', user?.id],
+    queryFn: () => deletionRequestsApi.getMy(),
+    enabled: !!user?.id,
+    refetchInterval: 8000,
+  });
+
+  // Real-time socket updates for return requests and assignments
+  useEffect(() => {
+    const socket = socketService.getSocket() || socketService.connect();
+
+    const handleRefetch = () => {
+      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-history'] });
+    };
+
+    socket.on('deletion-request:created', handleRefetch);
+    socket.on('deletion-request:updated', handleRefetch);
+    socket.on('assignment:updated', handleRefetch);
+
+    return () => {
+      socket.off('deletion-request:created', handleRefetch);
+      socket.off('deletion-request:updated', handleRefetch);
+      socket.off('assignment:updated', handleRefetch);
+    };
+  }, [queryClient]);
+
   if (!user) return <PageLoader />;
 
   const assignments = assignmentsData ?? [];
   const historyList = historyData ?? [];
+  const myRequests: any[] = Array.isArray(myRequestsData)
+    ? myRequestsData
+    : (myRequestsData as any)?.data || [];
+
+  // ONLY assets that are currently PENDING in requests are considered "So'rov yuborilgan"
+  // If a request was REJECTED or APPROVED, it is no longer pending so user can re-request
+  const pendingRequestedAssetIds = useMemo(() => {
+    return myRequests
+      .filter((r: any) => r.status === 'PENDING' && r.entityType === 'ASSET')
+      .map((r: any) => r.entityId);
+  }, [myRequests]);
 
   // Filter TMZ material operations given to this user (strictly SARFLANADIGAN / no assetId)
   const tmzOperations = historyList.filter(
@@ -71,13 +104,8 @@ export default function ProfileAssetsPage() {
     0
   );
 
-  const handleRequestSuccess = (assetId: string, requestType: 'RETURN' | 'REPAIR') => {
-    const updated = [...requestedAssetIds, assetId];
-    setRequestedAssetIds(updated);
-    try {
-      localStorage.setItem(`user_requested_assets_${user?.id}`, JSON.stringify(updated));
-    } catch {}
-
+  const handleRequestSuccess = (_assetId: string, requestType: 'RETURN' | 'REPAIR') => {
+    queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
     const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash/Servis";
     toast.success(`"${requestModalAsset?.asset?.product?.name || 'Jihoz'}" bo'yicha ${typeText} so'rovi omborchiga yuborildi!`);
     setRequestModalAsset(null);
@@ -95,7 +123,7 @@ export default function ProfileAssetsPage() {
         tmzOperations={groupedTmzOperations}
         isLoading={assignmentsLoading || historyLoading}
         totalValue={totalValue}
-        requestedAssetIds={requestedAssetIds}
+        requestedAssetIds={pendingRequestedAssetIds}
         onRequestModal={(asset) => setRequestModalAsset(asset)}
         user={user}
       />

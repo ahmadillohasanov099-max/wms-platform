@@ -238,6 +238,7 @@ export default function DepartmentDetailView({
               assetsData={deptAssetsHistoryData}
               isLoading={deptAssetsHistoryLoading || deptLoading}
               isAdmin={isAdmin}
+              isLeader={!!(loggedInUser?.id && (department?.leaderId === loggedInUser?.id || department?.leader?.id === loggedInUser?.id))}
               onReturnClick={handleReturnClick}
             />
           ) : (

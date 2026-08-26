@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class GiveToUserDto {
   @ApiProperty({ example: 'uuid' })
@@ -17,6 +18,9 @@ export class GiveToUserDto {
 
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   quantity?: number;
 
   @ApiPropertyOptional({ example: 'PF2X0001' })

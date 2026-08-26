@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { InventoryController } from './inventory.controller';
 import { InventoryService } from './inventory.service';
+import { InventoryExcelService } from './services/inventory-excel.service';
 
 @Module({
   controllers: [InventoryController],
-  providers: [InventoryService],
-  exports: [InventoryService],
+  providers: [InventoryService, InventoryExcelService],
+  exports: [InventoryService, InventoryExcelService],
 })
 export class InventoryModule {}

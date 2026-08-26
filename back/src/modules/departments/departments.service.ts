@@ -29,6 +29,15 @@ export class DepartmentsService {
       },
       orderBy: { createdAt: 'desc' },
       include: {
+        leader: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            position: true,
+            phone: true,
+          },
+        },
         _count: {
           select: { users: true },
         },
@@ -40,6 +49,15 @@ export class DepartmentsService {
     const department = await this.prisma.department.findFirst({
       where: { id, deletedAt: null },
       include: {
+        leader: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            position: true,
+            phone: true,
+          },
+        },
         users: {
           where: { deletedAt: null, isActive: true },
           select: {
@@ -68,10 +86,7 @@ export class DepartmentsService {
     const assignments = await this.prisma.assignment.findMany({
       where: {
         returnedAt: null,
-        OR: [
-          { departmentId: id },
-          { user: { departmentId: id, deletedAt: null } },
-        ],
+        departmentId: id,
       },
       include: {
         user: { select: { id: true, fullName: true } },
@@ -87,9 +102,22 @@ export class DepartmentsService {
       orderBy: { assignedAt: 'desc' },
     });
 
+    const operations = await this.prisma.operation.findMany({
+      where: {
+        departmentId: id,
+      },
+      include: {
+        product: { select: { id: true, name: true, unit: true, productType: true } },
+        asset: { select: { id: true, inventoryNumber: true, serialNumber: true } },
+        performedBy: { select: { id: true, fullName: true, username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       ...department,
       assignments,
+      operations,
     };
   }
 
@@ -109,10 +137,7 @@ export class DepartmentsService {
       this.prisma.assignment.count({
         where: {
           returnedAt: null,
-          OR: [
-            { departmentId: id },
-            { user: { departmentId: id, deletedAt: null } },
-          ],
+          departmentId: id,
         },
       }),
       this.prisma.departmentAsset.aggregate({
@@ -167,14 +192,36 @@ export class DepartmentsService {
       throw new BadRequestException(t('errors.DEPT_EXISTS', {}, "Bu nomdagi bo'lim allaqachon mavjud"));
     }
 
-    const { organizationId, ...restDto } = dto;
+    const { organizationId, leaderId, ...restDto } = dto;
+
+    if (leaderId) {
+      const leaderUser = await this.prisma.user.findFirst({
+        where: { id: leaderId, deletedAt: null, isActive: true },
+      });
+      if (!leaderUser) {
+        throw new BadRequestException("Tanlangan bo'lim boshlig'i topilmadi");
+      }
+    }
 
     const department = await this.prisma.department.create({
       data: {
         ...restDto,
+        leaderId: leaderId || null,
         organizationId: orgId,
       },
+      include: {
+        leader: {
+          select: { id: true, fullName: true, username: true, position: true },
+        },
+      },
     });
+
+    if (leaderId) {
+      await this.prisma.user.update({
+        where: { id: leaderId },
+        data: { departmentId: department.id },
+      });
+    }
 
     await this.auditService.log({
       userId: createdBy,
@@ -220,9 +267,33 @@ export class DepartmentsService {
       }
     }
 
+    if (dto.leaderId) {
+      const leaderUser = await this.prisma.user.findFirst({
+        where: { id: dto.leaderId, deletedAt: null, isActive: true },
+      });
+      if (!leaderUser) {
+        throw new BadRequestException("Tanlangan bo'lim boshlig'i topilmadi");
+      }
+      if (leaderUser.departmentId !== id) {
+        await this.prisma.user.update({
+          where: { id: leaderUser.id },
+          data: { departmentId: id },
+        });
+      }
+    }
+
     const updated = await this.prisma.department.update({
       where: { id },
-      data: dto,
+      data: {
+        ...dto,
+        description: dto.description !== undefined ? (dto.description && dto.description.trim() !== '' ? dto.description.trim() : null) : undefined,
+        leaderId: dto.leaderId !== undefined ? (dto.leaderId && dto.leaderId.trim() !== '' ? dto.leaderId : null) : undefined,
+      },
+      include: {
+        leader: {
+          select: { id: true, fullName: true, username: true, position: true },
+        },
+      },
     });
 
     await this.auditService.log({

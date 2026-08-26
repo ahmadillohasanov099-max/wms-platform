@@ -23,6 +23,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
+import { BulkTransferDto } from './dto/bulk-transfer.dto';
 import { UsersService } from './users.service';
 import { CurrentUser, Roles } from '../auth';
 
@@ -189,12 +190,9 @@ export class UsersController {
   @Post(':id/bulk-transfer')
   bulkTransfer(
     @Param('id') id: string,
-    @Body('toUserId') toUserId: string,
+    @Body() dto: BulkTransferDto,
     @CurrentUser() user: any,
   ) {
-    if (!toUserId) {
-      throw new BadRequestException('Qabul qiluvchi xodim tanlanishi shart');
-    }
-    return this.usersService.bulkTransfer(id, toUserId, user.id);
+    return this.usersService.bulkTransfer(id, dto.toUserId, user.id);
   }
 }

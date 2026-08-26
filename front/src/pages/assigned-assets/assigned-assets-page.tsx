@@ -23,7 +23,7 @@ import {
   type Column,
 } from '../../components/ui';
 
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, cn } from '../../lib/utils';
 import { useDebounce } from '../../hooks/useDebounce';
 import { exportToStyledExcel } from '../../lib/export';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -263,11 +263,34 @@ export default function AssignedAssetsPage() {
     {
       key: 'documentNumber',
       title: t('assignedAssets.docNo'),
-      render: (_: any, row: any) => (
-        <span className="font-mono text-xs font-bold text-gray-500 dark:text-gray-400">
-          {row.documentNumber || '—'}
-        </span>
-      ),
+      render: (_: any, row: any) => {
+        const isPending = row.status === 'PENDING';
+        const isRejected = row.status === 'REJECTED';
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "w-2 h-2 rounded-full shrink-0",
+                isPending
+                  ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
+                  : isRejected
+                  ? "bg-rose-500 ring-2 ring-rose-400/40"
+                  : "bg-emerald-500 ring-2 ring-emerald-400/30"
+              )}
+              title={
+                isPending
+                  ? "Xodim tasdiqlashi kutilmoqda (Sariq)"
+                  : isRejected
+                  ? "Xodim tomonidan rad etilgan (Qizil)"
+                  : "Xodim tomonidan qabul qilingan (Yashil)"
+              }
+            />
+            <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300">
+              {row.documentNumber || '—'}
+            </span>
+          </div>
+        );
+      },
     },
   ];
 

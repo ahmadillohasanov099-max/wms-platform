@@ -499,33 +499,55 @@ export default function UserDetailSubView({
                         {/* Items Horizontal Wrap Badges - Compact & Gap Free */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex flex-wrap items-center gap-1.5 max-w-2xl">
-                            {batch.items.map((item: any, idx: number) => (
-                              <div
-                                key={item.id || idx}
-                                className="inline-flex items-center gap-1.5 text-xs bg-slate-100/90 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                              >
-                                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                                  {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
-                                </span>
-                                {item.asset?.inventoryNumber && (
-                                  <CopyableInventoryNumber
-                                    value={item.asset.inventoryNumber}
-                                    size="2xs"
+                            {batch.items.map((item: any, idx: number) => {
+                              const isPending = item.status === 'PENDING';
+                              const isRejected = item.status === 'REJECTED';
+                              return (
+                                <div
+                                  key={item.id || idx}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border",
+                                    isPending
+                                      ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                                      : isRejected
+                                      ? "bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 opacity-60"
+                                      : "bg-slate-100/90 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "w-2 h-2 rounded-full shrink-0 shadow-2xs",
+                                      isPending
+                                        ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
+                                        : isRejected
+                                        ? "bg-rose-500 ring-2 ring-rose-400/40"
+                                        : "bg-emerald-500 ring-2 ring-emerald-400/40"
+                                    )}
+                                    title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
                                   />
-                                )}
+                                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                    {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
+                                  </span>
+                                  {item.asset?.inventoryNumber && (
+                                    <CopyableInventoryNumber
+                                      value={item.asset.inventoryNumber}
+                                      size="2xs"
+                                    />
+                                  )}
 
-                                {isAdmin && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleReturnClick(item.asset?.id)}
-                                    className="ml-0.5 text-2xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline cursor-pointer"
-                                    title={`${item.asset?.inventoryNumber} - ${t('userView.returnToWarehouse')}`}
-                                  >
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                            ))}
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReturnClick(item.asset?.id)}
+                                      className="ml-0.5 text-2xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline cursor-pointer"
+                                      title={`${item.asset?.inventoryNumber} - ${t('userView.returnToWarehouse')}`}
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </td>
 

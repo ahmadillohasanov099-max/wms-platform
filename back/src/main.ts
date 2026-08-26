@@ -3,7 +3,12 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
-import { HttpExceptionFilter, LoggingInterceptor, ResponseInterceptor } from './common';
+import compression from 'compression';
+import {
+  HttpExceptionFilter,
+  LoggingInterceptor,
+  ResponseInterceptor,
+} from './common';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -14,10 +19,18 @@ async function bootstrap() {
   });
 
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('CRITICAL: Unhandled Rejection intercepted at:', promise, 'reason:', reason);
+    logger.error(
+      'CRITICAL: Unhandled Rejection intercepted at:',
+      promise,
+      'reason:',
+      reason,
+    );
   });
 
   const app = await NestFactory.create(AppModule);
+
+  // HTTP Response Compression (Gzip / Brotli - 70-80% payload size reduction)
+  app.use(compression());
 
   // HTTP Security Headers (Hide X-Powered-By, Clickjacking protection, XSS protection)
   app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -39,7 +52,10 @@ async function bootstrap() {
     new ResponseInterceptor(),
   );
 
-  app.enableCors();
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()

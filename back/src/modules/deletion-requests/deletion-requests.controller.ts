@@ -16,10 +16,10 @@ import { JwtAuthGuard, RolesGuard } from '../auth/guards';
 import { CurrentUser, CurrentTenant, Roles } from '../auth/decorators';
 import { RequestStatus, UserRole } from '@prisma/client';
 
-@ApiTags("Deletion Requests (O'chirish So'rovlari)")
+@ApiTags("Requests (So'rovlar va Bildirishnomalar)")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('deletion-requests')
+@Controller(['requests', 'deletion-requests'])
 export class DeletionRequestsController {
   constructor(
     private readonly deletionRequestsService: DeletionRequestsService,
@@ -37,13 +37,24 @@ export class DeletionRequestsController {
   }
 
   @Get('my')
-  @ApiOperation({ summary: "Tashkilot o'zining yuborgan so'rovlari ro'yxatini ko'rishi" })
-  findMyRequests(@CurrentTenant('organizationId') organizationId: string) {
-    return this.deletionRequestsService.findMyRequests(organizationId);
+  @ApiOperation({ summary: "Xodim yoki tashkilot o'zining yuborgan so'rovlari ro'yxatini ko'rishi" })
+  findMyRequests(
+    @CurrentUser('id') userId: string,
+    @CurrentTenant('organizationId') organizationId: string,
+  ) {
+    return this.deletionRequestsService.findMyRequests(userId, organizationId);
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.VAZIRLIK_OMBORCHI, UserRole.ADMIN, UserRole.OMBORCHI, UserRole.ORG_OMBORCHI)
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.VAZIRLIK_OMBORCHI,
+    UserRole.ADMIN,
+    UserRole.OMBORCHI,
+    UserRole.ORG_OMBORCHI,
+    UserRole.ORG_ADMIN,
+    UserRole.XODIM
+  )
   @ApiOperation({ summary: "Kelib tushgan barcha o'chirish/qaytarish so'rovlarini ko'rish" })
   @ApiQuery({ name: 'status', enum: RequestStatus, required: false })
   @ApiQuery({ name: 'organizationId', required: false })

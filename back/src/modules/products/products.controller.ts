@@ -53,6 +53,13 @@ export class ProductsController {
     return this.productsService.getLowStock(targetOrgId);
   }
 
+  @ApiOperation({ summary: 'Inventar kodi bo\'yicha mahsulot va jihozni qidirish (Skaner uchun)' })
+  @Roles(...MANAGERS, UserRole.XODIM)
+  @Get('inventory/:code')
+  lookupByInventoryCode(@Param('code') code: string, @CurrentUser() user: any) {
+    return this.productsService.lookupByInventoryCode(code, user);
+  }
+
   @ApiOperation({ summary: 'Bitta mahsulot' })
   @Roles(...MANAGERS, UserRole.XODIM)
   @Get(':id')

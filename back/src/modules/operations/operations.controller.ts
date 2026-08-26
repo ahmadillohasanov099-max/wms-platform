@@ -15,6 +15,7 @@ import { WriteOffDto } from './dto/write-off.dto';
 import { BulkWriteOffDto } from './dto/bulk-write-off.dto';
 import { StockInDto } from './dto/stock-in.dto';
 import { AssignToDeptDto } from './dto/assign-to-dept.dto';
+import { RejectAssignmentDto } from './dto/reject-assignment.dto';
 
 const MANAGERS = [
   UserRole.SUPER_ADMIN,
@@ -106,7 +107,7 @@ export class OperationsController {
   }
 
   @ApiOperation({ summary: 'Operatsiya qabul-topshirish dalolatnomasini (PDF) yuklab olish' })
-  @Roles(...MANAGERS)
+  @Roles(...MANAGERS, UserRole.XODIM)
   @Get(':id/pdf')
   async getPdf(@Param('id') id: string, @Res() res: express.Response) {
     const pdfBuffer = await this.operationsService.generatePdfAct(id);
@@ -116,5 +117,21 @@ export class OperationsController {
       'Content-Length': pdfBuffer.length,
     });
     res.end(pdfBuffer);
+  }
+
+  @ApiOperation({ summary: 'Jihozni qabul qilishni tasdiqlash' })
+  @Post('assignments/:id/accept')
+  acceptAssignment(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.operationsService.acceptAssignment(id, user.id, user.role);
+  }
+
+  @ApiOperation({ summary: 'Jihozni qabul qilishni rad etish' })
+  @Post('assignments/:id/reject')
+  rejectAssignment(
+    @Param('id') id: string,
+    @Body() dto: RejectAssignmentDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.operationsService.rejectAssignment(id, dto?.reason || '', user.id, user.role);
   }
 }

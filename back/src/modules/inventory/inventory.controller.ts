@@ -62,6 +62,30 @@ export class InventoryController {
     return this.inventoryService.getAssignedAssets(targetOrgId, user);
   }
 
+  @ApiOperation({ summary: 'Inventar raqami orqali tezkor jihoz qidirish (Skaner va Lookup)' })
+  @Roles(...MANAGERS, UserRole.XODIM)
+  @Get('lookup-asset')
+  lookupAsset(
+    @Query('code') code: string,
+    @Query('organizationId') organizationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const targetOrgId = organizationId ? organizationId : user?.organizationId;
+    return this.inventoryService.lookupAssetByCode(code, targetOrgId, user);
+  }
+
+  @ApiOperation({ summary: 'Inventar raqami / nomi bo\'yicha tezkor live qidiruv' })
+  @Roles(...MANAGERS, UserRole.XODIM)
+  @Get('search-assets')
+  searchAssets(
+    @Query('query') query: string,
+    @Query('organizationId') organizationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const targetOrgId = organizationId ? organizationId : user?.organizationId;
+    return this.inventoryService.searchAssets(query, targetOrgId, user);
+  }
+
   @ApiOperation({ summary: 'Ombor hisobotini Excel (.xlsx) formatda eksport qilish' })
   @Roles(...MANAGERS)
   @Get('export')

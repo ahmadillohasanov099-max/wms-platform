@@ -16,6 +16,44 @@ const STAFF_ROLES = [
   'KADR',
 ];
 
+const MAX_LOG_BUFFER_SIZE = 2000;
+const serverLogBuffer: string[] = [];
+
+// Intercept stdout & stderr to maintain live rolling buffer of server logs
+const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+const stripAnsi = (str: string) => str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+
+const captureLog = (chunk: any) => {
+  try {
+    const raw = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf-8') || '';
+    const clean = stripAnsi(raw).trim();
+    if (clean) {
+      const lines = clean.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          serverLogBuffer.push(trimmed);
+          if (serverLogBuffer.length > MAX_LOG_BUFFER_SIZE) {
+            serverLogBuffer.shift();
+          }
+        }
+      }
+    }
+  } catch {}
+};
+
+process.stdout.write = (chunk: any, ...args: any[]) => {
+  captureLog(chunk);
+  return (originalStdoutWrite as any)(chunk, ...args);
+};
+
+process.stderr.write = (chunk: any, ...args: any[]) => {
+  captureLog(chunk);
+  return (originalStderrWrite as any)(chunk, ...args);
+};
+
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
@@ -24,7 +62,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private isPollingActive = false;
   private processedUpdateIds = new Set<number>();
   private loginSessions = new Map<string, { step: 'USERNAME' | 'PASSWORD'; username?: string }>();
-  private murojaatSessions = new Set<string>();
 
   constructor(
     private prisma: PrismaService,
@@ -66,7 +103,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             { command: 'start', description: 'Asosiy menyu' },
             { command: 'ai', description: 'AI Assistentga savol berish' },
             { command: 'login', description: 'Tizimga kirish (/login username parol)' },
-            { command: 'murojaat', description: 'Omborchiga murojaat yuborish' },
             { command: 'myassets', description: 'Mening biriktirilgan jihozlarim' },
             { command: 'myhistory', description: 'Mening operatsiyalar tarixim' },
             { command: 'mydept', description: 'Mening bo‘limim' },
@@ -74,6 +110,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             { command: 'users_export', description: 'Xodimlar excel hisobot (Admin)' },
             { command: 'recent_export', description: 'Tarix excel hisobot (Admin)' },
             { command: 'stats_export', description: 'Statistika excel (Admin)' },
+            { command: 'logs', description: 'Server loglarini yuklab olish (.log) (Admin)' },
             { command: 'logout', description: 'Tizimdan chiqish' },
           ],
         }),
@@ -160,31 +197,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
               const isStaff = STAFF_ROLES.includes(boundUser.role);
 
-              // Check if user is in Murojaat mode or typed murojaat:
-              if (this.murojaatSessions.has(chatId) || text.toLowerCase().startsWith('murojaat:') || text.toLowerCase().startsWith('murojaat ')) {
-                const userMsg = text.replace(/^murojaat:/i, '').replace(/^murojaat/i, '').trim();
-                this.murojaatSessions.delete(chatId);
-                if (!userMsg || userMsg === '✍️ Omborchiga Murojaat') {
-                  await this.sendMessage('✍️ <b>OMBORCHI VA ADMINISTRATORGA MUROJAAT</b>\n\nMarhamat, murojaatingiz matnini yozing:', chatId);
-                  this.murojaatSessions.add(chatId);
-                } else {
-                  await this.forwardMurojaatToAdmin(boundUser, userMsg, chatId);
-                }
-                continue;
-              }
-
               if (text === '/logout' || text === '🚪 Tizimdan chiqish' || text === '🚪 Tizimdan Chiqish') {
                 await this.handleLogoutAccount(chatId);
               } else if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                 await this.sendMenuWithWelcome(chatId, boundUser);
-              } else if (text === '✍️ Omborchiga Murojaat' || text === '/murojaat') {
-                this.murojaatSessions.add(chatId);
-                await this.sendMessage(
-                  `✍️ <b>OMBORCHI VA ADMINISTRATORGA MUROJAAT / TALABNOMA</b>\n\n` +
-                  `Marhamat, o'z so'rovingiz, talabnomangiz yoki murojaatingiz matnini yozib yuboring.\n` +
-                  `<i>Xabaringiz zudlik bilan administrator chatiga yuboriladi.</i>`,
-                  chatId,
-                );
               } else if (text === '📱 Mening Jihozlarim 📦' || text === '📱 Mening Jihozlarim' || text.startsWith('/myassets')) {
                 const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
                 await this.sendMyAssets(chatId, boundUser, page);
@@ -237,6 +253,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sendAccessDenied(chatId);
                 } else {
                   await this.sendStatusReport(chatId);
+                }
+              } else if (text === '/logs' || text.startsWith('/log') || text === '📄 Server Loglari' || text === '📄 Loglar') {
+                if (!isStaff) {
+                  await this.sendAccessDenied(chatId);
+                } else {
+                  const parts = text.split(' ');
+                  const linesArg = parseInt(parts[1], 10) || 1000;
+                  await this.sendServerLogsFile(chatId, linesArg);
                 }
               } else if (text === '🚨 Qaytarishlar (Offboard)' || text.startsWith('/offboarding')) {
                 if (!isStaff) {
@@ -313,59 +337,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }, 2500);
   }
 
-  private async forwardMurojaatToAdmin(boundUser: any, userText: string, chatId: string) {
-    let orgId = boundUser.organizationId;
-    if (!orgId) {
-      const firstOrg = await this.prisma.organization.findFirst();
-      orgId = firstOrg?.id || '';
-    }
-
-    try {
-      const newRequest = await this.prisma.deletionRequest.create({
-        data: {
-          organizationId: orgId,
-          requestedById: boundUser.id,
-          entityType: 'USER',
-          entityId: boundUser.id,
-          entityName: boundUser.fullName,
-          reason: `[BOT MUROJAAT] ${userText}`,
-          status: 'PENDING',
-        },
-        include: {
-          organization: { select: { id: true, name: true, code: true } },
-          requestedBy: { select: { id: true, fullName: true, username: true } },
-        },
-      });
-
-      this.eventsGateway.broadcastDeletionRequestCreated(newRequest);
-    } catch (err: any) {
-      this.logger.error(`Murojaatni DBga saqlashda xatolik: ${err.message}`);
-    }
-
-    const text =
-      `🏛 <b>QURILISH VA UY-JOY KOMMUNAL XO'JALIGI VAZIRLIGI</b>\n` +
-      `📩 <b>YANGI MUROJAAT / TALABNOMA (XODIMDAN)</b>\n\n` +
-      `👤 <b>Xodim:</b> ${boundUser.fullName}\n` +
-      `💼 <b>Lavozimi:</b> ${boundUser.position || boundUser.role}\n` +
-      `🏢 <b>Bo'limi:</b> ${boundUser.department?.name || 'Bo\'limsiz'}\n` +
-      `📞 <b>Telefon:</b> ${boundUser.phone || boundUser.internalPhone || 'Ko\'rsatilmagan'}\n\n` +
-      `💬 <b>Murojaat / So'rov matni:</b>\n<i>${userText}</i>\n\n` +
-      `📅 Vaqti: <b>${new Date().toLocaleString('uz-UZ')}</b>\n` +
-      `🌐 <i>Veb-sahifaga zudlik bilan kelib tushdi! (So'rovlar & Murojaatlar bo'limida)</i>`;
-
-    await this.sendMessage(text);
-    await this.sendMessage(
-      `✅ <b>Murojaatingiz omborchi va administratorga muvaffaqiyatli yetkazildi!</b>\n\n` +
-      `Siz yuborgan so'rov web sahifada va administrator botida zudlik bilan ko'rib chiqiladi.`,
-      chatId,
-    );
-  }
-
   private async sendAccessDenied(chatId: string) {
     await this.sendMessage(
       `⛔ <b>Ruxsat etilmadi!</b>\n\n` +
       `Kechirasiz, ushbu ma'lumotlar va bo'lim faqat omborchi hamda mas'ul xodimlar uchun ochiq.\n` +
-      `Siz "📱 Mening Jihozlarim", "✍️ Omborchiga Murojaat" yoki "🏢 Mening Bo'limim" imkoniyatlaridan foydalanishingiz mumkin.`,
+      `Siz "📱 Mening Jihozlarim" yoki "🏢 Mening Bo'limim" imkoniyatlaridan foydalanishingiz mumkin.`,
       chatId,
     );
   }
@@ -395,13 +371,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `🤖 <b>WMS-AI Assistent</b>\n\n` +
         `Marhamat, savolingizni yozib yuboring:\n` +
         `<i>Misol: <code>${isStaff ? 'Omborda zaxirasi tugayotgan tovarlar bormi?' : 'Mening nomimda qanday jihozlar bor?'}</code></i>`,
-        chatId,
-      );
-    } else if (dataStr === 'cb_murojaat') {
-      this.murojaatSessions.add(chatId);
-      await this.sendMessage(
-        `✍️ <b>OMBORCHI VA ADMINISTRATORGA MUROJAAT / TALABNOMA</b>\n\n` +
-        `Marhamat, o'z so'rovingiz, talabnomangiz yoki murojaatingiz matnini yozib yuboring.`,
         chatId,
       );
     } else if (
@@ -624,7 +593,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private async handleLogoutAccount(chatId: string) {
     try {
       this.loginSessions.delete(chatId);
-      this.murojaatSessions.delete(chatId);
       await this.prisma.user.updateMany({
         where: { telegramChatId: chatId },
         data: { telegramChatId: null },
@@ -649,7 +617,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const replyKeyboard = {
       keyboard: [
         [{ text: '📋 Asosiy Menyu 🏛️' }, { text: isStaff ? '📦 Ombor Qoldiqlari' : '📱 Mening Jihozlarim 📦' }],
-        [{ text: '✍️ Omborchiga Murojaat' }, { text: '🚪 Tizimdan Chiqish' }],
+        [{ text: '❓ Yordam / Qo‘llanma' }, { text: '🚪 Tizimdan Chiqish' }],
       ],
       resize_keyboard: true,
     };
@@ -694,10 +662,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     } else {
       inlineRows = [
         [
-          { text: '🤖 AI Assistent', callback_data: 'cb_ai' },
-          { text: '✍️ Omborchiga Murojaat', callback_data: 'cb_murojaat' },
-        ],
-        [
           { text: '📱 Mening Jihozlarim', callback_data: 'cb_myassets' },
           { text: '📜 Tarixim', callback_data: 'cb_myhistory' },
         ],
@@ -706,6 +670,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           { text: '📞 Ichki Aloqa', callback_data: 'cb_contacts' },
         ],
         [
+          { text: '🤖 AI Assistent', callback_data: 'cb_ai' },
           { text: '❓ Qo‘llanma', callback_data: 'cb_help' },
         ],
       ];
@@ -1385,6 +1350,47 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Serverning oxirgi loglarini (.log fayl) yuklab olish
+   */
+  private async sendServerLogsFile(chatId: string, lineCount = 1000) {
+    try {
+      if (serverLogBuffer.length === 0) {
+        await this.sendMessage('ℹ️ Hozircha serverda yangi loglar yig‘ilmadi.', chatId);
+        return;
+      }
+
+      const count = Math.max(10, Math.min(lineCount, serverLogBuffer.length));
+      const lines = serverLogBuffer.slice(-count);
+      const logContent = lines.join('\n');
+      const buffer = Buffer.from(logContent, 'utf-8');
+
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const dateTag = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+      const filename = `server_logs_${dateTag}.log`;
+      const sizeKb = (buffer.length / 1024).toFixed(1);
+
+      const formattedDate = now.toLocaleString('uz-UZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const caption =
+        `📊 <b>Server loglari</b>\n\n` +
+        `📝 <b>Qatorlar soni:</b> ${lines.length} ta\n` +
+        `💾 <b>Fayl hajmi:</b> ${sizeKb} KB\n` +
+        `📅 <b>Vaqt:</b> ${formattedDate}`;
+
+      await this.sendDocumentBuffer(filename, buffer, caption, chatId);
+    } catch (err: any) {
+      await this.sendMessage(`❌ Log faylini yuborishda xatolik: ${err.message}`, chatId);
+    }
+  }
+
+  /**
    * RASMIY HUJJAT / TALABNOMA / MODDIY JAVOBGARLIK SHARTNOMASI GENERATORI (TELEGRAM DOCUMENT)
    */
   async sendOfficialDocument(docTitle: string, data: any, overrideChatId?: string) {
@@ -1416,12 +1422,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const buffer = Buffer.from(docContent, 'utf-8');
       const safeTitle = docTitle.replace(/[^a-zA-Z0-9_]/g, '_');
       const filename = `${safeTitle}_${Date.now().toString().slice(-4)}.doc`;
+      const formattedDate = new Date().toLocaleString('uz-UZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
       const caption =
-        `📄 <b>RASMIY HUJJAT / TALABNOMA</b>\n\n` +
-        `📌 <b>Hujjat:</b> ${docTitle}\n` +
+        `📄 <b>${docTitle}</b>\n\n` +
+        `📤 <b>Kimdan:</b> ${data.performerName || 'Bosh Omborchi'}\n` +
+        `📥 <b>Kimga:</b> ${data.targetName || 'Xodim / Bo‘lim'}\n` +
         `📦 <b>Mahsulot:</b> ${data.productName} (${data.quantity} ${data.unit || 'ta'})\n` +
-        `👤 <b>Qabul qildi:</b> ${data.targetName}\n` +
-        `✍️ <b>Bajaruvchi:</b> ${data.performerName}`;
+        `📅 <b>Sana:</b> ${formattedDate}`;
 
       await this.sendDocumentBuffer(filename, buffer, caption, overrideChatId);
     } catch (err: any) {
@@ -1925,37 +1939,58 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   async sendAdminNewUserAlert(userFullName: string, position: string, departmentName: string) {
+    const formattedDate = new Date().toLocaleString('uz-UZ', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
     const text =
-      `🏛 <b>QURILISH VA UY-JOY KOMMUNAL XO'JALIGI VAZIRLIGI</b>\n` +
-      `👤 <b>YANGI XODIM RO'YXATGA OLINDI</b>\n\n` +
-      `• F.I.SH: <b>${userFullName}</b>\n` +
-      `• Lavozimi: <i>${position}</i>\n` +
-      `• Bo'limi: <b>${departmentName}</b>\n` +
-      `• Sana: <i>${new Date().toLocaleString('uz-UZ')}</i>`;
+      `👤 <b>Yangi xodim qo‘shildi</b>\n\n` +
+      `👤 <b>F.I.SH:</b> ${userFullName}\n` +
+      `💼 <b>Lavozim:</b> ${position || 'Xodim'}\n` +
+      `🏢 <b>Bo‘lim:</b> ${departmentName || "Biriktirilmagan"}\n` +
+      `📅 <b>Sana:</b> ${formattedDate}`;
 
     return this.sendMessage(text);
   }
 
   async sendOffboardingAlert(userFullName: string, departmentName: string, startedByName: string) {
+    const formattedDate = new Date().toLocaleString('uz-UZ', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
     const text =
-      `🚨 <b>ISHDAN BO'SHASH JARAYONI</b>\n\n` +
-      `👤 Xodim: <b>${userFullName}</b>\n` +
-      `🏢 Bo'lim: <b>${departmentName || "Bo'limsiz"}</b>\n` +
-      `📝 Boshladi: <b>${startedByName}</b>`;
+      `🚨 <b>Ishdan bo‘shatish jarayoni</b>\n\n` +
+      `👤 <b>Xodim:</b> ${userFullName}\n` +
+      `🏢 <b>Bo‘lim:</b> ${departmentName || "Bo‘limsiz"}\n` +
+      `✍️ <b>Boshladi:</b> ${startedByName}\n` +
+      `📅 <b>Sana:</b> ${formattedDate}`;
 
     return this.sendMessage(text);
   }
 
-  async sendOperationAlert(opType: string, productName: string, quantity: number, targetName: string, performerName: string) {
+  async sendOperationAlert(opType: string, productName: string, quantity: number, targetName: string, performerName: string, unit = 'ta') {
+    const formattedDate = new Date().toLocaleString('uz-UZ', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
     const text =
-      `📋 <b>YANGI OMBOR OPERATSIYASI (SERVER REAL-TIME ALERT)</b>\n\n` +
-      `📌 Operatsiya turi: <b>${opType}</b>\n` +
-      `📦 Mahsulot: <b>${productName}</b>\n` +
-      `🔢 Miqdori: <b>${quantity} ta</b>\n` +
-      `🎯 Qabul qiluvchi: <b>${targetName}</b>\n` +
-      `👨‍💼 Bajaruvchi: <b>${performerName}</b>\n` +
-      `🟢 Server javobi: <b>200 OK (Muvaffaqiyatli bajarildi)</b>\n` +
-      `📅 Vaqti: <b>${new Date().toLocaleString('uz-UZ')}</b>`;
+      `📦 <b>${opType}</b>\n\n` +
+      `📤 <b>Kimdan:</b> ${performerName}\n` +
+      `📥 <b>Kimga:</b> ${targetName}\n` +
+      `📦 <b>Mahsulot:</b> ${productName} (${quantity} ${unit})\n` +
+      `📅 <b>Sana:</b> ${formattedDate}`;
 
     return this.sendMessage(text);
   }
@@ -1969,11 +2004,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       if (!user || !user.telegramChatId) return false;
 
+      const formattedDate = new Date().toLocaleString('uz-UZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
       const fullText =
-        `🏛 <b>QURILISH VA UY-JOY KOMMUNAL XO'JALIGI VAZIRLIGI</b>\n` +
-        `🔔 <b>${title.toUpperCase()}</b>\n\n` +
-        `Hurmatli <b>${user.fullName}</b>,\n\n` +
-        `${message}`;
+        `🔔 <b>${title}</b>\n\n` +
+        `Hurmatli <b>${user.fullName}</b>,\n` +
+        `${message}\n\n` +
+        `📅 <i>${formattedDate}</i>`;
 
       return this.sendMessage(fullText, user.telegramChatId);
     } catch (err) {

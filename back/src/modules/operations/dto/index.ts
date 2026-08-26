@@ -7,3 +7,4 @@ export * from './transfer-user.dto';
 export * from './bulk-write-off.dto';
 export * from './write-off.dto';
 export * from './stock-in.dto';
+export * from './reject-assignment.dto';
