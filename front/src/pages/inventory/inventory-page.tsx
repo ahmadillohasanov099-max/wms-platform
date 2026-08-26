@@ -30,7 +30,6 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
   const [typeFilter, setTypeFilter] = useState('');
-  const [stockStatus, setStockStatus] = useState<'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK'>('IN_STOCK');
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
   const [stockInModal, setStockInModal] = useState(false);
@@ -83,7 +82,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, typeFilter, lowStockOnly, stockStatus]);
+  }, [debouncedSearch, typeFilter, lowStockOnly]);
 
   const filtered = useMemo(() => {
     const s = debouncedSearch.toLowerCase().trim();
@@ -99,35 +98,19 @@ export default function InventoryPage() {
         );
       const matchType = !typeFilter || item.product?.productType === typeFilter;
       const matchLowStock = !lowStockOnly || item.quantity <= item.minLevel;
-      const matchStockStatus =
-        stockStatus === 'ALL'
-          ? true
-          : stockStatus === 'IN_STOCK'
-          ? item.quantity > 0
-          : item.quantity === 0;
-
-      return matchSearch && matchType && matchLowStock && matchStockStatus;
+      return matchSearch && matchType && matchLowStock;
     });
-  }, [inventory, debouncedSearch, typeFilter, lowStockOnly, stockStatus]);
+  }, [inventory, debouncedSearch, typeFilter, lowStockOnly]);
 
-  const { totalValue, lowStockCount, inStockCount, outOfStockCount } = useMemo(() => {
+  const { totalValue, lowStockCount } = useMemo(() => {
     let sum = 0;
     let low = 0;
-    let inStock = 0;
-    let outOfStock = 0;
     for (let i = 0; i < inventory.length; i++) {
       const item = inventory[i];
       sum += Number(item.totalValue ?? 0);
       if (item.quantity <= item.minLevel) low++;
-      if (item.quantity > 0) inStock++;
-      else outOfStock++;
     }
-    return {
-      totalValue: sum,
-      lowStockCount: low,
-      inStockCount: inStock,
-      outOfStockCount: outOfStock,
-    };
+    return { totalValue: sum, lowStockCount: low };
   }, [inventory]);
 
   const totalPages = Math.ceil(filtered.length / limit) || 1;
@@ -446,54 +429,16 @@ export default function InventoryPage() {
         searchValue={search}
         onSearchChange={setSearch}
         filters={
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
-              <button
-                type="button"
-                onClick={() => setStockStatus('IN_STOCK')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  stockStatus === 'IN_STOCK'
-                    ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Mavjud qoldiqlar ({inStockCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockStatus('OUT_OF_STOCK')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  stockStatus === 'OUT_OF_STOCK'
-                    ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Qoldig'i 0 / Arxiv ({outOfStockCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockStatus('ALL')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  stockStatus === 'ALL'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Barchasi ({inventory.length})
-              </button>
-            </div>
-
-            <div className="w-44">
-              <Select
-                options={[
-                  { value: 'BERILADIGAN', label: t('inventory.typeAsset') },
-                  { value: 'SARFLANADIGAN', label: t('inventory.typeConsumable') },
-                ]}
-                placeholder={t('products.allTypes')}
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-              />
-            </div>
+          <div className="w-48">
+            <Select
+              options={[
+                { value: 'BERILADIGAN', label: t('inventory.typeAsset') },
+                { value: 'SARFLANADIGAN', label: t('inventory.typeConsumable') },
+              ]}
+              placeholder={t('products.allTypes')}
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            />
           </div>
         }
       />
