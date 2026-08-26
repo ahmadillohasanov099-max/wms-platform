@@ -219,12 +219,7 @@ export class DepartmentsService {
       },
     });
 
-    if (leaderId) {
-      await this.prisma.user.update({
-        where: { id: leaderId },
-        data: { departmentId: department.id },
-      });
-    }
+
 
     await this.auditService.log({
       userId: createdBy,
@@ -278,10 +273,9 @@ export class DepartmentsService {
         throw new BadRequestException("Tanlangan bo'lim boshlig'i topilmadi");
       }
       if (leaderUser.departmentId !== id) {
-        await this.prisma.user.update({
-          where: { id: leaderUser.id },
-          data: { departmentId: id },
-        });
+        throw new BadRequestException(
+          "Bo'lim boshlig'i faqat ushbu bo'limning o'ziga biriktirilgan xodimlari orasidan tayinlanishi shart!",
+        );
       }
     }
 

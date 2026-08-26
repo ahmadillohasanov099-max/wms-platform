@@ -82,13 +82,26 @@ export default function DepartmentFormModal({ open, onClose, department }: Props
     },
   });
 
-  const leaderOptions = [
-    { value: "", label: "Tanlanmagan (Boshliqsiz)" },
-    ...userList.map((u) => ({
-      value: u.id,
-      label: `${u.fullName} (${u.position || u.username || 'Xodim'})`,
-    })),
-  ];
+  const deptUsers = isEdit
+    ? userList.filter(
+        (u) =>
+          u.departmentId === department.id ||
+          u.id === department.leaderId ||
+          u.id === department.leader?.id
+      )
+    : [];
+
+  const leaderOptions = isEdit
+    ? deptUsers.length > 0
+      ? [
+          { value: "", label: "Tanlanmagan (Boshliqsiz)" },
+          ...deptUsers.map((u) => ({
+            value: u.id,
+            label: `${u.fullName} (${u.position || u.username || 'Xodim'})`,
+          })),
+        ]
+      : [{ value: "", label: "Bo'limda xodimlar yo'q (avval xodimlarni biriktiring)" }]
+    : [{ value: "", label: "Bo'lim yaratilgach xodimlar qo'shilgach tayinlanadi" }];
 
   return (
     <Modal
