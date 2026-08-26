@@ -7,7 +7,6 @@ import { Card, Button, Select, Table, ConfirmDialog, RoleBadge, PageHeader, Sear
 import toast from 'react-hot-toast';
 import UserFormModal from './user-form-modal';
 import UserExcelImportModal from './user-excel-import-modal';
-import RequestDeletionModal from '../../components/modals/request-deletion-modal';
 import { useAuthStore } from '../../store/auth.store';
 import { downloadExport } from '../../lib/export';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -18,7 +17,7 @@ export default function UsersPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, isSubOrgUser } = useAuthStore();
+  const { user } = useAuthStore();
   const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN' || user?.role === 'KADR';
   const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN';
 
@@ -32,9 +31,6 @@ export default function UsersPage() {
 
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteUser, setDeleteUser] = useState<any>(null);
-
-  const [requestDeletionOpen, setRequestDeletionOpen] = useState(false);
-  const [requestDeletionUser, setRequestDeletionUser] = useState<any>(null);
 
   const [internalPhoneEdit, setInternalPhoneEdit] = useState<string | null>(null);
   const [internalPhoneValue, setInternalPhoneValue] = useState('');
@@ -325,13 +321,8 @@ export default function UsersPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (isSubOrgUser()) {
-                    setRequestDeletionUser(row);
-                    setRequestDeletionOpen(true);
-                  } else {
-                    setDeleteUser(row);
-                    setDeleteDialog(true);
-                  }
+                  setDeleteUser(row);
+                  setDeleteDialog(true);
                 }}
                 className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
                 title={t('common.delete')}
@@ -519,20 +510,6 @@ export default function UsersPage() {
         confirmText={t('common.delete')}
         loading={deleteLoading}
       />
-
-      {requestDeletionUser && (
-        <RequestDeletionModal
-          open={requestDeletionOpen}
-          onClose={() => {
-            setRequestDeletionOpen(false);
-            setRequestDeletionUser(null);
-          }}
-          entityType="USER"
-          entityId={requestDeletionUser.id}
-          entityTitle={requestDeletionUser.fullName}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
-        />
-      )}
     </div>
   );
 }

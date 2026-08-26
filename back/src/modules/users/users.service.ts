@@ -475,13 +475,11 @@ export class UsersService {
       deleterUser?.role === 'SUPER_ADMIN' ||
       deleterUser?.role === 'VAZIRLIK_OMBORCHI';
 
-    if (!isSuperOrMinistry) {
-      throw new ForbiddenException(
-        "Quyi tashkilotlar uchun xodimni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
-      );
-    }
+    const targetUser = await this.findOne(id);
 
-    await this.findOne(id);
+    if (!isSuperOrMinistry && deleterUser?.organizationId && targetUser.organizationId && targetUser.organizationId !== deleterUser.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz");
+    }
 
     const activeAssignments = await this.prisma.assignment.count({
       where: { userId: id, returnedAt: null },

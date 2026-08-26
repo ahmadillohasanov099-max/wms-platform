@@ -323,10 +323,8 @@ export class DepartmentsService {
 
     const oldDepartment = await this.findOne(id);
 
-    if (!isSuperOrMinistry) {
-      throw new ForbiddenException(
-        "Quyi tashkilotlar uchun bo'limni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
-      );
+    if (!isSuperOrMinistry && deleterUser?.organizationId && oldDepartment.organizationId && oldDepartment.organizationId !== deleterUser.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz bo'limlarini boshqara olasiz");
     }
 
     const userCount = await this.prisma.user.count({

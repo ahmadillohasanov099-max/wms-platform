@@ -11,7 +11,6 @@ import WriteOffModal from '../operations/write-off-modal';
 import ProductFormModal from '../products/product-form-modal';
 import ProductHistoryModal from '../products/product-history-modal';
 import ProductDetailModal from '../products/product-detail-modal';
-import RequestDeletionModal from '../../components/modals/request-deletion-modal';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -20,7 +19,7 @@ import { downloadExport } from '../../lib/export';
 export default function InventoryPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { user, isSubOrgUser } = useAuthStore();
+  const { user } = useAuthStore();
 
   const isAdmin = user?.role !== 'XODIM' && user?.role !== 'KADR';
 
@@ -42,8 +41,6 @@ export default function InventoryPage() {
   const [editProduct, setEditProduct] = useState<any>(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteProduct, setDeleteProduct] = useState<any>(null);
-  const [requestDeletionProduct, setRequestDeletionProduct] = useState<any | null>(null);
-  const [requestDeletionOpen, setRequestDeletionOpen] = useState(false);
   const [minLevelEdit, setMinLevelEdit] = useState<string | null>(null);
   const [minLevelValue, setMinLevelValue] = useState('');
 
@@ -333,13 +330,8 @@ export default function InventoryPage() {
               </button>
               <button
                 onClick={() => {
-                  if (isSubOrgUser()) {
-                    setRequestDeletionProduct(row.product);
-                    setRequestDeletionOpen(true);
-                  } else {
-                    setDeleteProduct(row.product);
-                    setDeleteDialog(true);
-                  }
+                  setDeleteProduct(row.product);
+                  setDeleteDialog(true);
                 }}
                 className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
                 title={t('common.delete')}
@@ -591,20 +583,6 @@ export default function InventoryPage() {
         confirmText={t('common.delete')}
         loading={deleteLoading}
       />
-
-      {requestDeletionProduct && (
-        <RequestDeletionModal
-          open={requestDeletionOpen}
-          onClose={() => {
-            setRequestDeletionOpen(false);
-            setRequestDeletionProduct(null);
-          }}
-          entityType="PRODUCT"
-          entityId={requestDeletionProduct.id}
-          entityTitle={requestDeletionProduct.name}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['inventory'] })}
-        />
-      )}
     </div>
   );
 }

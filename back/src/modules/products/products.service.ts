@@ -171,40 +171,59 @@ export class ProductsService {
       throw new NotFoundException(t('errors.PRODUCT_NOT_FOUND', {}, 'Mahsulot topilmadi'));
     }
 
-    if (!isSuperOrMinistry) {
-      throw new ForbiddenException(
-        "Quyi tashkilotlar uchun mahsulotni to'g'ridan-to'g'ri o'chirish taqiqlangan. O'chirish bo'yicha Vazirlikka so'rov yuboring.",
-      );
+    if (!isSuperOrMinistry && deleterUser?.organizationId && product.organizationId && product.organizationId !== deleterUser.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz mahsulotlarini boshqara olasiz");
     }
 
-    if (product.inventory && product.inventory.quantity > 0) {
-      throw new BadRequestException(
-        t('errors.PRODUCT_IN_STOCK', {}, "Mahsulot omborda mavjud, o'chirib bo'lmaydi"),
-      );
-    }
-
-    const activeAssets = await this.prisma.asset.count({
-      where: { productId: id, deletedAt: null },
+    // 1. Check if assigned to any employees
+    const assignedCount = await this.prisma.assignment.count({
+      where: {
+        asset: { productId: id },
+        returnedAt: null,
+      },
     });
-    if (activeAssets > 0) {
+    if (assignedCount > 0) {
       throw new BadRequestException(
-        t('errors.ACTIVE_ASSETS_EXIST', {}, "Mahsulotda aktiv jihozlar bor, o'chirib bo'lmaydi"),
+        "Ushbu mahsulot xodim(lar) zimmasida biriktirilgan! Uni o'chirish uchun avval xodimdan omborga qaytarib oling.",
       );
     }
 
+    // 2. Check if allocated in departments
     const activeDeptAssets = await this.prisma.departmentAsset.aggregate({
       where: { productId: id },
       _sum: { quantity: true },
     });
     if (activeDeptAssets._sum.quantity && activeDeptAssets._sum.quantity > 0) {
       throw new BadRequestException(
-        t('errors.PRODUCT_IN_DEPTS', {}, "Ushbu mahsulot bo'limlarda mavjud, o'chirib bo'lmaydi"),
+        "Ushbu mahsulot bo'limlar hisobida mavjud! Uni o'chirish uchun avval bo'limdan omborga qaytarib oling.",
+      );
+    }
+
+    // 3. Check warehouse stock balance
+    if (product.inventory && product.inventory.quantity > 0) {
+      throw new BadRequestException(
+        `Mahsulotda ombor qoldig'i mavjud (${product.inventory.quantity} ta)! Uni o'chirishdan avval hisobdan chiqarish (spisanie) qilishingiz kerak.`,
+      );
+    }
+
+    // 4. Check active assets in warehouse
+    const activeAssets = await this.prisma.asset.count({
+      where: { productId: id, status: 'ACTIVE', deletedAt: null },
+    });
+    if (activeAssets > 0) {
+      throw new BadRequestException(
+        "Mahsulotda omborda aktiv jihozlar mavjud! Uni o'chirishdan avval hisobdan chiqarish (spisanie) qilishingiz kerak.",
       );
     }
 
     return this.prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
+        data: { deletedAt: new Date() },
+      });
+
+      await tx.asset.updateMany({
+        where: { productId: id, deletedAt: null },
         data: { deletedAt: new Date() },
       });
 

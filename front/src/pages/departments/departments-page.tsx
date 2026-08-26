@@ -6,7 +6,6 @@ import { Card, Button, ConfirmDialog, PageHeader, SearchFilterCard } from '../..
 import toast from 'react-hot-toast';
 import DepartmentFormModal from './departments-form-modal';
 import DepartmentDetailView from './department-detail-view';
-import RequestDeletionModal from '../../components/modals/request-deletion-modal';
 import { useAuthStore } from '../../store/auth.store';
 import { downloadExport } from '../../lib/export';
 import { cn } from '../../lib/utils';
@@ -16,7 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 export default function DepartmentsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { user, isSubOrgUser } = useAuthStore();
+  const { user } = useAuthStore();
   const isAdmin = user?.role !== 'XODIM' && user?.role !== 'KADR';
   const navigate = useNavigate();
   const { id, userId } = useParams();
@@ -26,8 +25,6 @@ export default function DepartmentsPage() {
   const [editDept, setEditDept] = useState<any>(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteDept, setDeleteDept] = useState<any>(null);
-  const [requestDeletionDept, setRequestDeletionDept] = useState<any | null>(null);
-  const [requestDeletionOpen, setRequestDeletionOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['departments'],
@@ -198,13 +195,8 @@ export default function DepartmentsPage() {
                       <button
                         onClick={(e: any) => {
                           e.stopPropagation();
-                          if (isSubOrgUser()) {
-                            setRequestDeletionDept(row);
-                            setRequestDeletionOpen(true);
-                          } else {
-                            setDeleteDept(row);
-                            setDeleteDialog(true);
-                          }
+                          setDeleteDept(row);
+                          setDeleteDialog(true);
                         }}
                         className="p-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all duration-300 hover:scale-105"
                         title={t('common.delete')}
@@ -240,20 +232,6 @@ export default function DepartmentsPage() {
         confirmText={t('common.delete')}
         loading={deleteLoading}
       />
-
-      {requestDeletionDept && (
-        <RequestDeletionModal
-          open={requestDeletionOpen}
-          onClose={() => {
-            setRequestDeletionOpen(false);
-            setRequestDeletionDept(null);
-          }}
-          entityType="DEPARTMENT"
-          entityId={requestDeletionDept.id}
-          entityTitle={requestDeletionDept.name}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['departments'] })}
-        />
-      )}
     </div>
   );
 }
