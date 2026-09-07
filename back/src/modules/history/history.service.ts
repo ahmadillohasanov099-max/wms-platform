@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { HistoryQueryDto } from './dto/history-query.dto';
-import { enforceTenantOrgId } from 'src/common/helper/tenant.helper';
+import { enforceTenantOrgId, enforceRequiredTenantOrgId } from 'src/common/helper/tenant.helper';
 
 @Injectable()
 export class HistoryService {
@@ -91,7 +91,7 @@ export class HistoryService {
     currentUserId: string,
     currentUserRole: string,
     currentUserOrgId?: string,
-  ): Promise<string> {
+  ): Promise<{ csvContent: string; organizationName: string }> {
     const {
       operationType,
       userId,
@@ -105,11 +105,17 @@ export class HistoryService {
     } = query;
 
     const targetUserId = currentUserRole === 'XODIM' ? currentUserId : userId;
-    const resolvedOrgId = enforceTenantOrgId(
+    const resolvedOrgId = enforceRequiredTenantOrgId(
       { id: currentUserId, role: currentUserRole, organizationId: currentUserOrgId },
       organizationId,
     );
-    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+    const orgFilter: any = { organizationId: resolvedOrgId };
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: resolvedOrgId },
+      select: { name: true },
+    });
+    const organizationName = org?.name || 'Boshqarma';
 
     const where: any = {
       ...orgFilter,
@@ -139,7 +145,7 @@ export class HistoryService {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-
+        organization: { select: { name: true } },
         product: { select: { name: true } },
         asset: { select: { inventoryNumber: true } },
         user: { select: { fullName: true } },
@@ -151,6 +157,7 @@ export class HistoryService {
 
     const headers = [
       'Sana',
+      'Tashkilot / Boshqarma',
       'Operatsiya turi',
       'Mahsulot nomi',
       'Inventar raqami',
@@ -164,8 +171,10 @@ export class HistoryService {
     const csvRows = [headers.join(',')];
 
     for (const item of items) {
+      const currentOrgName = item.organization?.name || organizationName;
       const row = [
         item.createdAt.toISOString(),
+        `"${currentOrgName.replace(/"/g, '""')}"`,
         item.type,
         item.product?.name ? `"${item.product.name.replace(/"/g, '""')}"` : '',
         item.asset?.inventoryNumber
@@ -188,6 +197,9 @@ export class HistoryService {
       csvRows.push(row.join(','));
     }
 
-    return '\ufeff' + csvRows.join('\n');
+    return {
+      csvContent: '\ufeff' + csvRows.join('\n'),
+      organizationName,
+    };
   }
 }

@@ -18,9 +18,11 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { CurrentUser, Roles } from '../auth/decorators';
 import { JwtAuthGuard, RolesGuard } from '../auth';
+import { enforceRequiredTenantOrgId } from '../../common/helper/tenant.helper';
 
 const MANAGERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
@@ -61,13 +63,13 @@ export class DepartmentsController {
     @CurrentUser() user: any,
     @Res() res: express.Response,
   ) {
-    const isSuperOrMinistry = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.VAZIRLIK_OMBORCHI;
-    const targetOrgId = isSuperOrMinistry ? organizationId : user?.organizationId;
-    const csvContent = await this.departmentsService.exportCsv(targetOrgId);
+    const targetOrgId = enforceRequiredTenantOrgId(user, organizationId);
+    const { csvContent, organizationName } = await this.departmentsService.exportCsv(targetOrgId);
+    const safeOrgName = encodeURIComponent(organizationName.replace(/[\s/\\:*?"<>|]+/g, '_'));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=bolimlar.csv',
+      `attachment; filename="bolimlar_${safeOrgName}.csv"`,
     );
     return res.status(200).send(csvContent);
   }

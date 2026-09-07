@@ -10,10 +10,24 @@ export class TelegramExcelService {
     private sender: TelegramSenderService,
   ) {}
 
-  async sendStockExcel(chatId: string) {
+  async sendStockExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
+      const org = organizationId
+        ? await this.prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { name: true },
+          })
+        : null;
+      const orgTitle = org?.name ? ` (${org.name})` : '';
+
       const items = await this.prisma.inventory.findMany({
-        where: { product: { deletedAt: null } },
+        where: {
+          product: {
+            deletedAt: null,
+            ...orgFilter,
+          },
+        },
         include: { product: true },
         orderBy: { quantity: 'desc' },
       });
@@ -54,7 +68,7 @@ export class TelegramExcelService {
       await this.sender.sendDocumentBuffer(
         `Ombor_Qoldiqlari_${new Date().toISOString().slice(0, 10)}.xlsx`,
         buffer,
-        `📊 <b>OMBOR QOLDIQLARI EXCEL HISOBOTI</b>\n\nJami mahsulotlar: <b>${items.length} xil</b>`,
+        `📊 <b>OMBOR QOLDIQLARI EXCEL HISOBOTI${orgTitle}</b>\n\nJami mahsulotlar: <b>${items.length} xil</b>`,
         chatId,
       );
     } catch (err: any) {
@@ -62,10 +76,11 @@ export class TelegramExcelService {
     }
   }
 
-  async sendUsersExcel(chatId: string) {
+  async sendUsersExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const users = await this.prisma.user.findMany({
-        where: { deletedAt: null, isActive: true },
+        where: { deletedAt: null, isActive: true, ...orgFilter },
         include: {
           department: true,
           assignments: { where: { returnedAt: null }, include: { asset: { include: { product: true } } } },
@@ -119,10 +134,12 @@ export class TelegramExcelService {
     }
   }
 
-  async sendOperationsExcel(chatId: string) {
+  async sendOperationsExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const ops = await this.prisma.operation.findMany({
         take: 500,
+        where: orgFilter,
         orderBy: { createdAt: 'desc' },
         include: {
           product: true,
@@ -174,14 +191,15 @@ export class TelegramExcelService {
     }
   }
 
-  async sendStatsExcel(chatId: string) {
+  async sendStatsExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const [prod, users, depts, activeAssets, lowStock] = await Promise.all([
-        this.prisma.product.count({ where: { deletedAt: null } }),
-        this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
-        this.prisma.department.count({ where: { deletedAt: null } }),
-        this.prisma.assignment.count({ where: { returnedAt: null } }),
-        this.prisma.inventory.count({ where: { quantity: { lte: 5 } } }),
+        this.prisma.product.count({ where: { deletedAt: null, ...orgFilter } }),
+        this.prisma.user.count({ where: { deletedAt: null, isActive: true, ...orgFilter } }),
+        this.prisma.department.count({ where: { deletedAt: null, ...orgFilter } }),
+        this.prisma.assignment.count({ where: { returnedAt: null, asset: orgFilter } }),
+        this.prisma.inventory.count({ where: { quantity: { lte: 5 }, product: orgFilter } }),
       ]);
 
       const workbook = new ExcelJS.Workbook();
@@ -214,10 +232,11 @@ export class TelegramExcelService {
     }
   }
 
-  async sendDepartmentsExcel(chatId: string) {
+  async sendDepartmentsExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const depts = await this.prisma.department.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, ...orgFilter },
         include: {
           organization: true,
           users: { select: { id: true, fullName: true } },
@@ -268,10 +287,12 @@ export class TelegramExcelService {
     }
   }
 
-  async sendAuditLogsExcel(chatId: string) {
+  async sendAuditLogsExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const logs = await this.prisma.auditLog.findMany({
         take: 1000,
+        where: orgFilter,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { fullName: true, username: true } },
@@ -323,10 +344,11 @@ export class TelegramExcelService {
     }
   }
 
-  async sendAssignmentsExcel(chatId: string) {
+  async sendAssignmentsExcel(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const assignments = await this.prisma.assignment.findMany({
-        where: { returnedAt: null },
+        where: { returnedAt: null, asset: orgFilter },
         include: {
           user: { include: { department: true } },
           department: true,

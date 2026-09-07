@@ -17,14 +17,24 @@ import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductsService } from './products.service';
 import { CurrentUser, Roles } from '../auth';
 
-const MANAGERS = [
+const PRODUCT_VIEWERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
   UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
+];
+
+const PRODUCT_MUTATORS = [
+  UserRole.SUPER_ADMIN,
+  UserRole.VAZIRLIK_OMBORCHI,
+  UserRole.ORG_ADMIN,
+  UserRole.ORG_OMBORCHI,
+  UserRole.ADMIN,
+  UserRole.OMBORCHI,
 ];
 
 @ApiTags('Products')
@@ -35,40 +45,43 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @ApiOperation({ summary: "Barcha mahsulotlar ro'yxati" })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...PRODUCT_VIEWERS, UserRole.XODIM)
   @Get()
   findAll(@Query() query: ProductQueryDto, @CurrentUser() user: any) {
     return this.productsService.findAll(query, user);
   }
 
   @ApiOperation({ summary: 'Kam qolgan mahsulotlar' })
-  @Roles(...MANAGERS)
+  @Roles(...PRODUCT_VIEWERS)
   @Get('low-stock')
   getLowStock(
     @Query('organizationId') organizationId: string,
     @CurrentUser() user: any,
   ) {
-    const isSuperOrMinistry = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.VAZIRLIK_OMBORCHI;
+    const isSuperOrMinistry =
+      user?.role === UserRole.SUPER_ADMIN ||
+      user?.role === UserRole.RAHBAR ||
+      user?.role === UserRole.VAZIRLIK_OMBORCHI;
     const targetOrgId = isSuperOrMinistry ? organizationId : user?.organizationId;
     return this.productsService.getLowStock(targetOrgId);
   }
 
   @ApiOperation({ summary: 'Inventar kodi bo\'yicha mahsulot va jihozni qidirish (Skaner uchun)' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...PRODUCT_VIEWERS, UserRole.XODIM)
   @Get('inventory/:code')
   lookupByInventoryCode(@Param('code') code: string, @CurrentUser() user: any) {
     return this.productsService.lookupByInventoryCode(code, user);
   }
 
   @ApiOperation({ summary: 'Bitta mahsulot' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...PRODUCT_VIEWERS, UserRole.XODIM)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
   @ApiOperation({ summary: 'Mahsulot harakatlari tarixi' })
-  @Roles(...MANAGERS)
+  @Roles(...PRODUCT_VIEWERS)
   @Get(':id/history')
   getHistory(
     @Param('id') id: string,
@@ -83,7 +96,7 @@ export class ProductsController {
   }
 
   @ApiOperation({ summary: 'Mahsulotni tahrirlash' })
-  @Roles(...MANAGERS)
+  @Roles(...PRODUCT_MUTATORS)
   @Put(':id')
   update(
     @Param('id') id: string,
@@ -94,7 +107,7 @@ export class ProductsController {
   }
 
   @ApiOperation({ summary: "Mahsulotni o'chirish (soft delete)" })
-  @Roles(...MANAGERS)
+  @Roles(...PRODUCT_MUTATORS)
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.productsService.remove(id, user.id);

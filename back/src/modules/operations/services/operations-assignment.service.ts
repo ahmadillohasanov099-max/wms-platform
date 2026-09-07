@@ -459,7 +459,7 @@ export class OperationsAssignmentService {
       });
 
       await tx.assignment.create({
-        data: { userId: dto.toUserId, assetId: dto.assetId },
+        data: { userId: dto.toUserId, assetId: dto.assetId, status: 'PENDING' },
       });
 
       const op = await tx.operation.create({
@@ -730,13 +730,20 @@ export class OperationsAssignmentService {
       currentUserRole === 'ADMIN';
 
     if (assignment.userId) {
-      if (assignment.userId !== currentUserId && !isSuperOrAdmin) {
-        throw new BadRequestException('Faqat jihoz biriktirilgan xodim yoki admin uni qabul qilishi mumkin');
+      if (assignment.userId !== currentUserId) {
+        throw new BadRequestException('Faqat jihoz biriktirilgan xodim uni qabul qilishi mumkin');
       }
     } else if (assignment.departmentId) {
       const isDeptLeader = assignment.department?.leaderId === currentUserId;
-      if (!isDeptLeader && !isSuperOrAdmin) {
-        throw new BadRequestException('Bo‘limga biriktirilgan jihozni faqat bo‘lim boshlig‘i yoki admin qabul qilishi mumkin');
+      const deptMember = await this.prisma.user.findFirst({
+        where: { id: currentUserId, departmentId: assignment.departmentId, deletedAt: null },
+      });
+      const isDeptMember = !!deptMember;
+
+      if (!isDeptLeader && !isDeptMember) {
+        throw new BadRequestException(
+          'Bo‘limga biriktirilgan jihozni faqat ushbu bo‘lim boshlig‘i yoki bo‘lim xodimi qabul qilishi mumkin!',
+        );
       }
     }
 
@@ -784,19 +791,19 @@ export class OperationsAssignmentService {
       return { message: 'Jihoz allaqachon rad etilgan' };
     }
 
-    const isSuperOrAdmin =
-      currentUserRole === 'SUPER_ADMIN' ||
-      currentUserRole === 'ORG_ADMIN' ||
-      currentUserRole === 'ADMIN';
-
     if (assignment.userId) {
-      if (assignment.userId !== currentUserId && !isSuperOrAdmin) {
-        throw new BadRequestException('Faqat jihoz biriktirilgan xodim yoki admin uni rad etishi mumkin');
+      if (assignment.userId !== currentUserId) {
+        throw new BadRequestException('Faqat jihoz biriktirilgan xodim uni rad etishi mumkin!');
       }
     } else if (assignment.departmentId) {
       const isDeptLeader = assignment.department?.leaderId === currentUserId;
-      if (!isDeptLeader && !isSuperOrAdmin) {
-        throw new BadRequestException('Bo‘limga biriktirilgan jihozni faqat bo‘lim boshlig‘i yoki admin rad etishi mumkin');
+      const deptMember = await this.prisma.user.findFirst({
+        where: { id: currentUserId, departmentId: assignment.departmentId, deletedAt: null },
+      });
+      if (!isDeptLeader && !deptMember) {
+        throw new BadRequestException(
+          'Bo‘limga biriktirilgan jihozni faqat ushbu bo‘lim boshlig‘i yoki bo‘lim xodimi rad etishi mumkin!',
+        );
       }
     }
 
@@ -829,27 +836,7 @@ export class OperationsAssignmentService {
         });
       }
 
-      // Create a notification for Admin and Omborchi
-      const targetOrgId = assignment.asset.organizationId || assignment.user?.organizationId || '';
-      if (targetOrgId) {
-        const notif = await tx.deletionRequest.create({
-          data: {
-            organizationId: targetOrgId,
-            requestedById: currentUserId,
-            entityType: 'ASSET',
-            entityId: assignment.assetId,
-            entityName: `${assignment.asset.product?.name || 'Jihoz'} (Inv: ${assignment.asset.inventoryNumber})`,
-            reason: `❌ Jihozni qabul qilish rad etildi: "${reason || 'Sabab ko‘rsatilmadi'}"`,
-            status: 'PENDING',
-          },
-          include: {
-            organization: { select: { id: true, name: true, code: true } },
-            requestedBy: { select: { id: true, fullName: true, username: true } },
-          },
-        });
-
-        this.eventsGateway.broadcastRequestCreated(notif);
-      }
+      // Asset is already returned to inventory and assignment marked as REJECTED
 
       this.eventsGateway.broadcastAssignmentUpdated({
         type: 'ASSIGNMENT_REJECTED',

@@ -4,7 +4,7 @@ import { AuditService } from 'src/common/services/audit.service';
 import { AuditAction, UserRole } from '@prisma/client';
 import { UserQueryDto } from '../dto/user-query.dto';
 import { ActiveUser } from 'src/common/interfaces';
-import { enforceTenantOrgId } from 'src/common/helper/tenant.helper';
+import { enforceTenantOrgId, enforceRequiredTenantOrgId } from 'src/common/helper/tenant.helper';
 import {
   validateAndFormatPhone,
   validateAndFormatPassport,
@@ -24,13 +24,19 @@ export class UsersExcelService {
   async exportExcel(query: UserQueryDto, currentUser?: ActiveUser): Promise<Buffer> {
     const { search, departmentId, role, employmentStatus, organizationId } = query;
 
-    const resolvedOrgId = enforceTenantOrgId(currentUser, organizationId);
-    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+    const resolvedOrgId = enforceRequiredTenantOrgId(currentUser, organizationId);
+    const orgFilter: any = { organizationId: resolvedOrgId };
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: resolvedOrgId },
+      select: { name: true },
+    });
+    const orgName = org?.name || 'Boshqarma';
 
     const where: any = {
       deletedAt: null,
       ...orgFilter,
-      role: role ? role : UserRole.XODIM,
+      ...(role && { role }),
       ...(employmentStatus && { employmentStatus }),
       ...(departmentId && { departmentId }),
       ...(search && {
@@ -50,6 +56,7 @@ export class UsersExcelService {
         { fullName: 'asc' },
       ],
       include: {
+        organization: { select: { name: true } },
         department: { select: { name: true } },
         assignments: {
           where: { returnedAt: null },
@@ -69,6 +76,7 @@ export class UsersExcelService {
 
     const baseColumns = [
       { header: '№', key: 'num', baseWidth: 10 },
+      { header: 'Tashkilot / Boshqarma', key: 'organization', baseWidth: 32 },
       { header: 'F.I.Sh.', key: 'fullName', baseWidth: 44 },
       { header: 'Username', key: 'username', baseWidth: 36 },
       { header: 'Bo‘lim', key: 'department', baseWidth: 44 },
@@ -125,6 +133,7 @@ export class UsersExcelService {
 
       const rowValues = {
         num: index + 1,
+        organization: u.organization?.name || orgName || '—',
         fullName: u.fullName || '',
         username: u.username ? `@${u.username}` : '',
         department: u.department?.name || "Bo'lim ko'rsatilmagan",
@@ -345,7 +354,8 @@ export class UsersExcelService {
 
       let userRole: UserRole = UserRole.XODIM;
       if (rawRole && Object.values(UserRole).includes(rawRole as UserRole)) {
-        if (!isSuperOrMinistry && (rawRole === UserRole.SUPER_ADMIN || rawRole === UserRole.VAZIRLIK_OMBORCHI)) {
+        const isSuperAdmin = performer?.role === UserRole.SUPER_ADMIN;
+        if (!isSuperAdmin && (rawRole === UserRole.SUPER_ADMIN || rawRole === UserRole.RAHBAR || rawRole === UserRole.VAZIRLIK_OMBORCHI)) {
           userRole = UserRole.XODIM;
         } else {
           userRole = rawRole as UserRole;

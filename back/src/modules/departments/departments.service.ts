@@ -346,6 +346,19 @@ export class DepartmentsService {
       );
     }
 
+    const activeAssignments = await this.prisma.assignment.count({
+      where: {
+        departmentId: id,
+        returnedAt: null,
+      },
+    });
+
+    if (activeAssignments > 0) {
+      throw new BadRequestException(
+        t('errors.DEPT_HAS_ASSETS', {}, "Bo'limda biriktirilgan aktiv jihozlar mavjud, o'chirishdan oldin ularni qaytaring"),
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       await tx.department.update({
         where: { id },
@@ -367,7 +380,7 @@ export class DepartmentsService {
     });
   }
 
-  async exportCsv(organizationId?: string) {
+  async exportCsv(organizationId: string) {
     return this.excelService.exportCsv(organizationId);
   }
 }

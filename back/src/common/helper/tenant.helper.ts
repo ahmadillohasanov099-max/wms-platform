@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 export interface TenantUser {
@@ -13,11 +13,11 @@ export function enforceTenantOrgId(
 ): string | undefined {
   if (!currentUser) return undefined;
 
-  const isSuperOrMinistry =
+  const isGlobalViewer =
     currentUser.role === UserRole.SUPER_ADMIN ||
-    currentUser.role === UserRole.VAZIRLIK_OMBORCHI;
+    currentUser.role === UserRole.RAHBAR;
 
-  if (isSuperOrMinistry) {
+  if (isGlobalViewer) {
     return requestedOrgId || currentUser.organizationId || undefined;
   }
 
@@ -25,9 +25,22 @@ export function enforceTenantOrgId(
 
   if (requestedOrgId && requestedOrgId !== userOrgId) {
     throw new ForbiddenException(
-      "Xavfsizlik cheklovi: Siz boshqa tashkilot ma'lumotlariga kirish huquqiga ega emassiz!",
+      "Xavfsizlik cheklovi: Siz faqat o'z tashkilotingiz ma'lumotlariga kirishingiz mumkin!",
     );
   }
 
   return userOrgId;
+}
+
+export function enforceRequiredTenantOrgId(
+  currentUser?: TenantUser | null,
+  requestedOrgId?: string | null,
+): string {
+  const resolved = enforceTenantOrgId(currentUser, requestedOrgId);
+  if (!resolved) {
+    throw new BadRequestException(
+      "Tashkilot tanlanishi shart! Eksport faqat bitta aniq boshqarma/tashkilot bo'yicha amalga oshiriladi.",
+    );
+  }
+  return resolved;
 }

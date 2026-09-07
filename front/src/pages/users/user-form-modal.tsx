@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,6 +10,19 @@ import Input from '../../components/ui/input';
 import Select from '../../components/ui/select';
 import Button from '../../components/ui/button';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useAuthStore } from '../../store/auth.store';
+
+const ALL_ROLES = [
+  'SUPER_ADMIN',
+  'RAHBAR',
+  'VAZIRLIK_OMBORCHI',
+  'ORG_ADMIN',
+  'ORG_OMBORCHI',
+  'ADMIN',
+  'OMBORCHI',
+  'KADR',
+  'XODIM',
+] as const;
 
 interface Props {
   open: boolean;
@@ -20,13 +33,16 @@ interface Props {
 export default function UserFormModal({ open, onClose, user, departments }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuthStore();
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isEdit = !!user;
+
   const createSchema = z
     .object({
       fullName: z.string().min(2, t('users.validationName')),
       username: z.string().min(3, t('users.validationUsername')),
       password: z.string().min(6, t('users.validationPassword')),
-      role: z.enum(['ADMIN', 'OMBORCHI', 'KADR', 'XODIM']),
+      role: z.enum(ALL_ROLES),
       departmentId: z.string().optional(),
       phone: z.string().optional(),
       internalPhone: z.string().optional(),
@@ -47,7 +63,7 @@ export default function UserFormModal({ open, onClose, user, departments }: Prop
     .object({
       fullName: z.string().min(2).optional(),
       username: z.string().min(3).optional(),
-      role: z.enum(['ADMIN', 'OMBORCHI', 'KADR', 'XODIM']).optional(),
+      role: z.enum(ALL_ROLES).optional(),
       departmentId: z.string().optional(),
       phone: z.string().optional(),
       internalPhone: z.string().optional(),
@@ -120,6 +136,34 @@ export default function UserFormModal({ open, onClose, user, departments }: Prop
       toast.error(err?.message || err?.response?.data?.message || t('common.error'));
     },
   });
+  const roleOptions = useMemo(() => {
+    // 1. Super Admin (Bosh dasturchi / Vazirlik) - barcha tizim rollarini tayinlay oladi
+    if (isSuperAdmin) {
+      return [
+        { value: 'SUPER_ADMIN', label: t('roles.SUPER_ADMIN') },
+        { value: 'RAHBAR', label: t('roles.RAHBAR') },
+        { value: 'VAZIRLIK_OMBORCHI', label: t('roles.VAZIRLIK_OMBORCHI') },
+        { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
+        { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },
+        { value: 'KADR', label: t('roles.KADR') },
+        { value: 'XODIM', label: t('roles.XODIM') },
+      ];
+    }
+    // 2. Kadrlar bo'limi - faqat oddiy xodimlarni ro'yxatga oladi
+    if (currentUser?.role === 'KADR') {
+      return [
+        { value: 'XODIM', label: t('roles.XODIM') },
+      ];
+    }
+    // 3. Boshqarma Admini - o'z boshqarmasiga Omborchi, Kadr va Xodim qo'sha oladi
+    return [
+      { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
+      { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },
+      { value: 'KADR', label: t('roles.KADR') },
+      { value: 'XODIM', label: t('roles.XODIM') },
+    ];
+  }, [isSuperAdmin, currentUser?.role, t]);
+
   const deptOptions = departments.map((d: any) => ({ value: d.id, label: d.name }));
   return (
     <Modal
@@ -166,12 +210,7 @@ export default function UserFormModal({ open, onClose, user, departments }: Prop
         <div className="grid grid-cols-2 gap-3">
           <Select
             label={t('users.role')}
-            options={[
-              { value: 'ADMIN', label: t('users.roleAdmin') },
-              { value: 'OMBORCHI', label: t('users.roleOmborchi') },
-              { value: 'KADR', label: t('users.roleKadr') },
-              { value: 'XODIM', label: t('users.roleXodim') },
-            ]}
+            options={roleOptions}
             error={errors.role?.message as string}
             required
             {...register('role', {

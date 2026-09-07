@@ -9,16 +9,27 @@ import * as bcrypt from 'bcrypt';
 export class InventoryExcelService {
   constructor(private prisma: PrismaService) {}
 
-  async exportExcel(organizationId?: string): Promise<Buffer> {
+  async exportExcel(organizationId: string): Promise<{ buffer: Buffer; organizationName: string }> {
+    if (!organizationId) {
+      throw new BadRequestException("Tashkilot tanlanishi shart! Eksport faqat aniq bitta tashkilot/boshqarma bo'yicha amalga oshiriladi.");
+    }
+
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, name: true, code: true },
+    });
+    const orgName = organization ? organization.name : 'Boshqarma';
+
     const products = await this.prisma.product.findMany({
       where: {
         deletedAt: null,
-        ...(organizationId ? { organizationId } : {}),
+        organizationId,
       },
       include: {
+        organization: { select: { name: true, code: true } },
         inventory: true,
         assets: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, organizationId },
           include: {
             assignments: {
               where: { returnedAt: null },
@@ -43,6 +54,7 @@ export class InventoryExcelService {
 
     worksheet.columns = [
       { header: '№', key: 'num', width: 6 },
+      { header: 'Tashkilot / Boshqarma', key: 'organization', width: 34 },
       { header: 'Mahsulot nomi', key: 'name', width: 38 },
       { header: 'Turi', key: 'type', width: 18 },
       { header: 'O‘lchov birligi', key: 'unit', width: 14 },
@@ -68,6 +80,7 @@ export class InventoryExcelService {
 
     let rowIdx = 1;
     for (const product of products) {
+      const currentOrgName = product.organization?.name || orgName;
       const typeText =
         product.productType === ProductType.BERILADIGAN
           ? 'Jihoz (Asosiy vosita)'
@@ -88,6 +101,7 @@ export class InventoryExcelService {
 
         const row = worksheet.addRow([
           rowIdx++,
+          currentOrgName,
           product.name,
           typeText,
           unitText,
@@ -137,6 +151,7 @@ export class InventoryExcelService {
 
             const row = worksheet.addRow([
               rowIdx++,
+              currentOrgName,
               product.name,
               typeText,
               unitText,
@@ -158,6 +173,7 @@ export class InventoryExcelService {
           const qty = product.inventory?.quantity ?? 0;
           const row = worksheet.addRow([
             rowIdx++,
+            currentOrgName,
             product.name,
             typeText,
             unitText,
@@ -179,7 +195,10 @@ export class InventoryExcelService {
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
+    return {
+      buffer: Buffer.from(buffer),
+      organizationName: orgName,
+    };
   }
 
   async importExcel(fileBuffer: Buffer, performedById: string, requestedProductType?: string) {

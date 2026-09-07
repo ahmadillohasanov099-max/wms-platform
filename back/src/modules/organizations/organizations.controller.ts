@@ -24,15 +24,15 @@ export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiOperation({ summary: "Yangi quyi tashkilot qo'shish (Vazirlik Admini)" })
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: "Yangi quyi tashkilot qo'shish (Faqat Bosh Administrator)" })
   create(@Body() dto: CreateOrganizationDto) {
     return this.organizationsService.create(dto);
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.VAZIRLIK_OMBORCHI, UserRole.ADMIN)
-  @ApiOperation({ summary: "Barcha tashkilotlar ro'yxati (Vazirlik uchun)" })
+  @Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR, UserRole.VAZIRLIK_OMBORCHI)
+  @ApiOperation({ summary: "Barcha tashkilotlar ro'yxati (Vazirlik va Rahbariyat uchun)" })
   findAll() {
     return this.organizationsService.findAll();
   }
@@ -40,6 +40,7 @@ export class OrganizationsController {
   @Get('my')
   @Roles(
     UserRole.SUPER_ADMIN,
+    UserRole.RAHBAR,
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ADMIN,
     UserRole.ORG_ADMIN,
@@ -54,22 +55,22 @@ export class OrganizationsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.VAZIRLIK_OMBORCHI, UserRole.ADMIN, UserRole.ORG_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR, UserRole.VAZIRLIK_OMBORCHI, UserRole.ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: "Tashkilot tafsilotlarini ko'rish" })
   findOne(@Param('id') id: string) {
     return this.organizationsService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiOperation({ summary: "Tashkilot ma'lumotlarini tahrirlash" })
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: "Tashkilot ma'lumotlarini tahrirlash (Faqat Bosh Administrator)" })
   update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto) {
     return this.organizationsService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiOperation({ summary: "Tashkilotni o'chirish (Soft delete)" })
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: "Tashkilotni o'chirish (Faqat Bosh Administrator)" })
   remove(@Param('id') id: string) {
     return this.organizationsService.remove(id);
   }

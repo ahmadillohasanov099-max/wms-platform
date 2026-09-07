@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Lock,
   ShieldCheck,
+  Bell,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
@@ -34,14 +35,14 @@ const navItems: NavItem[] = [
     path: '/dashboard',
     labelKey: 'dashboard',
     icon: <LayoutDashboard className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'ADMIN', 'OMBORCHI'],
   },
 
   {
     path: '/inventory',
     labelKey: 'inventory',
     icon: <Warehouse className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
   },
   {
     path: '/operations',
@@ -53,45 +54,52 @@ const navItems: NavItem[] = [
     path: '/departments',
     labelKey: 'departments',
     icon: <Building2 className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
   },
   {
     path: '/users',
     labelKey: 'users',
     icon: <Users className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
   },
 
   {
     path: '/assigned-assets',
     labelKey: 'assignedAssets',
     icon: <PackageCheck className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'ORG_ADMIN', 'ADMIN', 'KADR'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'ORG_ADMIN', 'ADMIN', 'KADR'],
+  },
+  {
+    path: '/requests',
+    labelKey: 'requests',
+    customLabel: "So'rovlar",
+    icon: <Bell className="w-4 h-4 text-amber-500" />,
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI', 'XODIM'],
   },
   {
     path: '/history',
     labelKey: 'history',
     icon: <History className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'ADMIN', 'OMBORCHI'],
   },
   {
     path: '/stats',
     labelKey: 'stats',
     icon: <BarChart3 className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'ADMIN', 'OMBORCHI'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'ADMIN', 'OMBORCHI'],
   },
   {
     path: '/audit-logs',
     labelKey: 'auditLogs',
     icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
-    roles: ['SUPER_ADMIN'],
+    roles: ['SUPER_ADMIN', 'RAHBAR'],
   },
   {
     path: '/organizations',
     labelKey: 'organizations',
     customLabel: 'Boshqarmalar',
     icon: <Building2 className="w-4 h-4 text-sky-500" />,
-    roles: ['SUPER_ADMIN'],
+    roles: ['SUPER_ADMIN', 'RAHBAR'],
   },
   {
     path: '/profile/info',

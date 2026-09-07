@@ -16,7 +16,10 @@ export default function DepartmentsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin = user?.role !== 'XODIM' && user?.role !== 'KADR';
+  const isAdmin =
+    user?.role !== 'XODIM' &&
+    user?.role !== 'KADR' &&
+    user?.role !== 'RAHBAR';
   const navigate = useNavigate();
   const { id, userId } = useParams();
 
@@ -54,7 +57,8 @@ export default function DepartmentsPage() {
     try {
       await downloadExport(
         '/departments/export',
-        `bolimlar_${new Date().toISOString().split('T')[0]}.csv`
+        `bolimlar_${new Date().toISOString().split('T')[0]}.csv`,
+        user?.organizationId ? { organizationId: user.organizationId } : undefined,
       );
       toast.success(t('departments.exportSuccess'));
     } catch {

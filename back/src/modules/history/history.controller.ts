@@ -7,9 +7,11 @@ import { HistoryService } from './history.service';
 import { HistoryQueryDto } from './dto/history-query.dto';
 import { CurrentUser, Roles } from '../auth';
 import { UserRole } from '@prisma/client';
+import { enforceRequiredTenantOrgId } from '../../common/helper/tenant.helper';
 
 const MANAGERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
@@ -33,6 +35,7 @@ export class HistoryController {
   findAll(@Query() query: HistoryQueryDto, @CurrentUser() user: any) {
     const isSuperOrMinistry =
       user?.role === UserRole.SUPER_ADMIN ||
+      user?.role === UserRole.RAHBAR ||
       user?.role === UserRole.VAZIRLIK_OMBORCHI;
 
     const targetOrgId = isSuperOrMinistry
@@ -54,24 +57,19 @@ export class HistoryController {
     @CurrentUser() user: any,
     @Res() res: express.Response,
   ) {
-    const isSuperOrMinistry =
-      user?.role === UserRole.SUPER_ADMIN ||
-      user?.role === UserRole.VAZIRLIK_OMBORCHI;
+    const targetOrgId = enforceRequiredTenantOrgId(user, query.organizationId);
 
-    const targetOrgId = isSuperOrMinistry
-      ? query.organizationId
-      : user?.organizationId;
-
-    const csvContent = await this.historyService.exportCsv(
+    const { csvContent, organizationName } = await this.historyService.exportCsv(
       { ...query, organizationId: targetOrgId },
       user.id,
       user.role,
       user.organizationId,
     );
+    const safeOrgName = encodeURIComponent(organizationName.replace(/[\s/\\:*?"<>|]+/g, '_'));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=amallar_tarixi.csv',
+      `attachment; filename="amallar_tarixi_${safeOrgName}.csv"`,
     );
     return res.status(200).send(csvContent);
   }

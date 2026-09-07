@@ -247,22 +247,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   text.startsWith('/'))
               ) {
                 const lower = text.toLowerCase();
+                const userOrgId = boundUser.organizationId || undefined;
                 if (lower.includes('bo\'lim') || lower.includes('bolim') || lower.includes('dept') || lower.includes('/depts_export')) {
-                  await this.excelReports.sendDepartmentsExcel(chatId);
+                  await this.excelReports.sendDepartmentsExcel(chatId, userOrgId);
                 } else if (lower.includes('audit') || lower.includes('log') || lower.includes('/audit_export')) {
-                  await this.excelReports.sendAuditLogsExcel(chatId);
+                  await this.excelReports.sendAuditLogsExcel(chatId, userOrgId);
                 } else if (lower.includes('berilgan') || lower.includes('jihoz') || lower.includes('asset') || lower.includes('biriktirilgan') || lower.includes('/assets_export')) {
-                  await this.excelReports.sendAssignmentsExcel(chatId);
+                  await this.excelReports.sendAssignmentsExcel(chatId, userOrgId);
                 } else if (lower.includes('xodim') || lower.includes('user') || lower.includes('xodiml') || lower.includes('/users_export')) {
-                  await this.excelReports.sendUsersExcel(chatId);
+                  await this.excelReports.sendUsersExcel(chatId, userOrgId);
                 } else if (lower.includes('tarix') || lower.includes('recent') || lower.includes('operatsiya') || lower.includes('/recent_export')) {
-                  await this.excelReports.sendOperationsExcel(chatId);
+                  await this.excelReports.sendOperationsExcel(chatId, userOrgId);
                 } else if (lower.includes('stat') || lower.includes('status') || lower.includes('/stats_export')) {
-                  await this.excelReports.sendStatsExcel(chatId);
+                  await this.excelReports.sendStatsExcel(chatId, userOrgId);
                 } else if (lower.includes('ombor') || lower.includes('qoldiq') || lower.includes('stock') || lower.includes('mahsulot') || lower.includes('/stock_export')) {
-                  await this.excelReports.sendStockExcel(chatId);
+                  await this.excelReports.sendStockExcel(chatId, userOrgId);
                 } else {
-                  await this.excelReports.sendStockExcel(chatId);
+                  await this.excelReports.sendStockExcel(chatId, userOrgId);
                 }
               } else if (text.startsWith('/ai ') || text.startsWith('🤖 AI') || text === '/ai') {
                 const query = text.replace('/ai ', '').replace('🤖 AI Assistent', '').replace('🤖 AI', '').replace('/ai', '').trim();
@@ -321,14 +322,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      const userOrgId = boundUser?.organizationId || undefined;
       if (dataStr === 'cb_excel_stock') {
-        await this.excelReports.sendStockExcel(chatId);
+        await this.excelReports.sendStockExcel(chatId, userOrgId);
       } else if (dataStr === 'cb_excel_users') {
-        await this.excelReports.sendUsersExcel(chatId);
+        await this.excelReports.sendUsersExcel(chatId, userOrgId);
       } else if (dataStr === 'cb_excel_recent') {
-        await this.excelReports.sendOperationsExcel(chatId);
+        await this.excelReports.sendOperationsExcel(chatId, userOrgId);
       } else if (dataStr === 'cb_excel_stats') {
-        await this.excelReports.sendStatsExcel(chatId);
+        await this.excelReports.sendStatsExcel(chatId, userOrgId);
       } else if (dataStr.startsWith('cb_stock')) {
         const page = parseInt(dataStr.replace('cb_stock_page_', '').replace('cb_stock', ''), 10) || 1;
         await this.reports.sendStockReport(chatId, page);

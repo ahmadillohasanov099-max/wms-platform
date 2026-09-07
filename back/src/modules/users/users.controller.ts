@@ -29,6 +29,7 @@ import { CurrentUser, Roles } from '../auth';
 
 const MANAGERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
@@ -48,6 +49,16 @@ const USER_DELETE_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.ORG_ADMIN,
   UserRole.ADMIN,
+  UserRole.KADR,
+];
+
+const ASSET_TRANSFER_ROLES = [
+  UserRole.SUPER_ADMIN,
+  UserRole.VAZIRLIK_OMBORCHI,
+  UserRole.ORG_ADMIN,
+  UserRole.ORG_OMBORCHI,
+  UserRole.ADMIN,
+  UserRole.OMBORCHI,
 ];
 
 @ApiTags('Users')
@@ -103,6 +114,13 @@ export class UsersController {
       throw new BadRequestException("Excel fayli yuklanmadi");
     }
     return this.usersService.importExcel(file.buffer, user.id);
+  }
+
+  @ApiOperation({ summary: "Ishdan bo'shash jarayonidagi xodimlar ro'yxati" })
+  @Roles(...MANAGERS)
+  @Get('offboarding/pending')
+  getPendingOffboardings() {
+    return this.usersService.getPendingOffboardings();
   }
 
   @ApiOperation({ summary: "Bitta xodim ma'lumoti" })
@@ -177,7 +195,7 @@ export class UsersController {
   }
 
   @ApiOperation({ summary: 'Xodimning barcha jihozlarini qaytarish' })
-  @Roles(...MANAGERS)
+  @Roles(...ASSET_TRANSFER_ROLES)
   @Post(':id/bulk-return')
   bulkReturn(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.bulkReturn(id, user.id);
@@ -186,7 +204,7 @@ export class UsersController {
   @ApiOperation({
     summary: "Xodimning barcha jihozlarini boshqa xodimga o'tkazish",
   })
-  @Roles(...MANAGERS)
+  @Roles(...ASSET_TRANSFER_ROLES)
   @Post(':id/bulk-transfer')
   bulkTransfer(
     @Param('id') id: string,
@@ -194,5 +212,33 @@ export class UsersController {
     @CurrentUser() user: any,
   ) {
     return this.usersService.bulkTransfer(id, dto.toUserId, user.id);
+  }
+
+  @ApiOperation({ summary: "Xodimni ishdan bo'shatish jarayonini boshlash" })
+  @Roles(...USER_MANAGE_ROLES)
+  @Post(':id/offboarding/start')
+  startOffboarding(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.usersService.startOffboarding(id, user.id);
+  }
+
+  @ApiOperation({ summary: "Omborchi tomonidan jihozlar qaytarilganini tasdiqlash" })
+  @Roles(...ASSET_TRANSFER_ROLES)
+  @Post(':id/offboarding/warehouse-approve')
+  warehouseApproveOffboarding(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.usersService.warehouseApproveOffboarding(id, user.id);
+  }
+
+  @ApiOperation({ summary: "Xodimni ishdan bo'shatishni yakunlash" })
+  @Roles(...USER_MANAGE_ROLES)
+  @Post(':id/offboarding/complete')
+  completeOffboarding(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.usersService.completeOffboarding(id, user.id);
+  }
+
+  @ApiOperation({ summary: "Ishdan bo'shatish dalolatnomasi (Akt)" })
+  @Roles(...MANAGERS)
+  @Get(':id/offboarding/akt')
+  getOffboardingAkt(@Param('id') id: string) {
+    return this.usersService.getOffboardingAkt(id);
   }
 }

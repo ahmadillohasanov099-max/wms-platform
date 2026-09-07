@@ -19,7 +19,7 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN' || user?.role === 'KADR';
-  const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN';
+  const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN' || user?.role === 'KADR';
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -69,6 +69,7 @@ export default function UsersPage() {
           ...(search && { search }),
           ...(roleFilter && { role: roleFilter }),
           ...(deptFilter && { departmentId: deptFilter }),
+          ...(user?.organizationId ? { organizationId: user.organizationId } : {}),
         }
       );
       toast.success(t('users.exportSuccess'));
@@ -317,7 +318,7 @@ export default function UsersPage() {
                 <Edit2 className="w-4 h-4" />
               </button>
             )}
-            {canDeleteUsers && (
+            {canDeleteUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
               <button
                 type="button"
                 onClick={() => {
@@ -395,6 +396,7 @@ export default function UsersPage() {
               <Select
                 options={[
                   { value: 'SUPER_ADMIN', label: t('roles.SUPER_ADMIN') },
+                  { value: 'RAHBAR', label: t('roles.RAHBAR') },
                   { value: 'VAZIRLIK_OMBORCHI', label: t('roles.VAZIRLIK_OMBORCHI') },
                   { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
                   { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },

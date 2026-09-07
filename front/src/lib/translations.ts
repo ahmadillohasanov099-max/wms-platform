@@ -74,6 +74,7 @@ export const translations = {
     },
     "roles": {
       "SUPER_ADMIN": "Vazirlik Super Admini",
+      "RAHBAR": "Rahbariyat (Vazir o'rinbosari / Yordamchi)",
       "VAZIRLIK_OMBORCHI": "Vazirlik Omborchisi",
       "ORG_ADMIN": "Tashkilot Admini",
       "ORG_OMBORCHI": "Tashkilot Omborchisi",
@@ -776,6 +777,7 @@ export const translations = {
     },
     "roles": {
       "SUPER_ADMIN": "Супер админ министерства",
+      "RAHBAR": "Руководство (Замминистра / Помощник)",
       "VAZIRLIK_OMBORCHI": "Кладовщик министерства",
       "ORG_ADMIN": "Админ организации",
       "ORG_OMBORCHI": "Кладовщик организации",
@@ -1478,6 +1480,7 @@ export const translations = {
     },
     "roles": {
       "SUPER_ADMIN": "Ministry Super Admin",
+      "RAHBAR": "Leadership (Deputy Minister / Assistant)",
       "VAZIRLIK_OMBORCHI": "Ministry Warehouseman",
       "ORG_ADMIN": "Organization Admin",
       "ORG_OMBORCHI": "Organization Warehouseman",

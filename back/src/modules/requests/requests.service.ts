@@ -84,7 +84,7 @@ export class RequestsService {
     if (status) where.status = status;
     if (resolvedOrgId) where.organizationId = resolvedOrgId;
 
-    return this.prisma.deletionRequest.findMany({
+    const deletionRequests = await this.prisma.deletionRequest.findMany({
       where,
       include: {
         organization: { select: { id: true, name: true, code: true } },
@@ -93,11 +93,117 @@ export class RequestsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const assignmentWhere: any = {};
+    if (status === RequestStatus.PENDING) {
+      assignmentWhere.status = 'PENDING';
+    } else if (status === RequestStatus.APPROVED) {
+      assignmentWhere.status = 'ACCEPTED';
+    } else if (status === RequestStatus.REJECTED) {
+      assignmentWhere.status = 'REJECTED';
+    }
+
+    if (resolvedOrgId) {
+      assignmentWhere.OR = [
+        { asset: { organizationId: resolvedOrgId } },
+        { department: { organizationId: resolvedOrgId } },
+        { user: { organizationId: resolvedOrgId } },
+      ];
+    }
+
+    const assignments = await this.prisma.assignment.findMany({
+      where: assignmentWhere,
+      include: {
+        user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
+        department: {
+          include: {
+            leader: { select: { id: true, fullName: true, username: true } },
+          },
+        },
+        asset: {
+          include: {
+            product: { select: { id: true, name: true } },
+            organization: { select: { id: true, name: true, code: true } },
+            operations: {
+              where: { type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] } },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              include: {
+                performedBy: { select: { id: true, fullName: true, username: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { assignedAt: 'desc' },
+      take: 100,
+    });
+
+    const formattedAssignments = assignments.map((a) => {
+      const latestOp = a.asset?.operations?.[0];
+      const giver = latestOp?.performedBy || null;
+      const giverId = latestOp?.performedById || '';
+
+      const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
+      const recipientName = a.user
+        ? `Xodim: ${a.user.fullName || a.user.username}`
+        : a.department
+        ? `Bo'lim: ${a.department.name}`
+        : '';
+      const reason = a.department
+        ? `Bo'limga biriktirish so'rovi (${a.department.name})`
+        : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
+
+      let reqStatus: RequestStatus = RequestStatus.PENDING;
+      if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
+      if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+
+      const reviewer = a.user || a.department?.leader || null;
+
+      return {
+        id: a.id,
+        organizationId: a.asset?.organizationId || a.department?.organizationId || '',
+        organization: a.asset?.organization || null,
+        requestedById: giverId,
+        requestedBy: giver,
+        entityType: EntityType.ASSET,
+        entityId: a.assetId,
+        entityName,
+        entityTitle: entityName,
+        reason,
+        status: reqStatus,
+        rejectionReason: a.rejectionReason,
+        reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
+        reviewedById: reviewer?.id || null,
+        reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
+          ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
+          : null,
+        reviewedAt: a.acceptedAt || a.rejectedAt || null,
+        createdAt: a.assignedAt,
+        updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
+        requestType: 'ASSIGNMENT',
+        assignmentId: a.id,
+        recipientUserId: a.userId,
+        recipientDeptId: a.departmentId,
+        recipientName,
+      };
+    });
+
+    const formattedDeletions = deletionRequests.map((d) => ({
+      ...d,
+      requestType: 'DELETION',
+    }));
+
+    return [...formattedDeletions, ...formattedAssignments].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 
   async findMyRequests(userId?: any, organizationId?: any) {
     const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : typeof userId === 'string' ? userId : '';
     const actualOrgId = typeof organizationId === 'string' ? organizationId : '';
+    const user = actualUserId ? await this.prisma.user.findUnique({ where: { id: actualUserId } }) : null;
+
     const where: any = {};
     if (actualUserId) {
       where.requestedById = actualUserId;
@@ -105,7 +211,7 @@ export class RequestsService {
       where.organizationId = actualOrgId;
     }
 
-    return this.prisma.deletionRequest.findMany({
+    const myDeletions = await this.prisma.deletionRequest.findMany({
       where,
       include: {
         organization: { select: { id: true, name: true, code: true } },
@@ -114,9 +220,181 @@ export class RequestsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    let myAssignments: any[] = [];
+    if (actualUserId) {
+      const userDeptId = user?.departmentId;
+      myAssignments = await this.prisma.assignment.findMany({
+        where: {
+          OR: [
+            { userId: actualUserId },
+            ...(userDeptId ? [{ departmentId: userDeptId }] : []),
+          ],
+        },
+        include: {
+          user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
+          department: {
+            include: {
+              leader: { select: { id: true, fullName: true, username: true } },
+            },
+          },
+          asset: {
+            include: {
+              product: { select: { id: true, name: true } },
+              organization: { select: { id: true, name: true, code: true } },
+              operations: {
+                where: { type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                include: {
+                  performedBy: { select: { id: true, fullName: true, username: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { assignedAt: 'desc' },
+        take: 100,
+      });
+    }
+
+    const formattedAssignments = myAssignments.map((a) => {
+      const latestOp = a.asset?.operations?.[0];
+      const giver = latestOp?.performedBy || null;
+      const giverId = latestOp?.performedById || '';
+
+      const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
+      const recipientName = a.user
+        ? `Xodim: ${a.user.fullName || a.user.username}`
+        : a.department
+        ? `Bo'lim: ${a.department.name}`
+        : '';
+      const reason = a.department
+        ? `Bo'limga biriktirish so'rovi (${a.department.name})`
+        : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
+
+      let reqStatus: RequestStatus = RequestStatus.PENDING;
+      if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
+      if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+
+      const reviewer = a.user || a.department?.leader || null;
+
+      return {
+        id: a.id,
+        organizationId: a.asset?.organizationId || a.department?.organizationId || '',
+        organization: a.asset?.organization || null,
+        requestedById: giverId,
+        requestedBy: giver,
+        entityType: EntityType.ASSET,
+        entityId: a.assetId,
+        entityName,
+        entityTitle: entityName,
+        reason,
+        status: reqStatus,
+        rejectionReason: a.rejectionReason,
+        reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
+        reviewedById: reviewer?.id || null,
+        reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
+          ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
+          : null,
+        reviewedAt: a.acceptedAt || a.rejectedAt || null,
+        createdAt: a.assignedAt,
+        updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
+        requestType: 'ASSIGNMENT',
+        assignmentId: a.id,
+        recipientUserId: a.userId,
+        recipientDeptId: a.departmentId,
+        recipientName,
+      };
+    });
+
+    const formattedDeletions = myDeletions.map((d) => ({
+      ...d,
+      requestType: 'DELETION',
+    }));
+
+    return [...formattedDeletions, ...formattedAssignments].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 
   async findOne(id: string) {
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
+        department: {
+          include: {
+            leader: { select: { id: true, fullName: true, username: true } },
+          },
+        },
+        asset: {
+          include: {
+            product: { select: { id: true, name: true } },
+            organization: { select: { id: true, name: true, code: true } },
+            operations: {
+              where: { type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] } },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              include: {
+                performedBy: { select: { id: true, fullName: true, username: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (assignment) {
+      const latestOp = assignment.asset?.operations?.[0];
+      const giver = latestOp?.performedBy || null;
+      const giverId = latestOp?.performedById || '';
+
+      const entityName = `${assignment.asset?.product?.name || 'Jihoz'} (Inv: ${assignment.asset?.inventoryNumber || '—'})`;
+      const recipientName = assignment.user
+        ? `Xodim: ${assignment.user.fullName || assignment.user.username}`
+        : assignment.department
+        ? `Bo'lim: ${assignment.department.name}`
+        : '';
+      const reason = assignment.department
+        ? `Bo'limga biriktirish so'rovi (${assignment.department.name})`
+        : `Xodimga biriktirish so'rovi (${assignment.user?.fullName || assignment.user?.username || ''})`;
+
+      let reqStatus: RequestStatus = RequestStatus.PENDING;
+      if (assignment.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
+      if (assignment.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+
+      const reviewer = assignment.user || assignment.department?.leader || null;
+
+      return {
+        id: assignment.id,
+        organizationId: assignment.asset?.organizationId || assignment.department?.organizationId || '',
+        organization: assignment.asset?.organization || null,
+        requestedById: giverId,
+        requestedBy: giver,
+        entityType: EntityType.ASSET,
+        entityId: assignment.assetId,
+        entityName,
+        entityTitle: entityName,
+        reason,
+        status: reqStatus,
+        rejectionReason: assignment.rejectionReason,
+        reviewComment: assignment.rejectionReason || (assignment.status === 'ACCEPTED' ? "Qabul qilindi" : null),
+        reviewedById: reviewer?.id || null,
+        reviewedBy: (assignment.status === 'ACCEPTED' || assignment.status === 'REJECTED') && reviewer
+          ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
+          : null,
+        reviewedAt: assignment.acceptedAt || assignment.rejectedAt || null,
+        createdAt: assignment.assignedAt,
+        updatedAt: assignment.acceptedAt || assignment.rejectedAt || assignment.assignedAt,
+        requestType: 'ASSIGNMENT',
+        assignmentId: assignment.id,
+        recipientUserId: assignment.userId,
+        recipientDeptId: assignment.departmentId,
+        recipientName,
+      };
+    }
+
     const req = await this.prisma.deletionRequest.findUnique({
       where: { id },
       include: {
@@ -130,10 +408,70 @@ export class RequestsService {
       throw new NotFoundException("So'rov topilmadi");
     }
 
-    return req;
+    return { ...req, requestType: 'DELETION' };
   }
 
   async approve(id: string, reviewerId: string, dto: ReviewRequestDto) {
+    // 0. Check if this is an assignment request
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        department: {
+          include: {
+            leader: { select: { id: true, fullName: true } },
+          },
+        },
+        asset: { include: { product: true } },
+      },
+    });
+
+    if (assignment) {
+      if (assignment.status === 'ACCEPTED') {
+        throw new BadRequestException("Ushbu jihoz allaqachon qabul qilingan");
+      }
+      if (assignment.status === 'REJECTED') {
+        throw new BadRequestException("Rad etilgan jihozni qayta qabul qilib bo'lmaydi");
+      }
+
+      if (assignment.userId) {
+        if (assignment.userId !== reviewerId) {
+          throw new ForbiddenException("Faqat jihoz biriktirilgan xodim uni qabul qilishi mumkin!");
+        }
+      } else if (assignment.departmentId) {
+        const isDeptLeader = assignment.department?.leaderId === reviewerId;
+        const deptMember = await this.prisma.user.findFirst({
+          where: { id: reviewerId, departmentId: assignment.departmentId, deletedAt: null },
+        });
+        if (!isDeptLeader && !deptMember) {
+          throw new ForbiddenException(
+            "Bo'limga biriktirilgan jihozni faqat ushbu bo'lim boshlig'i yoki bo'lim xodimi qabul qilishi mumkin!",
+          );
+        }
+      }
+
+      const now = new Date();
+      const updated = await this.prisma.assignment.update({
+        where: { id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedAt: now,
+        },
+      });
+
+      this.eventsGateway.broadcastAssignmentUpdated({
+        type: 'ASSIGNMENT_ACCEPTED',
+        assignmentId: id,
+      });
+
+      return {
+        ...updated,
+        id,
+        status: RequestStatus.APPROVED,
+        message: `"${assignment.asset.product.name}" jihozi muvaffaqiyatli qabul qilindi`,
+      };
+    }
+
     const request = await this.findOne(id);
 
     if (request.status !== RequestStatus.PENDING) {
@@ -161,20 +499,26 @@ export class RequestsService {
       );
     }
 
-    // 2. Permission check: Structural resource deletions MUST be approved ONLY by Ministry
+    // 2. Permission check: Structural resource deletions MUST be approved ONLY by Super Admin
     if (
-      request.entityType === EntityType.PRODUCT ||
       request.entityType === EntityType.USER ||
       request.entityType === EntityType.DEPARTMENT
     ) {
-      if (!isMinistryAdmin) {
+      if (reviewer.role !== 'SUPER_ADMIN') {
         throw new ForbiddenException(
-          "Ushbu tizimli resursni o'chirish/tasdiqlash faqat Bosh Vazirlik (Super Admin) huquqida!",
+          "Foydalanuvchi yoki bo'limni o'chirish faqat Bosh Administrator (Super Admin) tomonidan tasdiqlanishi mumkin!",
+        );
+      }
+    } else if (request.entityType === EntityType.PRODUCT) {
+      if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
+        throw new ForbiddenException(
+          "Mahsulotni o'chirish faqat Vazirlik boshqaruvi tomonidan tasdiqlanishi mumkin!",
         );
       }
     } else if (request.entityType === EntityType.ASSET) {
       // Internal employee return/repair: Must belong to the reviewer's organization unless ministry
-      if (!isMinistryAdmin && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+      const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
+      if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
         throw new ForbiddenException("Siz boshqa tashkilot jihoz so'rovini tasdiqlay olmaysiz");
       }
     }
@@ -373,6 +717,90 @@ export class RequestsService {
   }
 
   async reject(id: string, reviewerId: string, dto: ReviewRequestDto) {
+    // 0. Check if this is an assignment request
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        department: {
+          include: {
+            leader: { select: { id: true, fullName: true } },
+          },
+        },
+        asset: { include: { product: true } },
+      },
+    });
+
+    if (assignment) {
+      if (assignment.status === 'REJECTED') {
+        throw new BadRequestException("Ushbu jihoz allaqachon rad etilgan");
+      }
+
+      const reason = dto.reviewComment || dto.rejectionReason || 'Rad etildi';
+
+      if (assignment.userId) {
+        if (assignment.userId !== reviewerId) {
+          throw new ForbiddenException("Faqat jihoz biriktirilgan xodim uni rad etishi mumkin!");
+        }
+      } else if (assignment.departmentId) {
+        const isDeptLeader = assignment.department?.leaderId === reviewerId;
+        const deptMember = await this.prisma.user.findFirst({
+          where: { id: reviewerId, departmentId: assignment.departmentId, deletedAt: null },
+        });
+        if (!isDeptLeader && !deptMember) {
+          throw new ForbiddenException(
+            "Bo'limga biriktirilgan jihozni faqat ushbu bo'lim boshlig'i yoki bo'lim xodimi rad etishi mumkin!",
+          );
+        }
+      }
+
+      const now = new Date();
+      const result = await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.assignment.update({
+          where: { id },
+          data: {
+            status: 'REJECTED',
+            rejectedAt: now,
+            rejectionReason: reason,
+            returnedAt: now,
+          },
+        });
+
+        // Return asset to inventory
+        await tx.inventory.update({
+          where: { productId: assignment.asset.productId },
+          data: { quantity: { increment: 1 } },
+        });
+
+        // If department asset, decrement
+        if (assignment.departmentId) {
+          await tx.departmentAsset.updateMany({
+            where: {
+              departmentId: assignment.departmentId,
+              productId: assignment.asset.productId,
+              quantity: { gte: 1 },
+            },
+            data: { quantity: { decrement: 1 } },
+          });
+        }
+
+        return updated;
+      });
+
+      this.eventsGateway.broadcastAssignmentUpdated({
+        type: 'ASSIGNMENT_REJECTED',
+        assignmentId: id,
+      });
+
+      return {
+        ...result,
+        id,
+        status: RequestStatus.REJECTED,
+        reviewComment: reason,
+        message: `"${assignment.asset.product.name}" jihozi rad etildi va ombor hisobiga qaytarildi`,
+      };
+    }
+
     const request = await this.findOne(id);
 
     if (request.status !== RequestStatus.PENDING) {
@@ -400,19 +828,25 @@ export class RequestsService {
       );
     }
 
-    // 2. Permission check: Structural resource deletions MUST be rejected ONLY by Ministry
+    // 2. Permission check: Structural resource deletions MUST be rejected ONLY by Super Admin
     if (
-      request.entityType === EntityType.PRODUCT ||
       request.entityType === EntityType.USER ||
       request.entityType === EntityType.DEPARTMENT
     ) {
-      if (!isMinistryAdmin) {
+      if (reviewer.role !== 'SUPER_ADMIN') {
         throw new ForbiddenException(
-          "Ushbu so'rovni rad etish faqat Bosh Vazirlik (Super Admin) huquqida!",
+          "Foydalanuvchi yoki bo'limni o'chirish so'rovini rad etish faqat Bosh Administrator (Super Admin) tomonidan amalga oshirilishi mumkin!",
+        );
+      }
+    } else if (request.entityType === EntityType.PRODUCT) {
+      if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
+        throw new ForbiddenException(
+          "Mahsulot so'rovini rad etish faqat Vazirlik boshqaruvi tomonidan amalga oshirilishi mumkin!",
         );
       }
     } else if (request.entityType === EntityType.ASSET) {
-      if (!isMinistryAdmin && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+      const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
+      if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
         throw new ForbiddenException("Siz boshqa tashkilot so'rovini rad eta olmaysiz");
       }
     }

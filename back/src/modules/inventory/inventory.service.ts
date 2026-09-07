@@ -322,7 +322,7 @@ export class InventoryService {
     };
   }
 
-  async exportExcel(organizationId?: string): Promise<Buffer> {
+  async exportExcel(organizationId: string): Promise<{ buffer: Buffer; organizationName: string }> {
     return this.excelService.exportExcel(organizationId);
   }
 

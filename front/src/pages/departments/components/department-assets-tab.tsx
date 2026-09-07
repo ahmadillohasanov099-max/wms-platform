@@ -16,6 +16,7 @@ interface DepartmentAssetsTabProps {
   isLoading: boolean;
   isAdmin?: boolean;
   isLeader?: boolean;
+  isDeptMember?: boolean;
   onReturnClick?: (item: any) => void;
 }
 
@@ -25,13 +26,14 @@ export default function DepartmentAssetsTab({
   isLoading,
   isAdmin,
   isLeader,
+  isDeptMember,
   onReturnClick,
 }: DepartmentAssetsTabProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [rejectingItem, setRejectingItem] = useState<any | null>(null);
 
-  const canManage = isAdmin || isLeader;
+  const canAccept = !!(isLeader || isDeptMember);
 
   const acceptMutation = useMutation({
     mutationFn: (assignmentId: string) => operationsApi.acceptAssignment(assignmentId),
@@ -153,13 +155,13 @@ export default function DepartmentAssetsTab({
         const isPending = row.status === 'PENDING';
         return (
           <div className="flex items-center gap-1.5 justify-end">
-            {isPending && canManage && (
+            {isPending && canAccept && (
               <>
                 <button
                   type="button"
                   onClick={() => acceptMutation.mutate(row.id)}
                   disabled={acceptMutation.isPending}
-                  className="px-2 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                  className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
                   title="Bo'lim nomidan jihozni qabul qilish"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" /> Qabul
@@ -167,12 +169,17 @@ export default function DepartmentAssetsTab({
                 <button
                   type="button"
                   onClick={() => setRejectingItem(row)}
-                  className="px-2 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                  className="px-2.5 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
                   title="Bo'lim nomidan jihozni rad etish"
                 >
                   <XCircle className="w-3.5 h-3.5" /> Rad
                 </button>
               </>
+            )}
+            {isPending && !canAccept && (
+              <span className="text-2xs text-amber-600 dark:text-amber-400 font-medium italic">
+                Bo'lim tasdiqlashi kutilmoqda
+              </span>
             )}
             {isAdmin && onReturnClick && !isPending && (
               <button

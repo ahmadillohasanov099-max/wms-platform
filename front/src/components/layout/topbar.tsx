@@ -121,9 +121,7 @@ export default function Topbar({}: TopbarProps) {
 
   const isLeader =
     departmentData?.leaderId === user?.id ||
-    (departmentData?.leader as any)?.id === user?.id ||
-    user?.role === 'SUPER_ADMIN' ||
-    user?.role === 'ADMIN';
+    (departmentData?.leader as any)?.id === user?.id;
 
   // Department pending assignments
   const deptAssignments: any[] = departmentData?.assignments || [];

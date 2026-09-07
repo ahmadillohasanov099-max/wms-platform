@@ -33,11 +33,11 @@ export const useAuthStore = create<AuthState>()(
       },
       isMinistryUser: () => {
         const role = get().user?.role;
-        return role === 'SUPER_ADMIN' || role === 'VAZIRLIK_OMBORCHI';
+        return role === 'SUPER_ADMIN' || role === 'RAHBAR' || role === 'VAZIRLIK_OMBORCHI';
       },
       isSubOrgUser: () => {
         const role = get().user?.role;
-        return role !== 'SUPER_ADMIN' && role !== 'VAZIRLIK_OMBORCHI';
+        return role !== 'SUPER_ADMIN' && role !== 'RAHBAR' && role !== 'VAZIRLIK_OMBORCHI';
       },
       canDirectDelete: () => {
         const role = get().user?.role;

@@ -21,7 +21,10 @@ export default function InventoryPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
-  const isAdmin = user?.role !== 'XODIM' && user?.role !== 'KADR';
+  const isAdmin =
+    user?.role !== 'XODIM' &&
+    user?.role !== 'KADR' &&
+    user?.role !== 'RAHBAR';
 
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -128,7 +131,8 @@ export default function InventoryPage() {
     try {
       await downloadExport(
         '/inventory/export',
-        `ombor_${new Date().toISOString().split('T')[0]}.xlsx`
+        `ombor_${new Date().toISOString().split('T')[0]}.xlsx`,
+        user?.organizationId ? { organizationId: user.organizationId } : undefined,
       );
       toast.success(t('common.success'));
     } catch {

@@ -23,6 +23,11 @@ export interface RequestItem {
   organization?: Organization;
   createdAt: string;
   updatedAt: string;
+  requestType?: 'DELETION' | 'ASSIGNMENT';
+  assignmentId?: string;
+  recipientUserId?: string | null;
+  recipientDeptId?: string | null;
+  recipientName?: string;
 }
 
 export interface CreateRequestDto {

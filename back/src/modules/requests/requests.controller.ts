@@ -54,6 +54,7 @@ export class RequestsController {
   @ApiOperation({ summary: "Barcha so'rovlarni olish (Vazirlik, Admin yoki Omborchi uchun)" })
   @Roles(
     UserRole.SUPER_ADMIN,
+    UserRole.RAHBAR,
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ORG_ADMIN,
     UserRole.ORG_OMBORCHI,
@@ -77,7 +78,7 @@ export class RequestsController {
   }
 
   @ApiOperation({ summary: "So'rovni tasdiqlash" })
-  @Roles(...MODERATORS)
+  @Roles(...MODERATORS, UserRole.XODIM)
   @Post(':id/approve')
   approve(
     @Param('id') id: string,
@@ -88,7 +89,7 @@ export class RequestsController {
   }
 
   @ApiOperation({ summary: "So'rovni rad etish" })
-  @Roles(...MODERATORS)
+  @Roles(...MODERATORS, UserRole.XODIM)
   @Post(':id/reject')
   reject(
     @Param('id') id: string,

@@ -45,7 +45,7 @@ export class UsersService {
     const where: any = {
       deletedAt: null,
       ...orgFilter,
-      role: role ? role : UserRole.XODIM,
+      ...(role && { role }),
       ...(employmentStatus && { employmentStatus }),
       ...(departmentId && { departmentId }),
       ...(search && {
@@ -184,14 +184,32 @@ export class UsersService {
       select: { id: true, role: true, organizationId: true },
     });
 
-    const isSuperOrMinistry =
-      creatorUser?.role === UserRole.SUPER_ADMIN ||
-      creatorUser?.role === UserRole.VAZIRLIK_OMBORCHI;
+    const isSuperAdmin = creatorUser?.role === UserRole.SUPER_ADMIN;
 
-    if (!isSuperOrMinistry) {
-      if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.VAZIRLIK_OMBORCHI) {
-        throw new BadRequestException("Siz ushbu rolni tayinlash huquqiga ega emassiz");
+    if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException(
+          "Faqat Bosh Administrator (Super Admin) Super Admin yoki Rahbariyat rolini tayinlay oladi!",
+        );
       }
+    }
+
+    if (!isSuperAdmin && dto.role === UserRole.VAZIRLIK_OMBORCHI) {
+      throw new ForbiddenException(
+        "Vazirlik omborchisi rolini faqat Super Admin tayinlay oladi!",
+      );
+    }
+
+    if (!isSuperAdmin && dto.organizationId && dto.organizationId !== creatorUser?.organizationId) {
+      throw new ForbiddenException(
+        "Siz boshqa tashkilot nomidan xodim yarata olmaysiz!",
+      );
+    }
+
+    if (creatorUser?.role === UserRole.KADR && dto.role && dto.role !== UserRole.XODIM) {
+      throw new ForbiddenException(
+        "Kadrlar bo'limi xodimi faqat oddiy 'Xodim' rolini tayinlay oladi!",
+      );
     }
 
     const existing = await this.prisma.user.findUnique({
@@ -212,7 +230,7 @@ export class UsersService {
         throw new BadRequestException("Bo'lim topilmadi");
       }
 
-      if (!isSuperOrMinistry && creatorUser?.organizationId && department.organizationId && department.organizationId !== creatorUser.organizationId) {
+      if (!isSuperAdmin && creatorUser?.organizationId && department.organizationId && department.organizationId !== creatorUser.organizationId) {
         throw new BadRequestException("Ushbu bo'lim sizning tashkilotingizga tegishli emas");
       }
     }
@@ -258,7 +276,7 @@ export class UsersService {
     const { password, departmentId, organizationId, phone, passport, pinfl, ...rest } = dto;
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const targetOrgId = isSuperOrMinistry && organizationId
+    const targetOrgId = isSuperAdmin && organizationId
       ? organizationId
       : (creatorUser?.organizationId || null);
 
@@ -312,18 +330,44 @@ export class UsersService {
       select: { id: true, role: true, organizationId: true },
     });
 
-    const isSuperOrMinistry =
-      updaterUser?.role === UserRole.SUPER_ADMIN ||
-      updaterUser?.role === UserRole.VAZIRLIK_OMBORCHI;
-
+    const isSuperAdmin = updaterUser?.role === UserRole.SUPER_ADMIN;
     const oldUser = await this.findOne(id);
 
-    if (!isSuperOrMinistry && updaterUser?.organizationId) {
-      if (oldUser.organizationId && oldUser.organizationId !== updaterUser.organizationId) {
-        throw new BadRequestException("Siz boshqa tashkilot xodimini tahrirlay olmaysiz");
+    // Protect SUPER_ADMIN and RAHBAR from being edited by subordinate roles
+    if (oldUser.role === UserRole.SUPER_ADMIN || oldUser.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException(
+          "Siz Super Admin yoki Rahbariyat hisobini tahrirlay olmaysiz!",
+        );
       }
-      if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.VAZIRLIK_OMBORCHI) {
-        throw new BadRequestException("Siz ushbu rolni tayinlash huquqiga ega emassiz");
+    }
+
+    // Only SUPER_ADMIN can assign SUPER_ADMIN or RAHBAR
+    if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException(
+          "Faqat Bosh Administrator (Super Admin) Super Admin yoki Rahbariyat rolini tayinlay oladi!",
+        );
+      }
+    }
+
+    if (!isSuperAdmin && dto.role === UserRole.VAZIRLIK_OMBORCHI) {
+      throw new ForbiddenException(
+        "Vazirlik omborchisi rolini faqat Super Admin tayinlay oladi!",
+      );
+    }
+
+    // Tenant isolation for non-super admins
+    if (!isSuperAdmin && updaterUser?.organizationId) {
+      if (oldUser.organizationId && oldUser.organizationId !== updaterUser.organizationId) {
+        throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimini tahrirlashingiz mumkin!");
+      }
+    }
+
+    // Kadrlar bo'limi faqat XODIM rolini boshqara oladi
+    if (updaterUser?.role === UserRole.KADR) {
+      if (oldUser.role !== UserRole.XODIM || (dto.role && dto.role !== UserRole.XODIM)) {
+        throw new ForbiddenException("Kadrlar bo'limi faqat oddiy 'Xodim' hisoblarini tahrirlay oladi!");
       }
     }
 
@@ -466,19 +510,32 @@ export class UsersService {
   }
 
   async remove(id: string, deletedBy: string) {
+    if (id === deletedBy) {
+      throw new BadRequestException("O'z hisobingizni o'zingiz o'chira olmaysiz!");
+    }
+
     const deleterUser = await this.prisma.user.findUnique({
       where: { id: deletedBy },
       select: { id: true, role: true, organizationId: true },
     });
 
-    const isSuperOrMinistry =
-      deleterUser?.role === 'SUPER_ADMIN' ||
-      deleterUser?.role === 'VAZIRLIK_OMBORCHI';
-
+    const isSuperAdmin = deleterUser?.role === UserRole.SUPER_ADMIN;
     const targetUser = await this.findOne(id);
 
-    if (!isSuperOrMinistry && deleterUser?.organizationId && targetUser.organizationId && targetUser.organizationId !== deleterUser.organizationId) {
+    if (targetUser.role === UserRole.SUPER_ADMIN || targetUser.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException("Super Admin yoki Rahbariyat hisobini o'chirish taqiqlanadi!");
+      }
+    }
+
+    if (!isSuperAdmin && deleterUser?.organizationId && targetUser.organizationId && targetUser.organizationId !== deleterUser.organizationId) {
       throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz");
+    }
+
+    if (deleterUser?.role === UserRole.KADR && targetUser.role !== UserRole.XODIM) {
+      throw new ForbiddenException(
+        "Kadrlar bo'limi faqat oddiy 'Xodim' hisobini o'chira oladi!",
+      );
     }
 
     const activeAssignments = await this.prisma.assignment.count({
@@ -488,6 +545,17 @@ export class UsersService {
     if (activeAssignments > 0) {
       throw new BadRequestException(
         'Xodimda qaytarilmagan jihozlar bor, oldin ularni qaytarib oling!',
+      );
+    }
+
+    const isDeptLeader = await this.prisma.department.findFirst({
+      where: { leaderId: id, deletedAt: null },
+      select: { name: true },
+    });
+
+    if (isDeptLeader) {
+      throw new BadRequestException(
+        `Ushbu xodim "${isDeptLeader.name}" bo'limi rahbari etib tayinlangan. Avval bo'lim rahbarini o'zgartiring!`,
       );
     }
 
@@ -590,7 +658,7 @@ export class UsersService {
         });
 
         await tx.assignment.create({
-          data: { userId: toUserId, assetId: assignment.assetId },
+          data: { userId: toUserId, assetId: assignment.assetId, status: 'PENDING' },
         });
 
         await tx.operation.create({

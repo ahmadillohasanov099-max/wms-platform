@@ -10,6 +10,7 @@ import { ActiveUser } from 'src/common/interfaces';
 
 const MANAGERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
@@ -29,8 +30,8 @@ export class StatsController {
     return enforceTenantOrgId(user, organizationId);
   }
 
-  @ApiOperation({ summary: "Respublika bo'yicha yig'ma statistika (Faqat Super Admin uchun)" })
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiOperation({ summary: "Respublika bo'yicha yig'ma statistika (Super Admin va Rahbariyat uchun)" })
+  @Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR)
   @Get('consolidated')
   getConsolidated() {
     return this.statsService.getConsolidatedStats();

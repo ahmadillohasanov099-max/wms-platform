@@ -6,9 +6,12 @@ import { Card, Button, Badge, Spinner, PageHeader, SearchFilterCard } from '../.
 import OrganizationModal from './organization-modal';
 import { organizationsApi } from '../../api';
 import type { Organization } from '../../types';
+import { useAuthStore } from '../../store/auth.store';
 
 export default function OrganizationsPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -48,10 +51,12 @@ export default function OrganizationsPage() {
         title="Hududiy Boshqarmalar"
         subtitle="Vazirlik tasarrufidagi viloyat boshqarmalari va quyi tashkilotlar ro'yxati"
         actions={
-          <Button onClick={handleCreate} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Yangi Boshqarma Qo‘shish
-          </Button>
+          isSuperAdmin ? (
+            <Button onClick={handleCreate} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Yangi Boshqarma Qo‘shish
+            </Button>
+          ) : undefined
         }
       />
 
@@ -127,15 +132,17 @@ export default function OrganizationsPage() {
                   <Eye className="w-3.5 h-3.5" />
                   Batafsil ko'rish
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEdit(org)}
-                  className="flex items-center gap-1.5 text-xs"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  Tahrirlash
-                </Button>
+                {isSuperAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(org)}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Tahrirlash
+                  </Button>
+                )}
               </div>
             </Card>
           ))}

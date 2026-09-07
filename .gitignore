@@ -28,9 +28,11 @@ dist-ssr/
 *.tsv
 *.ods
 
-# Internal task notes & documentation
-daily-tasks.md
-*daily-tasks*.md
+# Temporary screenshots
+back/image.png
+*.png
+!public/*.png
+!front/public/*.png
 
 # Logs
 logs/

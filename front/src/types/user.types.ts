@@ -1,6 +1,7 @@
 import type { Organization } from './organization.types';
 export type UserRole = 
   | 'SUPER_ADMIN' 
+  | 'RAHBAR'
   | 'VAZIRLIK_OMBORCHI' 
   | 'ORG_ADMIN' 
   | 'ORG_OMBORCHI' 

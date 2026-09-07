@@ -17,14 +17,25 @@ import { StockInDto } from './dto/stock-in.dto';
 import { AssignToDeptDto } from './dto/assign-to-dept.dto';
 import { RejectAssignmentDto } from './dto/reject-assignment.dto';
 
-const MANAGERS = [
+const WAREHOUSE_MUTATORS = [
   UserRole.SUPER_ADMIN,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
   UserRole.ADMIN,
   UserRole.OMBORCHI,
+];
+
+const ALL_ROLES = [
+  UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
+  UserRole.VAZIRLIK_OMBORCHI,
+  UserRole.ORG_ADMIN,
+  UserRole.ORG_OMBORCHI,
+  UserRole.ADMIN,
+  UserRole.OMBORCHI,
   UserRole.KADR,
+  UserRole.XODIM,
 ];
 
 @ApiTags('Operations')
@@ -35,21 +46,21 @@ export class OperationsController {
   constructor(private operationsService: OperationsService) {}
 
   @ApiOperation({ summary: 'Omborga kirim (mahsulot avtomatik yaratiladi)' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('stock-in')
   stockIn(@Body() dto: StockInDto, @CurrentUser() user: any) {
     return this.operationsService.stockIn(dto, user.id);
   }
 
   @ApiOperation({ summary: 'Xodimga jihoz berish (BERILADIGAN)' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('give-to-user')
   giveToUser(@Body() dto: GiveToUserDto, @CurrentUser() user: any) {
     return this.operationsService.giveToUser(dto, user.id);
   }
 
   @ApiOperation({ summary: 'Xodimdan jihoz qaytarish' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('return-from-user')
   returnFromUser(
     @Body() dto: ReturnFromUserDto,
@@ -59,28 +70,28 @@ export class OperationsController {
   }
 
   @ApiOperation({ summary: "Bir xodimdan ikkinchisiga o'tkazish" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('transfer-user')
   transferUser(@Body() dto: TransferUserDto, @CurrentUser() user: any) {
     return this.operationsService.transferUser(dto, user.id);
   }
 
   @ApiOperation({ summary: "Bo'limga SARFLANADIGAN berish" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('give-to-dept')
   giveToDept(@Body() dto: GiveToDeptDto, @CurrentUser() user: any) {
     return this.operationsService.giveToDept(dto, user.id);
   }
 
   @ApiOperation({ summary: "Bo'limga umumiy jihoz biriktirish (BERILADIGAN)" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('assign-to-dept')
   assignToDept(@Body() dto: AssignToDeptDto, @CurrentUser() user: any) {
     return this.operationsService.assignToDept(dto, user.id);
   }
 
   @ApiOperation({ summary: "Bo'limdan qaytarish" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('return-from-dept')
   returnFromDept(
     @Body() dto: ReturnFromDeptDto,
@@ -90,14 +101,14 @@ export class OperationsController {
   }
 
   @ApiOperation({ summary: 'Hisobdan chiqarish' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('write-off')
   writeOff(@Body() dto: WriteOffDto, @CurrentUser() user: any) {
     return this.operationsService.writeOff(dto, user.id);
   }
 
   @ApiOperation({ summary: 'Ommaviy hisobdan chiqarish' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('bulk-write-off')
   bulkWriteOff(
     @Body() dto: BulkWriteOffDto,
@@ -107,7 +118,7 @@ export class OperationsController {
   }
 
   @ApiOperation({ summary: 'Operatsiya qabul-topshirish dalolatnomasini (PDF) yuklab olish' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...ALL_ROLES)
   @Get(':id/pdf')
   async getPdf(@Param('id') id: string, @Res() res: express.Response) {
     const pdfBuffer = await this.operationsService.generatePdfAct(id);

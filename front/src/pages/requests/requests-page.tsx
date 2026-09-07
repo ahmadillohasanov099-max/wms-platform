@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Check, X, Search, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, Button, Table, PageHeader, type Column } from '../../components/ui';
 import RejectReasonModal from '../../components/modals/reject-reason-modal';
-import { requestsApi } from '../../api';
+import { requestsApi, operationsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -28,11 +28,13 @@ export default function RequestsPage() {
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'ORG_OMBORCHI';
 
-  // Fetch requests: Admins/Moderators fetch all, regular users fetch their own
+  const canViewAll = canManage || user?.role === 'RAHBAR';
+
+  // Fetch requests: Admins/Moderators/Leaders fetch all, regular users fetch their own
   const { data: requestsData, isLoading, refetch } = useQuery({
-    queryKey: ['requests', selectedStatus, canManage ? 'all' : 'my'],
+    queryKey: ['requests', selectedStatus, canViewAll ? 'all' : 'my'],
     queryFn: () =>
-      canManage
+      canViewAll
         ? requestsApi.getAll({
             status: selectedStatus === 'ALL' ? undefined : selectedStatus,
           })
@@ -81,11 +83,15 @@ export default function RequestsPage() {
     });
   }, [rawListAll, selectedStatus, debouncedSearch]);
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, isAssignment?: boolean) => {
     setActionLoading(id);
     try {
-      await requestsApi.approve(id);
-      toast.success("So'rov muvaffaqiyatli tasdiqlandi!");
+      if (isAssignment) {
+        await operationsApi.acceptAssignment(id);
+      } else {
+        await requestsApi.approve(id);
+      }
+      toast.success("Muvaffaqiyatli qabul qilindi!");
       refetch();
     } catch (error: any) {
       toast.error(error?.message || t('common.error'));
@@ -97,7 +103,12 @@ export default function RequestsPage() {
   const handleConfirmReject = async (rejectionReason: string) => {
     if (!rejectingId) return;
     try {
-      await requestsApi.reject(rejectingId, { rejectionReason, reviewComment: rejectionReason });
+      const targetItem = rawListAll.find((x) => x.id === rejectingId);
+      if (targetItem?.requestType === 'ASSIGNMENT') {
+        await operationsApi.rejectAssignment(rejectingId, { reason: rejectionReason });
+      } else {
+        await requestsApi.reject(rejectingId, { rejectionReason, reviewComment: rejectionReason });
+      }
       toast.success("So'rov rad etildi!");
       setRejectingId(null);
       refetch();
@@ -155,11 +166,18 @@ export default function RequestsPage() {
       title: 'Obyekt / Jihoz',
       render: (_: any, row: RequestItem) => (
         <div>
-          <div className="font-medium text-slate-900 dark:text-slate-100">
-            {row.entityName || row.entityTitle || `ID: ${row.entityId.slice(0, 8)}...`}
+          <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+            <span>{row.entityName || row.entityTitle || `ID: ${row.entityId.slice(0, 8)}...`}</span>
+            {row.requestType === 'ASSIGNMENT' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                Biriktirish
+              </span>
+            )}
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400">
-            {getEntityTypeLabel(row.entityType)}
+            {row.requestType === 'ASSIGNMENT'
+              ? row.recipientName || 'Jihoz biriktirish'
+              : getEntityTypeLabel(row.entityType)}
           </div>
         </div>
       ),
@@ -206,52 +224,111 @@ export default function RequestsPage() {
         );
       },
     },
-    ...(canManage
-      ? [
-          {
-            key: 'actions',
-            title: 'Amallar',
-            render: (_: any, row: RequestItem) => {
-              if (row.status !== 'PENDING') {
-                return <span className="text-xs text-slate-400">Ko‘rib chiqilgan</span>;
-              }
+    {
+      key: 'actions',
+      title: 'Amallar',
+      render: (_: any, row: RequestItem) => {
+        if (row.status !== 'PENDING') {
+          return <span className="text-xs text-slate-400 font-medium">Ko‘rib chiqilgan</span>;
+        }
 
-              const isLoadingThis = actionLoading === row.id;
+        const isLoadingThis = actionLoading === row.id;
 
-              return (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-500/30"
-                    onClick={() => handleApprove(row.id)}
-                    disabled={Boolean(actionLoading)}
-                  >
-                    {isLoadingThis ? (
-                      <span className="text-xs">Yuklanmoqda...</span>
-                    ) : (
-                      <span className="flex items-center">
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        Qabul qilish
-                      </span>
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-500/30"
-                    onClick={() => setRejectingId(row.id)}
-                    disabled={Boolean(actionLoading)}
-                  >
-                    <X className="w-3.5 h-3.5 mr-1" />
-                    Rad etish
-                  </Button>
-                </div>
-              );
-            },
-          },
-        ]
-      : []),
+        // A) If this is an ASSIGNMENT:
+        if (row.requestType === 'ASSIGNMENT') {
+          const isUserRecipient = Boolean(row.recipientUserId && row.recipientUserId === user?.id);
+          const userDeptId = (user as any)?.departmentId || (user as any)?.department?.id;
+          const isDeptRecipient = Boolean(row.recipientDeptId && userDeptId === row.recipientDeptId);
+          const isRecipient = isUserRecipient || isDeptRecipient;
+
+          // Only the recipient sees [Qabul qilish] and [Rad etish]
+          if (isRecipient) {
+            return (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-500/30 cursor-pointer"
+                  onClick={() => handleApprove(row.id, true)}
+                  disabled={Boolean(actionLoading)}
+                >
+                  {isLoadingThis ? (
+                    <span className="text-xs">Yuklanmoqda...</span>
+                  ) : (
+                    <span className="flex items-center">
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      Qabul qilish
+                    </span>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-500/30 cursor-pointer"
+                  onClick={() => setRejectingId(row.id)}
+                  disabled={Boolean(actionLoading)}
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Rad etish
+                </Button>
+              </div>
+            );
+          }
+
+          // Assigner / Admin / Super Admin who gave the asset:
+          // NEVER sees Qabul/Rad buttons! Only shows waiting indicator
+          return (
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium italic">
+              {row.recipientDeptId ? "Bo'lim tasdiqlashi kutilmoqda" : "Xodim tasdiqlashi kutilmoqda"}
+            </span>
+          );
+        }
+
+        // B) Standard Deletion / Return Request:
+        if (row.requestedById === user?.id) {
+          return (
+            <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+              Tasdiqlanishi kutilmoqda
+            </span>
+          );
+        }
+
+        if (canManage) {
+          return (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-500/30 cursor-pointer"
+                onClick={() => handleApprove(row.id, false)}
+                disabled={Boolean(actionLoading)}
+              >
+                {isLoadingThis ? (
+                  <span className="text-xs">Yuklanmoqda...</span>
+                ) : (
+                  <span className="flex items-center">
+                    <Check className="w-3.5 h-3.5 mr-1" />
+                    Qabul qilish
+                  </span>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-500/30 cursor-pointer"
+                onClick={() => setRejectingId(row.id)}
+                disabled={Boolean(actionLoading)}
+              >
+                <X className="w-3.5 h-3.5 mr-1" />
+                Rad etish
+              </Button>
+            </div>
+          );
+        }
+
+        return <span className="text-xs text-slate-400">—</span>;
+      },
+    },
   ];
 
   return (

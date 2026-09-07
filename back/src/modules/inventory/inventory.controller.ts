@@ -22,15 +22,26 @@ import { InventoryService } from './inventory.service';
 import { SetMinLevelDto } from './dto/set-min-level.dto';
 import { CurrentUser, Roles } from '../auth';
 import { BulkStockInDto } from './dto';
+import { enforceRequiredTenantOrgId } from '../../common/helper/tenant.helper';
 
-const MANAGERS = [
+const INVENTORY_VIEWERS = [
   UserRole.SUPER_ADMIN,
+  UserRole.RAHBAR,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
   UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
+];
+
+const WAREHOUSE_MUTATORS = [
+  UserRole.SUPER_ADMIN,
+  UserRole.VAZIRLIK_OMBORCHI,
+  UserRole.ORG_ADMIN,
+  UserRole.ORG_OMBORCHI,
+  UserRole.ADMIN,
+  UserRole.OMBORCHI,
 ];
 
 @ApiTags('Inventory')
@@ -41,7 +52,7 @@ export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
   @ApiOperation({ summary: 'Barcha ombor holati' })
-  @Roles(...MANAGERS)
+  @Roles(...INVENTORY_VIEWERS)
   @Get()
   findAll(
     @Query('organizationId') organizationId: string,
@@ -52,7 +63,7 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Biriktirilgan jihozlar ro\'yxati' })
-  @Roles(...MANAGERS)
+  @Roles(...INVENTORY_VIEWERS)
   @Get('assigned-assets')
   getAssignedAssets(
     @Query('organizationId') organizationId: string,
@@ -63,7 +74,7 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Inventar raqami orqali tezkor jihoz qidirish (Skaner va Lookup)' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...INVENTORY_VIEWERS, UserRole.XODIM)
   @Get('lookup-asset')
   lookupAsset(
     @Query('code') code: string,
@@ -75,7 +86,7 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Inventar raqami / nomi bo\'yicha tezkor live qidiruv' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...INVENTORY_VIEWERS, UserRole.XODIM)
   @Get('search-assets')
   searchAssets(
     @Query('query') query: string,
@@ -87,62 +98,65 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Ombor hisobotini Excel (.xlsx) formatda eksport qilish' })
-  @Roles(...MANAGERS)
+  @Roles(...INVENTORY_VIEWERS)
   @Get('export')
   async exportExcel(
     @Query('organizationId') organizationId: string,
     @CurrentUser() user: any,
     @Res() res: express.Response,
   ) {
-    const isSuperOrMinistry = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.VAZIRLIK_OMBORCHI;
-    const targetOrgId = isSuperOrMinistry ? organizationId : user?.organizationId;
-    const buffer = await this.inventoryService.exportExcel(targetOrgId);
+    const targetOrgId = enforceRequiredTenantOrgId(user, organizationId);
+    const { buffer, organizationName } = await this.inventoryService.exportExcel(targetOrgId);
+    const safeOrgName = encodeURIComponent(organizationName.replace(/[\s/\\:*?"<>|]+/g, '_'));
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=ombor_qoldiqlari.xlsx',
+      `attachment; filename="ombor_${safeOrgName}.xlsx"`,
     );
     return res.status(200).send(buffer);
   }
 
   @ApiOperation({ summary: 'Kam qolgan mahsulotlar' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...INVENTORY_VIEWERS, UserRole.XODIM)
   @Get('low-stock')
   getLowStock(
     @Query('organizationId') organizationId: string,
     @CurrentUser() user: any,
   ) {
-    const isSuperOrMinistry = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.VAZIRLIK_OMBORCHI;
+    const isSuperOrMinistry =
+      user?.role === UserRole.SUPER_ADMIN ||
+      user?.role === UserRole.RAHBAR ||
+      user?.role === UserRole.VAZIRLIK_OMBORCHI;
     const targetOrgId = isSuperOrMinistry ? organizationId : user?.organizationId;
     return this.inventoryService.getLowStock(targetOrgId);
   }
 
   @ApiOperation({ summary: 'Bitta mahsulot miqdori' })
-  @Roles(...MANAGERS)
+  @Roles(...INVENTORY_VIEWERS)
   @Get(':productId')
   findOne(@Param('productId') productId: string) {
     return this.inventoryService.findOne(productId);
   }
 
   @ApiOperation({ summary: 'Minimal daraja belgilash' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Patch('min-level')
   setMinLevel(@Body() dto: SetMinLevelDto) {
     return this.inventoryService.setMinLevel(dto);
   }
 
   @ApiOperation({ summary: "Bir vaqtda ko'p mahsulot kirim qilish" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @Post('bulk-stock-in')
   bulkStockIn(@Body() dto: BulkStockInDto, @CurrentUser() user: any) {
     return this.inventoryService.bulkStockIn(dto, user.id);
   }
 
   @ApiOperation({ summary: 'Excel fayldan ommaviy mahsulotlar va jihozlarni omborga kirim qilish' })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 15 * 1024 * 1024 },
@@ -163,7 +177,7 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Master Excel Shablonini yuklab olish' })
-  @Roles(...MANAGERS)
+  @Roles(...INVENTORY_VIEWERS)
   @Get('master-template')
   async downloadMasterTemplate(@Res() res: express.Response) {
     const buffer = await this.inventoryService.generateMasterTemplate();
@@ -179,7 +193,7 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: "Yagona Master Excel orqali barcha ma'lumotlarni yuklash" })
-  @Roles(...MANAGERS)
+  @Roles(...WAREHOUSE_MUTATORS)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 15 * 1024 * 1024 },

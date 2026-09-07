@@ -63,6 +63,16 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
 export default function App() {
   const ALL_MANAGERS: UserRole[] = [
     "SUPER_ADMIN",
+    "RAHBAR",
+    "VAZIRLIK_OMBORCHI",
+    "ORG_ADMIN",
+    "ORG_OMBORCHI",
+    "ADMIN",
+    "OMBORCHI",
+  ];
+
+  const WAREHOUSE_MANAGERS: UserRole[] = [
+    "SUPER_ADMIN",
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
@@ -111,7 +121,7 @@ export default function App() {
           <Route
             path="/audit-logs"
             element={
-              <RequireRole roles={['SUPER_ADMIN']}>
+              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
                 <AuditLogsPage />
               </RequireRole>
             }
@@ -120,7 +130,7 @@ export default function App() {
           <Route
             path="/audit-logs/:id"
             element={
-              <RequireRole roles={['SUPER_ADMIN']}>
+              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
                 <AuditLogDetailPage />
               </RequireRole>
             }
@@ -129,7 +139,7 @@ export default function App() {
           <Route
             path="/organizations"
             element={
-              <RequireRole roles={['SUPER_ADMIN']}>
+              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
                 <OrganizationsPage />
               </RequireRole>
             }
@@ -138,7 +148,7 @@ export default function App() {
           <Route
             path="/organizations/:id"
             element={
-              <RequireRole roles={['SUPER_ADMIN']}>
+              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
                 <OrganizationDetailPage />
               </RequireRole>
             }
@@ -156,7 +166,7 @@ export default function App() {
           <Route
             path="/inventory/write-off"
             element={
-              <RequireRole roles={ALL_MANAGERS}>
+              <RequireRole roles={WAREHOUSE_MANAGERS}>
                 <WriteOffPage />
               </RequireRole>
             }
@@ -212,7 +222,7 @@ export default function App() {
           <Route
             path="/operations"
             element={
-              <RequireRole roles={ALL_MANAGERS}>
+              <RequireRole roles={WAREHOUSE_MANAGERS}>
                 <OperationsPage />
               </RequireRole>
             }
@@ -230,7 +240,7 @@ export default function App() {
           <Route
             path="/assigned-assets"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "ORG_ADMIN", "ADMIN", "KADR"]}>
+              <RequireRole roles={["SUPER_ADMIN", "RAHBAR", "ORG_ADMIN", "ADMIN", "KADR"]}>
                 <AssignedAssetsPage />
               </RequireRole>
             }

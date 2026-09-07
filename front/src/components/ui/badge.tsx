@@ -85,6 +85,7 @@ export function RoleBadge({ role }: { role: string }) {
 
   const variantMap: Record<string, BadgeVariant> = {
     SUPER_ADMIN: 'danger',
+    RAHBAR: 'warning',
     VAZIRLIK_OMBORCHI: 'purple',
     ORG_ADMIN: 'danger',
     ORG_OMBORCHI: 'info',
