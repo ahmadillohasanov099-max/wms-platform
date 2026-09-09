@@ -19,7 +19,6 @@ import { ReviewRequestDto } from './dto/review-request.dto';
 const MODERATORS = [
   UserRole.SUPER_ADMIN,
   UserRole.VAZIRLIK_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.ORG_ADMIN,
   UserRole.OMBORCHI,
   UserRole.ORG_OMBORCHI,
@@ -47,18 +46,17 @@ export class RequestsController {
   @Get('my')
   findMy(
     @CurrentUser() user: any,
+    @Query('type') type?: string,
   ) {
-    return this.requestsService.findMyRequests(user?.id, user?.organizationId);
+    return this.requestsService.findMyRequests(user?.id, user?.organizationId, type);
   }
 
   @ApiOperation({ summary: "Barcha so'rovlarni olish (Vazirlik, Admin yoki Omborchi uchun)" })
   @Roles(
     UserRole.SUPER_ADMIN,
-    UserRole.RAHBAR,
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ORG_ADMIN,
     UserRole.ORG_OMBORCHI,
-    UserRole.ADMIN,
     UserRole.OMBORCHI,
     UserRole.KADR,
   )
@@ -67,8 +65,9 @@ export class RequestsController {
     @Query('status') status?: RequestStatus,
     @Query('organizationId') organizationId?: string,
     @CurrentUser() user?: any,
+    @Query('type') type?: string,
   ) {
-    return this.requestsService.findAll(status, organizationId, user);
+    return this.requestsService.findAll(status, organizationId, user, type);
   }
 
   @ApiOperation({ summary: "Aynan bitta so'rov tafsilotini olish" })

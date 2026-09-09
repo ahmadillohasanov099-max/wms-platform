@@ -8,6 +8,7 @@ import { ReturnFromDeptDto } from './dto/return-from-dept.dto';
 import { WriteOffDto } from './dto/write-off.dto';
 import { BulkWriteOffDto } from './dto/bulk-write-off.dto';
 import { AssignToDeptDto } from './dto/assign-to-dept.dto';
+import { CompleteRepairDto } from './dto/complete-repair.dto';
 import { OperationsPdfService } from './services/operations-pdf.service';
 import { OperationsNotifierService } from './services/operations-notifier.service';
 import { OperationsStockService } from './services/operations-stock.service';
@@ -56,6 +57,10 @@ export class OperationsService {
 
   async bulkWriteOff(dto: BulkWriteOffDto, performedById: string) {
     return this.stockService.bulkWriteOff(dto, performedById);
+  }
+
+  async completeRepair(dto: CompleteRepairDto, performedById: string) {
+    return this.stockService.completeRepair(dto, performedById);
   }
 
   async generatePdfAct(id: string): Promise<Buffer> {

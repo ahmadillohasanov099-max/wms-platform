@@ -15,7 +15,6 @@ enum UserRole {
   VAZIRLIK_OMBORCHI// Vazirlik Omborchisi (Vazirlik omborini yuritadi, so'rovlarni tasdiqlaydi)
   ORG_ADMIN        // Quyi tashkilot admini
   ORG_OMBORCHI     // Quyi tashkilot omborchisi
-  ADMIN            // Mavjud Admin roli
   OMBORCHI         // Mavjud Omborchi roli
   KADR             // Kadrlar bo'limi
   XODIM            // Oddiy xodim

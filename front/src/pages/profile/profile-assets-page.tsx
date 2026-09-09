@@ -23,9 +23,9 @@ export default function ProfileAssetsPage() {
     enabled: !!user?.id,
   });
 
-  const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['profile-history', user?.id],
-    queryFn: () => usersApi.getHistory(user!.id),
+  const { data: tmzData, isLoading: tmzLoading } = useQuery({
+    queryKey: ['profile-tmz-materials', user?.id],
+    queryFn: () => usersApi.getTmzMaterials(user!.id),
     enabled: !!user?.id,
   });
 
@@ -45,7 +45,7 @@ export default function ProfileAssetsPage() {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['profile-history'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-tmz-materials'] });
     };
 
     socket.on('request:created', handleRefetch);
@@ -66,7 +66,6 @@ export default function ProfileAssetsPage() {
   if (!user) return <PageLoader />;
 
   const assignments = assignmentsData ?? [];
-  const historyList = historyData ?? [];
   const myRequests: any[] = Array.isArray(myRequestsData)
     ? myRequestsData
     : (myRequestsData as any)?.data || [];
@@ -75,21 +74,16 @@ export default function ProfileAssetsPage() {
   // If a request was REJECTED or APPROVED, it is no longer pending so user can re-request
   const pendingRequestedAssetIds = useMemo(() => {
     return myRequests
-      .filter((r: any) => r.status === 'PENDING' && r.entityType === 'ASSET')
+      .filter((r: any) => r.requestType !== 'ASSIGNMENT' && r.status === 'PENDING' && r.entityType === 'ASSET')
       .map((r: any) => r.entityId);
   }, [myRequests]);
 
-  // Filter TMZ material operations given to this user (strictly SARFLANADIGAN / no assetId)
-  const tmzOperations = historyList.filter(
-    (op: any) =>
-      op.product?.productType === 'SARFLANADIGAN' ||
-      (!op.assetId && !op.asset && op.product?.productType !== 'BERILADIGAN' && (op.type === 'GIVE_TO_USER' || op.type === 'GIVE_TO_DEPT'))
-  );
+  const tmzList = tmzData ?? [];
 
   // Group TMZ operations by documentNumber
   const groupedTmzOperations: any[] = [];
   const mapTmzDoc = new Map<string, any>();
-  for (const item of tmzOperations) {
+  for (const item of tmzList) {
     const docNum = item.documentNumber;
     if (docNum && docNum.startsWith('TLB-')) {
       if (mapTmzDoc.has(docNum)) {
@@ -111,7 +105,7 @@ export default function ProfileAssetsPage() {
 
   const handleRequestSuccess = (_assetId: string, requestType: 'RETURN' | 'REPAIR') => {
     queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
-    const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash/Servis";
+    const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash";
     toast.success(`"${requestModalAsset?.asset?.product?.name || 'Jihoz'}" bo'yicha ${typeText} so'rovi omborchiga yuborildi!`);
     setRequestModalAsset(null);
   };
@@ -126,7 +120,7 @@ export default function ProfileAssetsPage() {
       <ProfileMyAssetsTable
         assignments={assignments}
         tmzOperations={groupedTmzOperations}
-        isLoading={assignmentsLoading || historyLoading}
+        isLoading={assignmentsLoading || tmzLoading}
         totalValue={totalValue}
         requestedAssetIds={pendingRequestedAssetIds}
         onRequestModal={(asset) => setRequestModalAsset(asset)}

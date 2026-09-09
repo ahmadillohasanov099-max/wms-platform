@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from 'src/prisma';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -67,7 +68,7 @@ export class OrganizationsService {
             fullName: dto.adminFullName || `${dto.name} Administratori`,
             username: cleanUsername,
             passwordHash: hashedPassword,
-            role: 'ADMIN',
+            role: UserRole.ORG_ADMIN,
             phone: formattedAdminPhone || null,
             organizationId: org.id,
             isActive: true,

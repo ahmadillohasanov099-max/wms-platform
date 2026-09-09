@@ -1,13 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { productsApi } from "../../api";
+import { toast } from "react-hot-toast";
+import { productsApi, operationsApi } from "../../api";
+import { useAuthStore } from "../../store/auth.store";
 import Modal from "../../components/ui/modal";
+import RepairCompleteModal from "../../components/modals/repair-complete-modal";
 import { TableSkeleton } from "../../components/ui/spinner";
 import { ProductTypeBadge } from "../../components/ui/badge";
 import CopyableInventoryNumber from "../../components/ui/copyable-inventory-number";
 import { formatCurrency } from "../../lib/utils";
 
-import { ShieldCheck, User, Building2, History, Edit2, PackageCheck } from "lucide-react";
+import { ShieldCheck, User, Building2, History, Edit2, PackageCheck, Wrench } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -20,6 +24,33 @@ interface Props {
 
 export default function ProductDetailModal({ open, onClose, productId, onOpenHistory, onOpenEdit, disableLinks }: Props) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const [selectedRepairAsset, setSelectedRepairAsset] = useState<any | null>(null);
+
+  const canManageRepair = [
+    'SUPER_ADMIN',
+    'VAZIRLIK_OMBORCHI',
+    'ORG_ADMIN',
+    'ORG_OMBORCHI',
+    'OMBORCHI',
+  ].includes(user?.role || '');
+
+  const completeRepairMutation = useMutation({
+    mutationFn: ({ assetId, note }: { assetId: string; note?: string }) =>
+      operationsApi.completeRepair({ assetId, note }),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Jihoz ta'mirlandi va soz holatga keltirildi!");
+      queryClient.invalidateQueries({ queryKey: ["product-detail", productId] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["assigned-assets"] });
+      setSelectedRepairAsset(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Xatolik yuz berdi");
+    },
+  });
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
     queryFn: () => (productId ? productsApi.getOne(productId) : null),
@@ -146,9 +177,32 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
                                 🔴 Hisobdan chiqarilgan
                               </span>
                             ) : isBroken ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/50">
-                                ⚠️ Nosoz / Ta'mirda
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/50">
+                                  ⚠️ Nosoz / Ta'mirda
+                                </span>
+                                {activeAssignment?.user && (
+                                  <span className="text-2xs text-slate-500 font-medium">
+                                    (Xodim: {activeAssignment.user.fullName})
+                                  </span>
+                                )}
+                                {activeAssignment?.department && (
+                                  <span className="text-2xs text-slate-500 font-medium">
+                                    (Bo'lim: {activeAssignment.department.name})
+                                  </span>
+                                )}
+                                {canManageRepair && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedRepairAsset({ ...asset, product })}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all shadow-2xs cursor-pointer ml-1"
+                                    title="Jihoz ta'mirlandi deb tasdiqlash"
+                                  >
+                                    <Wrench className="w-3 h-3" />
+                                    <span>Ta'mirlandi</span>
+                                  </button>
+                                )}
+                              </div>
                             ) : isLost ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-orange-50 text-orange-700 border border-orange-200/70 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-900/50">
                                 ❓ Yo'qolgan
@@ -253,6 +307,20 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
           </div>
         </div>
       )}
+
+      <RepairCompleteModal
+        open={!!selectedRepairAsset}
+        onClose={() => setSelectedRepairAsset(null)}
+        assetItem={selectedRepairAsset}
+        isLoading={completeRepairMutation.isPending}
+        onConfirm={async (note) => {
+          if (!selectedRepairAsset) return;
+          await completeRepairMutation.mutateAsync({
+            assetId: selectedRepairAsset.id,
+            note,
+          });
+        }}
+      />
     </Modal>
   );
 }

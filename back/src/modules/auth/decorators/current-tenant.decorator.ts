@@ -8,10 +8,9 @@ export const CurrentTenant = createParamDecorator(
       organizationId: request.user?.organizationId || null,
       isMinistry:
         request.user?.organization?.type === 'MINISTRY' ||
-        request.user?.role === 'SUPER_ADMIN' ||
-        request.user?.role === 'ADMIN',
+        request.user?.role === 'SUPER_ADMIN',
       isSuperAdmin:
-        request.user?.role === 'SUPER_ADMIN' || request.user?.role === 'ADMIN',
+        request.user?.role === 'SUPER_ADMIN',
     };
 
     return data ? tenant[data] : tenant;

@@ -26,7 +26,6 @@ const MANAGERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
 ];
@@ -34,7 +33,6 @@ const MANAGERS = [
 const DEPT_MANAGE_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.ORG_ADMIN,
-  UserRole.ADMIN,
 ];
 
 @ApiTags('Departments')

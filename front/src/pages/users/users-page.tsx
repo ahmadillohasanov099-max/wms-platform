@@ -18,8 +18,8 @@ export default function UsersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN' || user?.role === 'KADR';
-  const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN' || user?.role === 'KADR';
+  const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
+  const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -130,7 +130,7 @@ export default function UsersPage() {
       title: t('users.department'),
       className: 'min-w-[200px] max-w-[280px]',
       render: (_: any, row: any) => {
-        const isStaff = row.role === 'ADMIN' || row.role === 'SUPER_ADMIN' || row.role === 'OMBORCHI' || row.role === 'VAZIRLIK_OMBORCHI' || row.role === 'KADR';
+        const isStaff = row.role === 'ORG_ADMIN' || row.role === 'SUPER_ADMIN' || row.role === 'OMBORCHI' || row.role === 'VAZIRLIK_OMBORCHI' || row.role === 'ORG_OMBORCHI' || row.role === 'KADR';
         if (isStaff && !row.department?.name) {
           return (
             <span className="text-2xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
@@ -400,7 +400,6 @@ export default function UsersPage() {
                   { value: 'VAZIRLIK_OMBORCHI', label: t('roles.VAZIRLIK_OMBORCHI') },
                   { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
                   { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },
-                  { value: 'ADMIN', label: t('roles.ADMIN') },
                   { value: 'OMBORCHI', label: t('roles.OMBORCHI') },
                   { value: 'KADR', label: t('roles.KADR') },
                   { value: 'XODIM', label: t('roles.XODIM') },

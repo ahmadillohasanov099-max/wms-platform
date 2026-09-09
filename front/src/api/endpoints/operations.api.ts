@@ -23,4 +23,6 @@ export const operationsApi = {
     api.post(`/operations/assignments/${assignmentId}/accept`).then((r) => r.data),
   rejectAssignment: (assignmentId: string, dto: { reason: string }) =>
     api.post(`/operations/assignments/${assignmentId}/reject`, dto).then((r) => r.data),
+  completeRepair: (dto: { assetId: string; note?: string }) =>
+    api.post('/operations/complete-repair', dto).then((r) => r.data),
 };

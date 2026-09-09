@@ -8,6 +8,7 @@ import { ProductType } from '@prisma/client';
 import { StockInDto } from '../dto/stock-in.dto';
 import { WriteOffDto } from '../dto/write-off.dto';
 import { BulkWriteOffDto } from '../dto/bulk-write-off.dto';
+import { CompleteRepairDto } from '../dto/complete-repair.dto';
 import { EventsGateway } from '../../events/events.gateway';
 import { OperationsNotifierService } from './operations-notifier.service';
 
@@ -409,5 +410,122 @@ export class OperationsStockService {
     this.eventsGateway.broadcastAssignmentUpdated({ type: 'WRITE_OFF' });
 
     return result;
+  }
+
+  async completeRepair(dto: CompleteRepairDto, performedById: string) {
+    const { performerOrgId, isSuperOrMinistry } = await this.getPerformerOrg(performedById);
+
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: dto.assetId },
+      include: {
+        product: true,
+        assignments: {
+          where: { returnedAt: null },
+          include: {
+            user: { select: { id: true, fullName: true, username: true } },
+            department: { select: { id: true, name: true } },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Aktiv (jihoz) topilmadi');
+    }
+
+    if (asset.status !== 'BROKEN') {
+      throw new BadRequestException("Ushbu jihoz ta'mirlashda (nosoz) holatida emas");
+    }
+
+    if (!isSuperOrMinistry && asset.organizationId && asset.organizationId !== performerOrgId) {
+      throw new BadRequestException("Siz faqat o'z tashkilotingiz jihozini ta'mirlashingiz mumkin");
+    }
+
+    const activeAssignment = asset.assignments?.[0];
+    const assignedUserId = activeAssignment?.userId || null;
+    const assignedDeptId = activeAssignment?.departmentId || null;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Update asset status to ACTIVE
+      await tx.asset.update({
+        where: { id: dto.assetId },
+        data: { status: 'ACTIVE' },
+      });
+
+      // 2. If NO active assignment, it was in warehouse stock: increment inventory quantity
+      if (!activeAssignment) {
+        await tx.inventory.updateMany({
+          where: { productId: asset.productId },
+          data: { quantity: { increment: 1 } },
+        });
+      }
+
+      // 3. Create Operation history entry
+      const op = await tx.operation.create({
+        data: {
+          type: assignedDeptId
+            ? 'ASSIGN_TO_DEPT'
+            : assignedUserId
+            ? 'GIVE_TO_USER'
+            : 'STOCK_IN',
+          quantity: 1,
+          assetId: dto.assetId,
+          productId: asset.productId,
+          userId: assignedUserId,
+          departmentId: assignedDeptId,
+          performedById,
+          documentNumber: `TMR-${dto.assetId.slice(-6).toUpperCase()}`,
+          note: dto.note
+            ? `[Ta'mirdan chiqdi / Sozlandi]: ${dto.note}`
+            : `[Ta'mirdan chiqdi / Sozlandi]: Jihoz soz holatga keltirildi`,
+          organizationId: performerOrgId || asset.organizationId,
+        },
+      });
+
+      // 4. Create in-app Notification for the employee
+      let notif: any = null;
+      if (assignedUserId) {
+        notif = await tx.deletionRequest.create({
+          data: {
+            organizationId: asset.organizationId || performerOrgId || '',
+            requestedById: assignedUserId,
+            entityType: 'ASSET',
+            entityId: asset.id,
+            entityName: `${asset.product.name} (Inv: ${asset.inventoryNumber})`,
+            reason: `[TA'MIRLANDI] Jihoz ta'mirlandi va soz holatga keltirildi`,
+            status: 'APPROVED',
+            reviewedById: performedById,
+            reviewComment: dto.note || "Jihoz soz holatga keltirildi. Ombor/IT bo'limidan olib ketishingiz mumkin.",
+            reviewedAt: new Date(),
+          },
+          include: {
+            organization: { select: { id: true, name: true, code: true } },
+            requestedBy: { select: { id: true, fullName: true, username: true } },
+            reviewedBy: { select: { id: true, fullName: true, username: true } },
+          },
+        });
+      }
+
+      return { op, notif };
+    });
+
+    // Real-time updates
+    this.eventsGateway.broadcastInventoryUpdated({ productId: asset.productId });
+    this.eventsGateway.broadcastAssignmentUpdated({
+      type: 'ASSIGNMENT_UPDATED',
+      assetId: dto.assetId,
+      status: 'ACTIVE',
+    });
+    this.eventsGateway.broadcastOperationCreated(result.op);
+
+    if (result.notif) {
+      this.eventsGateway.broadcastRequestCreated(result.notif);
+    }
+
+    return {
+      message: `"${asset.product.name}" jihozi ta'mirlandi va soz holatga keltirildi`,
+      assetId: dto.assetId,
+    };
   }
 }

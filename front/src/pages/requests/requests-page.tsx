@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Check, X, Search, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, Button, Table, PageHeader, type Column } from '../../components/ui';
 import RejectReasonModal from '../../components/modals/reject-reason-modal';
-import { requestsApi, operationsApi } from '../../api';
+import { requestsApi, operationsApi, departmentsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -23,12 +23,28 @@ export default function RequestsPage() {
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
     user?.role === 'VAZIRLIK_OMBORCHI' ||
-    user?.role === 'ADMIN' ||
     user?.role === 'OMBORCHI' ||
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'ORG_OMBORCHI';
 
-  const canViewAll = canManage || user?.role === 'RAHBAR';
+  const canViewAll = canManage;
+
+  const isMinistry =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'VAZIRLIK_OMBORCHI' ||
+    user?.organization?.type === 'MINISTRY' ||
+    !user?.organizationId;
+
+  const userDeptId = (user as any)?.departmentId || (user as any)?.department?.id;
+  const { data: departmentData } = useQuery({
+    queryKey: ['requests-dept-detail', userDeptId],
+    queryFn: () => departmentsApi.getOne(userDeptId!),
+    enabled: !!userDeptId,
+  });
+
+  const isDeptLeader =
+    departmentData?.leaderId === user?.id ||
+    (departmentData?.leader as any)?.id === user?.id;
 
   // Fetch requests: Admins/Moderators/Leaders fetch all, regular users fetch their own
   const { data: requestsData, isLoading, refetch } = useQuery({
@@ -237,8 +253,7 @@ export default function RequestsPage() {
         // A) If this is an ASSIGNMENT:
         if (row.requestType === 'ASSIGNMENT') {
           const isUserRecipient = Boolean(row.recipientUserId && row.recipientUserId === user?.id);
-          const userDeptId = (user as any)?.departmentId || (user as any)?.department?.id;
-          const isDeptRecipient = Boolean(row.recipientDeptId && userDeptId === row.recipientDeptId);
+          const isDeptRecipient = Boolean(row.recipientDeptId && userDeptId === row.recipientDeptId && isDeptLeader);
           const isRecipient = isUserRecipient || isDeptRecipient;
 
           // Only the recipient sees [Qabul qilish] and [Rad etish]
@@ -293,7 +308,11 @@ export default function RequestsPage() {
           );
         }
 
-        if (canManage) {
+        const canUserApproveThis =
+          canManage &&
+          (isMinistry || (row.entityType === 'ASSET' && (!row.organizationId || row.organizationId === user?.organizationId)));
+
+        if (canUserApproveThis) {
           return (
             <div className="flex items-center gap-2">
               <Button
@@ -323,6 +342,14 @@ export default function RequestsPage() {
                 Rad etish
               </Button>
             </div>
+          );
+        }
+
+        if (canManage && !isMinistry) {
+          return (
+            <span className="text-xs text-slate-400 italic">
+              Vazirlik tasdiqlashi kutilmoqda
+            </span>
           );
         }
 

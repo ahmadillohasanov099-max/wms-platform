@@ -8,3 +8,4 @@ export * from './bulk-write-off.dto';
 export * from './write-off.dto';
 export * from './stock-in.dto';
 export * from './reject-assignment.dto';
+export * from './complete-repair.dto';

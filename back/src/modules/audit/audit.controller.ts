@@ -9,19 +9,19 @@ import { UserRole } from '@prisma/client';
 @ApiTags('Audit Logs (Xavfsizlik va Amallar Auditi)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR)
+@Roles(UserRole.SUPER_ADMIN)
 @Controller('audit-logs')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Bosh Administrator va Rahbariyat uchun tizimdagi barcha audit va harakatlar tarixini olish' })
+  @ApiOperation({ summary: 'Bosh Administrator uchun tizimdagi barcha audit va harakatlar tarixini olish' })
   findAll(
     @Query() query: FindAuditLogDto,
     @CurrentTenant('organizationId') organizationId: string,
     @CurrentUser('role') role: UserRole,
   ) {
-    const isSuperAdmin = role === UserRole.SUPER_ADMIN || role === UserRole.RAHBAR;
+    const isSuperAdmin = role === UserRole.SUPER_ADMIN;
     return this.auditService.findAll(query, organizationId, isSuperAdmin);
   }
 
@@ -31,7 +31,7 @@ export class AuditController {
     @CurrentTenant('organizationId') organizationId: string,
     @CurrentUser('role') role: UserRole,
   ) {
-    const isSuperAdmin = role === UserRole.SUPER_ADMIN || role === UserRole.RAHBAR;
+    const isSuperAdmin = role === UserRole.SUPER_ADMIN;
     return this.auditService.getStats(organizationId, isSuperAdmin);
   }
 

@@ -27,7 +27,7 @@ export default function OperationsPage() {
   const { t } = useTranslation();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN';
 
   const allOperations = [
     {

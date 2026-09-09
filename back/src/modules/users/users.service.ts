@@ -178,6 +178,33 @@ export class UsersService {
     });
   }
 
+  async getTmzMaterials(id: string) {
+    await this.findOne(id);
+
+    return this.prisma.operation.findMany({
+      where: {
+        userId: id,
+        type: 'GIVE_TO_USER',
+        product: {
+          productType: 'SARFLANADIGAN',
+        },
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            productType: true,
+            unit: true,
+          },
+        },
+        department: { select: { id: true, name: true } },
+        performedBy: { select: { id: true, fullName: true, username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async create(dto: CreateUserDto, createdBy: string) {
     const creatorUser = await this.prisma.user.findUnique({
       where: { id: createdBy },

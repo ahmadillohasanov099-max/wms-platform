@@ -39,6 +39,7 @@ export class InventoryScannerService {
             serialNumber: true,
             purchasePrice: true,
             createdAt: true,
+            status: true,
             product: {
               select: {
                 id: true,
@@ -93,6 +94,7 @@ export class InventoryScannerService {
         performedBy: latestOp?.performedBy?.fullName || "Mas'ul",
         documentNumber: latestOp?.documentNumber || asset?.inventoryNumber || '—',
         status: asgn.status || 'ACCEPTED',
+        assetStatus: asset?.status || 'ACTIVE',
         acceptedAt: asgn.acceptedAt,
         rejectedAt: asgn.rejectedAt,
         rejectionReason: asgn.rejectionReason,

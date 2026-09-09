@@ -255,3 +255,5 @@ Backend qismida ko'p tillilik tayyor bo'lgani sababli, frontendda quyidagi integ
    ```bash
    npm run build
    ```
+
+   

@@ -19,7 +19,6 @@ import StatsPage from "./pages/stats/stats-page";
 import ProfileInfoPage from "./pages/profile/profile-info-page";
 import ProfileDepartmentPage from "./pages/profile/profile-department-page";
 import ProfileAssetsPage from "./pages/profile/profile-assets-page";
-import ProfileActivityPage from "./pages/profile/profile-activity-page";
 import ProfileSecurityPage from "./pages/profile/profile-security-page";
 import RequestsPage from "./pages/requests/requests-page";
 import AuditLogsPage from "./pages/audit/audit-logs-page";
@@ -67,7 +66,6 @@ export default function App() {
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
-    "ADMIN",
     "OMBORCHI",
   ];
 
@@ -76,7 +74,6 @@ export default function App() {
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
-    "ADMIN",
     "OMBORCHI",
   ];
 
@@ -110,18 +107,26 @@ export default function App() {
 
           <Route
             path="/requests"
-            element={<RequestsPage />}
+            element={
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'OMBORCHI', 'KADR', 'XODIM']}>
+                <RequestsPage />
+              </RequireRole>
+            }
           />
 
           <Route
             path="/deletion-requests"
-            element={<RequestsPage />}
+            element={
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'OMBORCHI', 'KADR', 'XODIM']}>
+                <RequestsPage />
+              </RequireRole>
+            }
           />
 
           <Route
             path="/audit-logs"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
+              <RequireRole roles={['SUPER_ADMIN']}>
                 <AuditLogsPage />
               </RequireRole>
             }
@@ -130,7 +135,7 @@ export default function App() {
           <Route
             path="/audit-logs/:id"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'RAHBAR']}>
+              <RequireRole roles={['SUPER_ADMIN']}>
                 <AuditLogDetailPage />
               </RequireRole>
             }
@@ -240,7 +245,7 @@ export default function App() {
           <Route
             path="/assigned-assets"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "RAHBAR", "ORG_ADMIN", "ADMIN", "KADR"]}>
+              <RequireRole roles={["SUPER_ADMIN", "RAHBAR", "ORG_ADMIN", "KADR"]}>
                 <AssignedAssetsPage />
               </RequireRole>
             }
@@ -285,11 +290,7 @@ export default function App() {
           />
           <Route
             path="/profile/activity"
-            element={
-              <RequireRole roles={["XODIM"]}>
-                <ProfileActivityPage />
-              </RequireRole>
-            }
+            element={<Navigate to="/profile/assets" replace />}
           />
           <Route
             path="/profile/security"

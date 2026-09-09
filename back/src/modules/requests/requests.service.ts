@@ -78,159 +78,52 @@ export class RequestsService {
     return newRequest;
   }
 
-  async findAll(status?: RequestStatus, targetOrgId?: string, currentUser?: any) {
+  async findAll(status?: RequestStatus, targetOrgId?: string, currentUser?: any, type?: string) {
     const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
-    const where: any = {};
-    if (status) where.status = status;
-    if (resolvedOrgId) where.organizationId = resolvedOrgId;
+    let formattedDeletions: any[] = [];
+    let formattedAssignments: any[] = [];
 
-    const deletionRequests = await this.prisma.deletionRequest.findMany({
-      where,
-      include: {
-        organization: { select: { id: true, name: true, code: true } },
-        requestedBy: { select: { id: true, fullName: true, username: true } },
-        reviewedBy: { select: { id: true, fullName: true, username: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (!type || type === 'DELETION') {
+      const where: any = {};
+      if (status) where.status = status;
+      if (resolvedOrgId) where.organizationId = resolvedOrgId;
 
-    const assignmentWhere: any = {};
-    if (status === RequestStatus.PENDING) {
-      assignmentWhere.status = 'PENDING';
-    } else if (status === RequestStatus.APPROVED) {
-      assignmentWhere.status = 'ACCEPTED';
-    } else if (status === RequestStatus.REJECTED) {
-      assignmentWhere.status = 'REJECTED';
+      const deletionRequests = await this.prisma.deletionRequest.findMany({
+        where,
+        include: {
+          organization: { select: { id: true, name: true, code: true } },
+          requestedBy: { select: { id: true, fullName: true, username: true } },
+          reviewedBy: { select: { id: true, fullName: true, username: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      formattedDeletions = deletionRequests.map((d) => ({
+        ...d,
+        requestType: 'DELETION',
+      }));
     }
 
-    if (resolvedOrgId) {
-      assignmentWhere.OR = [
-        { asset: { organizationId: resolvedOrgId } },
-        { department: { organizationId: resolvedOrgId } },
-        { user: { organizationId: resolvedOrgId } },
-      ];
-    }
+    if (!type || type === 'ASSIGNMENT') {
+      const assignmentWhere: any = {};
+      if (status === RequestStatus.PENDING) {
+        assignmentWhere.status = 'PENDING';
+      } else if (status === RequestStatus.APPROVED) {
+        assignmentWhere.status = 'ACCEPTED';
+      } else if (status === RequestStatus.REJECTED) {
+        assignmentWhere.status = 'REJECTED';
+      }
 
-    const assignments = await this.prisma.assignment.findMany({
-      where: assignmentWhere,
-      include: {
-        user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
-        department: {
-          include: {
-            leader: { select: { id: true, fullName: true, username: true } },
-          },
-        },
-        asset: {
-          include: {
-            product: { select: { id: true, name: true } },
-            organization: { select: { id: true, name: true, code: true } },
-            operations: {
-              where: { type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] } },
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-              include: {
-                performedBy: { select: { id: true, fullName: true, username: true } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { assignedAt: 'desc' },
-      take: 100,
-    });
+      if (resolvedOrgId) {
+        assignmentWhere.OR = [
+          { asset: { organizationId: resolvedOrgId } },
+          { department: { organizationId: resolvedOrgId } },
+          { user: { organizationId: resolvedOrgId } },
+        ];
+      }
 
-    const formattedAssignments = assignments.map((a) => {
-      const latestOp = a.asset?.operations?.[0];
-      const giver = latestOp?.performedBy || null;
-      const giverId = latestOp?.performedById || '';
-
-      const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
-      const recipientName = a.user
-        ? `Xodim: ${a.user.fullName || a.user.username}`
-        : a.department
-        ? `Bo'lim: ${a.department.name}`
-        : '';
-      const reason = a.department
-        ? `Bo'limga biriktirish so'rovi (${a.department.name})`
-        : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
-
-      let reqStatus: RequestStatus = RequestStatus.PENDING;
-      if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
-      if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
-
-      const reviewer = a.user || a.department?.leader || null;
-
-      return {
-        id: a.id,
-        organizationId: a.asset?.organizationId || a.department?.organizationId || '',
-        organization: a.asset?.organization || null,
-        requestedById: giverId,
-        requestedBy: giver,
-        entityType: EntityType.ASSET,
-        entityId: a.assetId,
-        entityName,
-        entityTitle: entityName,
-        reason,
-        status: reqStatus,
-        rejectionReason: a.rejectionReason,
-        reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
-        reviewedById: reviewer?.id || null,
-        reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
-          ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
-          : null,
-        reviewedAt: a.acceptedAt || a.rejectedAt || null,
-        createdAt: a.assignedAt,
-        updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
-        requestType: 'ASSIGNMENT',
-        assignmentId: a.id,
-        recipientUserId: a.userId,
-        recipientDeptId: a.departmentId,
-        recipientName,
-      };
-    });
-
-    const formattedDeletions = deletionRequests.map((d) => ({
-      ...d,
-      requestType: 'DELETION',
-    }));
-
-    return [...formattedDeletions, ...formattedAssignments].sort(
-      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  }
-
-  async findMyRequests(userId?: any, organizationId?: any) {
-    const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : typeof userId === 'string' ? userId : '';
-    const actualOrgId = typeof organizationId === 'string' ? organizationId : '';
-    const user = actualUserId ? await this.prisma.user.findUnique({ where: { id: actualUserId } }) : null;
-
-    const where: any = {};
-    if (actualUserId) {
-      where.requestedById = actualUserId;
-    } else if (actualOrgId) {
-      where.organizationId = actualOrgId;
-    }
-
-    const myDeletions = await this.prisma.deletionRequest.findMany({
-      where,
-      include: {
-        organization: { select: { id: true, name: true, code: true } },
-        requestedBy: { select: { id: true, fullName: true, username: true } },
-        reviewedBy: { select: { id: true, fullName: true, username: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    let myAssignments: any[] = [];
-    if (actualUserId) {
-      const userDeptId = user?.departmentId;
-      myAssignments = await this.prisma.assignment.findMany({
-        where: {
-          OR: [
-            { userId: actualUserId },
-            ...(userDeptId ? [{ departmentId: userDeptId }] : []),
-          ],
-        },
+      const assignments = await this.prisma.assignment.findMany({
+        where: assignmentWhere,
         include: {
           user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
           department: {
@@ -256,62 +149,190 @@ export class RequestsService {
         orderBy: { assignedAt: 'desc' },
         take: 100,
       });
+
+      formattedAssignments = assignments.map((a) => {
+        const latestOp = a.asset?.operations?.[0];
+        const giver = latestOp?.performedBy || null;
+        const giverId = latestOp?.performedById || '';
+
+        const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
+        const recipientName = a.user
+          ? `Xodim: ${a.user.fullName || a.user.username}`
+          : a.department
+          ? `Bo'lim: ${a.department.name}`
+          : '';
+        const reason = a.department
+          ? `Bo'limga biriktirish so'rovi (${a.department.name})`
+          : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
+
+        let reqStatus: RequestStatus = RequestStatus.PENDING;
+        if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
+        if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+
+        const reviewer = a.user || a.department?.leader || null;
+
+        return {
+          id: a.id,
+          organizationId: a.asset?.organizationId || a.department?.organizationId || '',
+          organization: a.asset?.organization || null,
+          requestedById: giverId,
+          requestedBy: giver,
+          entityType: EntityType.ASSET,
+          entityId: a.assetId,
+          entityName,
+          entityTitle: entityName,
+          reason,
+          status: reqStatus,
+          rejectionReason: a.rejectionReason,
+          reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
+          reviewedById: reviewer?.id || null,
+          reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
+            ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
+            : null,
+          reviewedAt: a.acceptedAt || a.rejectedAt || null,
+          createdAt: a.assignedAt,
+          updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
+          requestType: 'ASSIGNMENT',
+          assignmentId: a.id,
+          recipientUserId: a.userId,
+          recipientDeptId: a.departmentId,
+          recipientName,
+        };
+      });
     }
 
-    const formattedAssignments = myAssignments.map((a) => {
-      const latestOp = a.asset?.operations?.[0];
-      const giver = latestOp?.performedBy || null;
-      const giverId = latestOp?.performedById || '';
+    return [...formattedDeletions, ...formattedAssignments].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
 
-      const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
-      const recipientName = a.user
-        ? `Xodim: ${a.user.fullName || a.user.username}`
-        : a.department
-        ? `Bo'lim: ${a.department.name}`
-        : '';
-      const reason = a.department
-        ? `Bo'limga biriktirish so'rovi (${a.department.name})`
-        : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
+  async findMyRequests(userId?: any, organizationId?: any, type?: string) {
+    const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : typeof userId === 'string' ? userId : '';
+    const actualOrgId = typeof organizationId === 'string' ? organizationId : '';
+    const user = actualUserId ? await this.prisma.user.findUnique({ where: { id: actualUserId } }) : null;
 
-      let reqStatus: RequestStatus = RequestStatus.PENDING;
-      if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
-      if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+    let formattedDeletions: any[] = [];
+    let formattedAssignments: any[] = [];
 
-      const reviewer = a.user || a.department?.leader || null;
+    if (!type || type === 'DELETION') {
+      const where: any = {};
+      if (actualUserId) {
+        where.requestedById = actualUserId;
+      } else if (actualOrgId) {
+        where.organizationId = actualOrgId;
+      }
 
-      return {
-        id: a.id,
-        organizationId: a.asset?.organizationId || a.department?.organizationId || '',
-        organization: a.asset?.organization || null,
-        requestedById: giverId,
-        requestedBy: giver,
-        entityType: EntityType.ASSET,
-        entityId: a.assetId,
-        entityName,
-        entityTitle: entityName,
-        reason,
-        status: reqStatus,
-        rejectionReason: a.rejectionReason,
-        reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
-        reviewedById: reviewer?.id || null,
-        reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
-          ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
-          : null,
-        reviewedAt: a.acceptedAt || a.rejectedAt || null,
-        createdAt: a.assignedAt,
-        updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
-        requestType: 'ASSIGNMENT',
-        assignmentId: a.id,
-        recipientUserId: a.userId,
-        recipientDeptId: a.departmentId,
-        recipientName,
-      };
-    });
+      const myDeletions = await this.prisma.deletionRequest.findMany({
+        where,
+        include: {
+          organization: { select: { id: true, name: true, code: true } },
+          requestedBy: { select: { id: true, fullName: true, username: true } },
+          reviewedBy: { select: { id: true, fullName: true, username: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    const formattedDeletions = myDeletions.map((d) => ({
-      ...d,
-      requestType: 'DELETION',
-    }));
+      formattedDeletions = myDeletions.map((d) => ({
+        ...d,
+        requestType: 'DELETION',
+      }));
+    }
+
+    if (!type || type === 'ASSIGNMENT') {
+      let myAssignments: any[] = [];
+      if (actualUserId) {
+        let isDeptLeader = false;
+        if (user?.departmentId) {
+          const dept = await this.prisma.department.findFirst({
+            where: { id: user.departmentId, leaderId: actualUserId, deletedAt: null },
+          });
+          if (dept) isDeptLeader = true;
+        }
+
+        myAssignments = await this.prisma.assignment.findMany({
+          where: {
+            OR: [
+              { userId: actualUserId },
+              ...(isDeptLeader && user?.departmentId ? [{ departmentId: user.departmentId }] : []),
+            ],
+          },
+          include: {
+            user: { select: { id: true, fullName: true, username: true, role: true, departmentId: true } },
+            department: {
+              include: {
+                leader: { select: { id: true, fullName: true, username: true } },
+              },
+            },
+            asset: {
+              include: {
+                product: { select: { id: true, name: true } },
+                organization: { select: { id: true, name: true, code: true } },
+                operations: {
+                  where: { type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] } },
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                  include: {
+                    performedBy: { select: { id: true, fullName: true, username: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { assignedAt: 'desc' },
+          take: 100,
+        });
+      }
+
+      formattedAssignments = myAssignments.map((a) => {
+        const latestOp = a.asset?.operations?.[0];
+        const giver = latestOp?.performedBy || null;
+        const giverId = latestOp?.performedById || '';
+
+        const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
+        const recipientName = a.user
+          ? `Xodim: ${a.user.fullName || a.user.username}`
+          : a.department
+          ? `Bo'lim: ${a.department.name}`
+          : '';
+        const reason = a.department
+          ? `Bo'limga biriktirish so'rovi (${a.department.name})`
+          : `Xodimga biriktirish so'rovi (${a.user?.fullName || a.user?.username || ''})`;
+
+        let reqStatus: RequestStatus = RequestStatus.PENDING;
+        if (a.status === 'ACCEPTED') reqStatus = RequestStatus.APPROVED;
+        if (a.status === 'REJECTED') reqStatus = RequestStatus.REJECTED;
+
+        const reviewer = a.user || a.department?.leader || null;
+
+        return {
+          id: a.id,
+          organizationId: a.asset?.organizationId || a.department?.organizationId || '',
+          organization: a.asset?.organization || null,
+          requestedById: giverId,
+          requestedBy: giver,
+          entityType: EntityType.ASSET,
+          entityId: a.assetId,
+          entityName,
+          entityTitle: entityName,
+          reason,
+          status: reqStatus,
+          rejectionReason: a.rejectionReason,
+          reviewComment: a.rejectionReason || (a.status === 'ACCEPTED' ? "Qabul qilindi" : null),
+          reviewedById: reviewer?.id || null,
+          reviewedBy: (a.status === 'ACCEPTED' || a.status === 'REJECTED') && reviewer
+            ? { id: reviewer.id, fullName: reviewer.fullName, username: reviewer.username }
+            : null,
+          reviewedAt: a.acceptedAt || a.rejectedAt || null,
+          createdAt: a.assignedAt,
+          updatedAt: a.acceptedAt || a.rejectedAt || a.assignedAt,
+          requestType: 'ASSIGNMENT',
+          assignmentId: a.id,
+          recipientUserId: a.userId,
+          recipientDeptId: a.departmentId,
+          recipientName,
+        };
+      });
+    }
 
     return [...formattedDeletions, ...formattedAssignments].sort(
       (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -524,6 +545,10 @@ export class RequestsService {
     }
 
     const now = new Date();
+    const isRepair =
+      request.reason?.toLowerCase().includes("ta'mirlash") ||
+      request.reason?.toLowerCase().includes("tamirlash") ||
+      request.reason?.toLowerCase().includes("servis");
 
     const result = await this.prisma.$transaction(async (tx) => {
       if (request.entityType === EntityType.ASSET) {
@@ -539,23 +564,30 @@ export class RequestsService {
             where: { assetId: request.entityId, returnedAt: null },
           });
 
-          // 1. Close active assignment
-          await tx.assignment.updateMany({
-            where: { assetId: request.entityId, returnedAt: null },
-            data: { returnedAt: now },
-          });
+          if (isRepair) {
+            // 2a. For repair: Mark as BROKEN/in-repair, KEEP assignment active on user/department, do NOT increment warehouse inventory!
+            await tx.asset.update({
+              where: { id: request.entityId },
+              data: { status: AssetStatus.BROKEN },
+            });
+          } else {
+            // 2b. For normal return: Close active assignment and return asset to warehouse as ACTIVE
+            await tx.assignment.updateMany({
+              where: { assetId: request.entityId, returnedAt: null },
+              data: { returnedAt: now },
+            });
 
-          // 2. Reset asset status to ACTIVE in warehouse
-          await tx.asset.update({
-            where: { id: request.entityId },
-            data: { status: AssetStatus.ACTIVE },
-          });
+            await tx.asset.update({
+              where: { id: request.entityId },
+              data: { status: AssetStatus.ACTIVE },
+            });
 
-          // 3. Increment warehouse inventory quantity (+1)
-          await tx.inventory.updateMany({
-            where: { productId: asset.productId },
-            data: { quantity: { increment: 1 } },
-          });
+            // 3. Increment warehouse inventory quantity (+1)
+            await tx.inventory.updateMany({
+              where: { productId: asset.productId },
+              data: { quantity: { increment: 1 } },
+            });
+          }
 
           // 4. Record Operation entry in History (Tarix)
           const targetUserId = activeAssignment?.userId || request.requestedById;
@@ -563,6 +595,10 @@ export class RequestsService {
           const opType: OperationType = targetDeptId
             ? OperationType.RETURN_FROM_DEPT
             : OperationType.RETURN_FROM_USER;
+
+          const actionLabel = isRepair
+            ? "Ta'mirlash/Servis uchun omborga olindi"
+            : "Xodimdan omborga qaytarildi";
 
           await tx.operation.create({
             data: {
@@ -576,8 +612,8 @@ export class RequestsService {
               performedById: reviewerId,
               documentNumber: `TLB-${request.id.slice(-6).toUpperCase()}`,
               note: dto.reviewComment
-                ? `[So'rov bo'yicha omborga qaytarildi]: ${request.reason} (Tasdiq izohi: ${dto.reviewComment})`
-                : `[Xodim so'rovi bo'yicha omborga qaytarildi]: ${request.reason}`,
+                ? `[${actionLabel}]: ${request.reason} (Tasdiq izohi: ${dto.reviewComment})`
+                : `[${actionLabel}]: ${request.reason}`,
             },
           });
         }
@@ -707,10 +743,19 @@ export class RequestsService {
 
     this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
+      const isRepair =
+        request.reason?.toLowerCase().includes("ta'mirlash") ||
+        request.reason?.toLowerCase().includes("tamirlash") ||
+        request.reason?.toLowerCase().includes("servis");
+      const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
+      const detailMsg = isRepair
+        ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga topshirildi."
+        : "Siz yuborgan qaytarish so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz ombor hisobiga o'tkazildi.";
+
       void this.telegramService.sendUserNotificationAlert(
         result.requestedById,
-        "So'rov / Murojaat Tasdiqlandi",
-        `Siz yuborgan so'rov/murojaat Bosh Vazirlik tomonidan ko'rib chiqilib, tasdiqlandi. ${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
+        `✅ ${reqTitle}`,
+        `${detailMsg}${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
       );
     }
     return result;
@@ -787,10 +832,33 @@ export class RequestsService {
         return updated;
       });
 
+      const lastOp = await this.prisma.operation.findFirst({
+        where: {
+          assetId: assignment.assetId,
+          type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { performedById: true },
+      });
+      const assignerId = lastOp?.performedById;
+
       this.eventsGateway.broadcastAssignmentUpdated({
         type: 'ASSIGNMENT_REJECTED',
         assignmentId: id,
+        rejectedById: reviewerId,
+        rejectedByName: assignment.user?.fullName || 'Xodim',
+        assetName: assignment.asset.product.name,
+        reason,
+        assignerId,
       });
+
+      if (assignerId) {
+        void this.telegramService.sendUserNotificationAlert(
+          assignerId,
+          "❌ Xodim jihozni qabul qilmadi",
+          `Xodim ${assignment.user?.fullName || ''} siz biriktirgan "${assignment.asset.product.name}" jihozini rad etdi.\n\nSababi: ${reason}`,
+        );
+      }
 
       return {
         ...result,
@@ -869,10 +937,16 @@ export class RequestsService {
 
     this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
+      const isRepair =
+        request.reason?.toLowerCase().includes("ta'mirlash") ||
+        request.reason?.toLowerCase().includes("tamirlash") ||
+        request.reason?.toLowerCase().includes("servis");
+      const reqTitle = isRepair ? "Ta'mirlash so'rovi rad etildi" : "Qaytarish so'rovi rad etildi";
+
       void this.telegramService.sendUserNotificationAlert(
         result.requestedById,
-        "So'rov / Murojaat Rad Etildi",
-        `Siz yuborgan so'rov/murojaat rad etildi. ${dto.reviewComment ? `\n\nSababi: ${dto.reviewComment}` : ''}`,
+        `❌ ${reqTitle}`,
+        `Siz yuborgan ${isRepair ? "ta'mirlash" : "qaytarish"} so'rovingiz omborchi tomonidan rad etildi.${comment ? `\n\nSababi: ${comment}` : ''}`,
       );
     }
     return result;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { User, Package, History, Lock, Layers } from 'lucide-react';
+import { User, Package, Lock, Layers } from 'lucide-react';
 import { usersApi } from '../../api';
 import { PageLoader } from '../../components/ui/spinner';
 import { useAuthStore } from '../../store/auth.store';
@@ -12,7 +12,6 @@ import ProfileStatsCards from './components/profile-stats-cards';
 import ProfilePersonalInfoCard from './components/profile-personal-info-card';
 import ProfileSecurityCard from './components/profile-security-card';
 import ProfileMyAssetsTable from './components/profile-my-assets-table';
-import ProfileActivityTable from './components/profile-activity-table';
 import ProfileRequestModal from './components/profile-request-modal';
 
 export default function ProfilePage() {
@@ -42,17 +41,10 @@ export default function ProfilePage() {
     enabled: !!user?.id,
   });
 
-  const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['profile-history', user?.id],
-    queryFn: () => usersApi.getHistory(user!.id),
-    enabled: !!user?.id,
-  });
-
   if (!user) return <PageLoader />;
 
   const profileUser: any = userDetailData ?? user;
   const assignments = assignmentsData ?? [];
-  const history = historyData ?? [];
 
   const totalValue = assignments.reduce(
     (sum: number, a: any) => sum + Number(a.asset?.purchasePrice ?? 0),
@@ -70,7 +62,7 @@ export default function ProfilePage() {
       localStorage.setItem(`user_requested_assets_${user?.id}`, JSON.stringify(updated));
     } catch {}
 
-    const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash/Servis";
+    const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash";
     toast.success(`"${requestModalAsset?.asset?.product?.name || 'Jihoz'}" bo'yicha ${typeText} so'rovi omborchiga yuborildi!`);
     setRequestModalAsset(null);
   };
@@ -78,7 +70,6 @@ export default function ProfilePage() {
   const tabsList = [
     { key: 'info', label: "Shaxsiy ma'lumotlar", icon: <User className="w-4 h-4" /> },
     { key: 'assets', label: "Mening jihozlarim", icon: <Package className="w-4 h-4" /> },
-    { key: 'activity', label: "So'nggi harakatlar", icon: <History className="w-4 h-4" /> },
     { key: 'security', label: "Parolni almashtirish", icon: <Lock className="w-4 h-4" /> },
     { key: 'all', label: "Barchasini ko'rish", icon: <Layers className="w-4 h-4" /> },
   ];
@@ -114,7 +105,6 @@ export default function ProfilePage() {
         assignmentsCount={assignments.length}
         totalValue={totalValue}
         latestAssignment={latestAssignment}
-        historyCount={history.length}
       />
 
       {/* 4. Tab Dynamic View */}
@@ -140,13 +130,6 @@ export default function ProfilePage() {
         />
       )}
 
-      {activeTab === 'activity' && (
-        <ProfileActivityTable
-          history={history}
-          isLoading={historyLoading}
-        />
-      )}
-
       {activeTab === 'security' && (
         <div className="max-w-xl mx-auto">
           <ProfileSecurityCard />
@@ -166,10 +149,6 @@ export default function ProfilePage() {
               totalValue={totalValue}
               requestedAssetIds={requestedAssetIds}
               onRequestModal={(asset) => setRequestModalAsset(asset)}
-            />
-            <ProfileActivityTable
-              history={history}
-              isLoading={historyLoading}
             />
           </div>
         </div>

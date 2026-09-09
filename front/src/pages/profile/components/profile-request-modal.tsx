@@ -97,7 +97,7 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
               }`}
             >
               <Wrench className="w-4 h-4 text-amber-600" />
-              <span>🛠️ Ta'mirlash / Servis</span>
+              <span>🛠️ Ta'mirlash</span>
             </button>
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
             placeholder={
               requestType === 'RETURN'
                 ? "Masalan: Jihozdan foydalanilmayapti, omborga qaytarmoqchiman..."
-                : "Masalan: Texnikaning displeyida nosozlik bor, servis xizmati kerak..."
+                : "Masalan: Texnikaning displeyida nosozlik bor, ta'mirlash kerak..."
             }
             value={requestReason}
             onChange={(e) => setRequestReason(e.target.value)}

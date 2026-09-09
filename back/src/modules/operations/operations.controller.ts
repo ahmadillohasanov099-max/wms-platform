@@ -16,13 +16,13 @@ import { BulkWriteOffDto } from './dto/bulk-write-off.dto';
 import { StockInDto } from './dto/stock-in.dto';
 import { AssignToDeptDto } from './dto/assign-to-dept.dto';
 import { RejectAssignmentDto } from './dto/reject-assignment.dto';
+import { CompleteRepairDto } from './dto/complete-repair.dto';
 
 const WAREHOUSE_MUTATORS = [
   UserRole.SUPER_ADMIN,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
 ];
 
@@ -32,7 +32,6 @@ const ALL_ROLES = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
   UserRole.XODIM,
@@ -115,6 +114,16 @@ export class OperationsController {
     @CurrentUser() user: any,
   ) {
     return this.operationsService.bulkWriteOff(dto, user.id);
+  }
+
+  @ApiOperation({ summary: "Jihoz ta'mirlandi deb tasdiqlash (Soz holatga keltirish)" })
+  @Roles(...WAREHOUSE_MUTATORS)
+  @Post('complete-repair')
+  completeRepair(
+    @Body() dto: CompleteRepairDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.operationsService.completeRepair(dto, user.id);
   }
 
   @ApiOperation({ summary: 'Operatsiya qabul-topshirish dalolatnomasini (PDF) yuklab olish' })

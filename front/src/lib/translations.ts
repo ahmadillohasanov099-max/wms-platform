@@ -78,7 +78,6 @@ export const translations = {
       "VAZIRLIK_OMBORCHI": "Vazirlik Omborchisi",
       "ORG_ADMIN": "Tashkilot Admini",
       "ORG_OMBORCHI": "Tashkilot Omborchisi",
-      "ADMIN": "Administrator",
       "OMBORCHI": "Omborchi",
       "KADR": "Kadrlar bo'limi",
       "XODIM": "Xodim"
@@ -781,7 +780,6 @@ export const translations = {
       "VAZIRLIK_OMBORCHI": "Кладовщик министерства",
       "ORG_ADMIN": "Админ организации",
       "ORG_OMBORCHI": "Кладовщик организации",
-      "ADMIN": "Администратор",
       "OMBORCHI": "Кладовщик",
       "KADR": "Отдел кадров",
       "XODIM": "Сотрудник"
@@ -1484,7 +1482,6 @@ export const translations = {
       "VAZIRLIK_OMBORCHI": "Ministry Warehouseman",
       "ORG_ADMIN": "Organization Admin",
       "ORG_OMBORCHI": "Organization Warehouseman",
-      "ADMIN": "Administrator",
       "OMBORCHI": "Warehouseman",
       "KADR": "HR Department",
       "XODIM": "Employee"

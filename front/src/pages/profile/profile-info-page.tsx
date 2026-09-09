@@ -26,17 +26,10 @@ export default function ProfileInfoPage() {
     enabled: !!user?.id,
   });
 
-  const { data: historyData } = useQuery({
-    queryKey: ['profile-history', user?.id],
-    queryFn: () => usersApi.getHistory(user!.id),
-    enabled: !!user?.id,
-  });
-
   if (!user || isLoading) return <PageLoader />;
 
   const profileUser: any = userDetailData ?? user;
   const assignments = assignmentsData ?? [];
-  const history = historyData ?? [];
 
   const totalValue = assignments.reduce(
     (sum: number, a: any) => sum + Number(a.asset?.purchasePrice ?? 0),
@@ -60,7 +53,6 @@ export default function ProfileInfoPage() {
         assignmentsCount={assignments.length}
         totalValue={totalValue}
         latestAssignment={latestAssignment}
-        historyCount={history.length}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

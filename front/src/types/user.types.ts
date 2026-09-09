@@ -7,7 +7,6 @@ export type UserRole =
   | 'ORG_OMBORCHI' 
   | 'KADR' 
   | 'XODIM'
-  | 'ADMIN'
   | 'OMBORCHI';
 export type EmploymentStatus = 'ACTIVE' | 'OFFBOARDING_PENDING' | 'OFFBOARDED';
 export interface User {

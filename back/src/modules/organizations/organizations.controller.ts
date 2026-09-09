@@ -42,7 +42,6 @@ export class OrganizationsController {
     UserRole.SUPER_ADMIN,
     UserRole.RAHBAR,
     UserRole.VAZIRLIK_OMBORCHI,
-    UserRole.ADMIN,
     UserRole.ORG_ADMIN,
     UserRole.OMBORCHI,
     UserRole.ORG_OMBORCHI,
@@ -55,7 +54,7 @@ export class OrganizationsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR, UserRole.VAZIRLIK_OMBORCHI, UserRole.ADMIN, UserRole.ORG_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.RAHBAR, UserRole.VAZIRLIK_OMBORCHI, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: "Tashkilot tafsilotlarini ko'rish" })
   findOne(@Param('id') id: string) {
     return this.organizationsService.findOne(id);

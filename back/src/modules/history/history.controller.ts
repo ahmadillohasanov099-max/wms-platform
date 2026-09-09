@@ -15,7 +15,6 @@ const MANAGERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
   UserRole.XODIM,

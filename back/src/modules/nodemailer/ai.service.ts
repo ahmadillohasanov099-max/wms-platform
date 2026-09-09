@@ -4,7 +4,6 @@ import { PrismaService } from '../../prisma';
 const MANAGER_ROLES = [
   'SUPER_ADMIN',
   'VAZIRLIK_OMBORCHI',
-  'ADMIN',
   'OMBORCHI',
   'ORG_ADMIN',
   'ORG_OMBORCHI',

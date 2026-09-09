@@ -18,7 +18,6 @@ const ALL_ROLES = [
   'VAZIRLIK_OMBORCHI',
   'ORG_ADMIN',
   'ORG_OMBORCHI',
-  'ADMIN',
   'OMBORCHI',
   'KADR',
   'XODIM',

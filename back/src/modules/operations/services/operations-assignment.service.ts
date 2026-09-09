@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
-import { ProductType } from '@prisma/client';
+import { OperationType, ProductType } from '@prisma/client';
 import { GiveToUserDto } from '../dto/give-to-user.dto';
 import { ReturnFromUserDto } from '../dto/return-from-user.dto';
 import { TransferUserDto } from '../dto/transfer-user.dto';
@@ -13,6 +13,7 @@ import { ReturnFromDeptDto } from '../dto/return-from-dept.dto';
 import { AssignToDeptDto } from '../dto/assign-to-dept.dto';
 import { EventsGateway } from '../../events/events.gateway';
 import { OperationsNotifierService } from './operations-notifier.service';
+import { TelegramService } from '../../nodemailer';
 
 @Injectable()
 export class OperationsAssignmentService {
@@ -20,6 +21,7 @@ export class OperationsAssignmentService {
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
     private notifierService: OperationsNotifierService,
+    private telegramService: TelegramService,
   ) {}
 
   async getPerformerOrg(performedById: string) {
@@ -726,8 +728,7 @@ export class OperationsAssignmentService {
 
     const isSuperOrAdmin =
       currentUserRole === 'SUPER_ADMIN' ||
-      currentUserRole === 'ORG_ADMIN' ||
-      currentUserRole === 'ADMIN';
+      currentUserRole === 'ORG_ADMIN';
 
     if (assignment.userId) {
       if (assignment.userId !== currentUserId) {
@@ -837,11 +838,33 @@ export class OperationsAssignmentService {
       }
 
       // Asset is already returned to inventory and assignment marked as REJECTED
+      const lastOp = await tx.operation.findFirst({
+        where: {
+          assetId: assignment.assetId,
+          type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { performedById: true },
+      });
+      const assignerId = lastOp?.performedById;
 
       this.eventsGateway.broadcastAssignmentUpdated({
         type: 'ASSIGNMENT_REJECTED',
         assignmentId,
+        rejectedById: currentUserId,
+        rejectedByName: assignment.user?.fullName || 'Xodim',
+        assetName: assignment.asset.product.name,
+        reason: reason || 'Sabab ko‘rsatilmadi',
+        assignerId,
       });
+
+      if (assignerId) {
+        void this.telegramService.sendUserNotificationAlert(
+          assignerId,
+          "❌ Xodim jihozni qabul qilmadi",
+          `Xodim ${assignment.user?.fullName || ''} siz biriktirgan "${assignment.asset.product.name}" jihozini rad etdi.\n\nSababi: ${reason || 'Sabab ko‘rsatilmadi'}`,
+        );
+      }
 
       return {
         message: `"${assignment.asset.product.name}" jihozi rad etildi va ombor hisobiga qaytarildi`,

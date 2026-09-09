@@ -150,17 +150,19 @@ export default function ProfileMyAssetsTable({
             <span>Asosiy vositalar ({assignments.length})</span>
           </button>
 
-          <button
-            className={`px-4 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'tmz'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            }`}
-            onClick={() => setActiveTab('tmz')}
-          >
-            <Layers className="w-4 h-4 text-emerald-500" />
-            <span>Topshirilgan TMZ ({tmzOperations.length})</span>
-          </button>
+          {tmzOperations.length > 0 && (
+            <button
+              className={`px-4 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'tmz'
+                  ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              }`}
+              onClick={() => setActiveTab('tmz')}
+            >
+              <Layers className="w-4 h-4 text-emerald-500" />
+              <span>Topshirilgan TMZ ({tmzOperations.length})</span>
+            </button>
+          )}
         </div>
 
         <CardContent className="p-0">
@@ -207,6 +209,8 @@ export default function ProfileMyAssetsTable({
                           {batch.items.map((item: any, idx: number) => {
                             const isPending = item.status === 'PENDING';
                             const isRejected = item.status === 'REJECTED';
+                            const isRequested = item.asset?.id && requestedAssetIds.includes(item.asset.id);
+                            const isBroken = item.asset?.status === 'BROKEN';
                             return (
                               <div key={item.id || idx} className="space-y-1.5 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
                                 <div className="flex items-center justify-between text-xs">
@@ -218,9 +222,11 @@ export default function ProfileMyAssetsTable({
                                           ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : isRejected
                                           ? "bg-rose-500 ring-2 ring-rose-400/40"
+                                          : isBroken
+                                          ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                       )}
-                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
                                     />
                                     <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                                       {idx + 1}. {item.asset?.product?.name || '—'}
@@ -262,7 +268,25 @@ export default function ProfileMyAssetsTable({
                                   <div className="pt-1 text-2xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
                                     <XCircle className="w-3 h-3" /> Rad etilgan: {item.rejectionReason || 'Sabab ko‘rsatilmadi'}
                                   </div>
-                                ) : null}
+                                ) : isBroken ? (
+                                  <div className="pt-1 text-2xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded border border-amber-300/40">
+                                    <Clock className="w-3 h-3" /> Ta'mirlashda
+                                  </div>
+                                ) : isRequested ? (
+                                  <div className="pt-1 text-2xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                                    <Clock className="w-3 h-3" /> So'rov yuborilgan (ko'rib chiqilmoqda)
+                                  </div>
+                                ) : (
+                                  <div className="pt-1 flex items-center justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => onRequestModal(item)}
+                                      className="text-2xs font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                                    >
+                                      Qaytarish / Ta'mirlash so'rovi
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -322,6 +346,7 @@ export default function ProfileMyAssetsTable({
                                 const isPending = item.status === 'PENDING';
                                 const isRejected = item.status === 'REJECTED';
                                 const isRequested = item.asset?.id && requestedAssetIds.includes(item.asset.id);
+                                const isBroken = item.asset?.status === 'BROKEN';
                                 return (
                                   <div
                                     key={item.id || idx}
@@ -330,6 +355,8 @@ export default function ProfileMyAssetsTable({
                                         ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800/80 text-amber-900 dark:text-amber-200'
                                         : isRejected
                                         ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800/80 text-rose-900 dark:text-rose-200 opacity-60'
+                                        : isBroken
+                                        ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
                                         : 'bg-slate-100/90 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                                     }`}
                                   >
@@ -340,9 +367,11 @@ export default function ProfileMyAssetsTable({
                                           ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : isRejected
                                           ? "bg-rose-500 ring-2 ring-rose-400/40"
+                                          : isBroken
+                                          ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                       )}
-                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
                                     />
                                     <span className="font-semibold text-slate-900 dark:text-slate-100">
                                       {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
@@ -378,8 +407,12 @@ export default function ProfileMyAssetsTable({
                                       <span className="text-2xs font-bold text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-950 px-1.5 py-0.5 rounded">
                                         Rad etilgan
                                       </span>
+                                    ) : isBroken ? (
+                                      <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> Ta'mirlashda
+                                      </span>
                                     ) : isRequested ? (
-                                      <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-300/50">
+                                      <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded border border-amber-300/50">
                                         So'rov yuborilgan
                                       </span>
                                     ) : (

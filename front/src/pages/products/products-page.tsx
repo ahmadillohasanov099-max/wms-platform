@@ -130,7 +130,7 @@ export default function ProductsPage() {
           >
             {t('products.history')}
           </button>
-          <RoleGuard roles={['ADMIN']}>
+          <RoleGuard roles={['SUPER_ADMIN', 'ORG_ADMIN', 'ORG_OMBORCHI', 'OMBORCHI', 'VAZIRLIK_OMBORCHI']}>
             <button
               onClick={(e) => {
                 e.stopPropagation();

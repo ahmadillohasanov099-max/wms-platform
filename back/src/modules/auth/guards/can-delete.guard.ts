@@ -17,7 +17,6 @@ export class CanDeleteGuard implements CanActivate {
       const allowedRoles = [
         UserRole.SUPER_ADMIN,
         UserRole.VAZIRLIK_OMBORCHI,
-        UserRole.ADMIN,
       ];
 
       if (!user || !allowedRoles.includes(user.role)) {

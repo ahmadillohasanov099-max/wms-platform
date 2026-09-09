@@ -33,7 +33,6 @@ const MANAGERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
   UserRole.KADR,
 ];
@@ -41,14 +40,12 @@ const MANAGERS = [
 const USER_MANAGE_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.ORG_ADMIN,
-  UserRole.ADMIN,
   UserRole.KADR,
 ];
 
 const USER_DELETE_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.ORG_ADMIN,
-  UserRole.ADMIN,
   UserRole.KADR,
 ];
 
@@ -57,7 +54,6 @@ const ASSET_TRANSFER_ROLES = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.ADMIN,
   UserRole.OMBORCHI,
 ];
 
@@ -149,9 +145,16 @@ export class UsersController {
   }
 
   @ApiOperation({ summary: 'Xodim tarixi' })
-  @Roles(...MANAGERS, UserRole.XODIM)
+  @Roles(...MANAGERS)
   @Get(':id/history')
-  getHistory(
+  getHistory(@Param('id') id: string) {
+    return this.usersService.getHistory(id);
+  }
+
+  @ApiOperation({ summary: 'Xodimga topshirilgan TMZ materiallari' })
+  @Roles(...MANAGERS, UserRole.XODIM)
+  @Get(':id/tmz-materials')
+  getTmzMaterials(
     @Param('id') id: string,
     @CurrentUser() currentUser: any,
   ) {
@@ -159,7 +162,7 @@ export class UsersController {
     if (currentUser.role === UserRole.XODIM && currentUser.id !== id) {
       targetId = currentUser.id;
     }
-    return this.usersService.getHistory(targetId);
+    return this.usersService.getTmzMaterials(targetId);
   }
 
   @ApiOperation({ summary: "Yangi xodim qo'shish" })

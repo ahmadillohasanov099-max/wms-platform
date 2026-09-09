@@ -25,13 +25,12 @@ export class TenantGuard implements CanActivate {
     const isMinistry =
       user.organization?.type === OrganizationType.MINISTRY ||
       user.role === UserRole.SUPER_ADMIN ||
-      user.role === UserRole.VAZIRLIK_OMBORCHI ||
-      user.role === UserRole.ADMIN;
+      user.role === UserRole.VAZIRLIK_OMBORCHI;
 
     request.tenant = {
       organizationId: user.organizationId || null,
       isMinistry,
-      isSuperAdmin: user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN,
+      isSuperAdmin: user.role === UserRole.SUPER_ADMIN,
     } as TenantContext;
 
     return true;

@@ -262,3 +262,14 @@ Loyiha to'liq Docker-ready holatiga keltirilgan.
    ```bash
    npm run dev
    ```
+ №                                 │ Rol kodi                         │ Login (username)                                │ Parol                            │ To'liq ismi                      │ Lavozimi / Vazifasi
+  ───────────────────────────────────┼──────────────────────────────────┼─────────────────────────────────────────────────┼──────────────────────────────────┼──────────────────────────────────┼──────────────────────────────────────────────────
+   1                                 │ SUPER_ADMIN                      │ superadmin (yoki ahmadillohasanov099@gmail.com) │ test12345 (yoki 333053334aa)     │ Ahmadillo Hasanov                │ Vazirlik Bosh Administratori (To'liq huquq)
+   2                                 │ RAHBAR                           │ rahbar                                          │ test12345                        │ Jamshid Rahbarov                 │ Vazir o'rinbosari (Faqat kuzatuv va statistika)
+   3                                 │ VAZIRLIK_OMBORCHI                │ vazirlik_omborchi                               │ test12345                        │ Sardor Vohidov                   │ Vazirlik bosh ombor mudiri
+   4                                 │ ADMIN                            │ admin                                           │ test12345                        │ Rustam Adminov                   │ Tashkilot tizim administratori
+   5                                 │ OMBORCHI                         │ omborchi                                        │ test12345                        │ Bobur Omborchiyev                │ Markaziy ombor mudiri
+   6                                 │ KADR                             │ kadr                                            │ test12345                        │ Dilnoza Kadrlarova               │ Kadrlar bo'limi bosh mutaxassisi
+   7                                 │ XODIM                            │ xodim                                           │ test12345                        │ Akmal Xodimov                    │ AKT bo'limi dasturchisi (Jihozlar biriktirilgan)
+   8                                 │ ORG_ADMIN                        │ org_admin                                       │ test12345                        │ Farrux Quyi-Admin                │ Toshkent shahar boshqarma admini
+   9                                 │ ORG_OMBORCHI                     │ org_omborchi                                    │ test12345                        │ Davron Quyi-Omborchi             │ Toshkent shahar boshqarma omborchisi

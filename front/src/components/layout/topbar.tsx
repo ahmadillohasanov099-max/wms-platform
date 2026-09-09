@@ -64,12 +64,14 @@ export default function Topbar({}: TopbarProps) {
     });
   };
 
-  const isMinistry = isMinistryUser();
+  const isRahbar = user?.role === 'RAHBAR';
+  const isMinistry = isMinistryUser() && !isRahbar;
   const canManageRequests =
-    isMinistry ||
-    ['OMBORCHI', 'ORG_OMBORCHI', 'ADMIN', 'SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'].includes(
-      user?.role || ''
-    );
+    !isRahbar &&
+    (isMinistry ||
+      ['OMBORCHI', 'ORG_OMBORCHI', 'ORG_ADMIN', 'SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'].includes(
+        user?.role || ''
+      ));
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -131,6 +133,7 @@ export default function Topbar({}: TopbarProps) {
   const deptPendingCount = pendingDeptAssignments.length;
 
   useEffect(() => {
+    if (isRahbar) return;
     const socket = socketService.getSocket() || socketService.connect();
     if (user?.id) {
       socket.emit('join:user', user.id);
@@ -166,33 +169,69 @@ export default function Topbar({}: TopbarProps) {
     const handleRequestUpdated = (data: any) => {
       handleRefetch();
       if (data?.requestedById === user?.id) {
+        if (data.reason?.includes("[TA'MIRLANDI]")) {
+          toast.success(
+            `🛠️ "${data.entityName || 'Jihoz'}" ta'mirlandi! Ombordan olib ketishingiz mumkin.`,
+            { duration: 6000 }
+          );
+          return;
+        }
+
+        const isRepair =
+          data.reason?.toLowerCase().includes("ta'mirlash") ||
+          data.reason?.toLowerCase().includes("tamirlash") ||
+          data.reason?.toLowerCase().includes("servis");
+        const action = isRepair ? "Ta'mirlash" : "Qaytarish";
+
         if (data?.status === 'REJECTED') {
           toast.error(
-            `❌ Qaytarish so'rovingiz rad etildi: ${data.reviewComment || data.rejectionReason || 'Sabab ko‘rsatilmadi'}`,
+            `❌ ${action} so'rovingiz rad etildi: ${data.reviewComment || data.rejectionReason || 'Sabab ko‘rsatilmadi'}`,
             { duration: 6000 }
           );
         } else if (data?.status === 'APPROVED') {
-          toast.success("✅ Qaytarish so'rovingiz omborchi tomonidan qabul qilindi!", {
+          toast.success(`✅ ${action} so'rovingiz omborchi tomonidan qabul qilindi!`, {
             duration: 5000,
           });
         }
       }
     };
 
-    socket.on('deletion-request:created', handleRefetch);
+    const handleRequestCreated = (data: any) => {
+      handleRefetch();
+      if (data?.requestedById === user?.id && data?.reason?.includes("[TA'MIRLANDI]")) {
+        toast.success(
+          `🛠️ "${data.entityName || 'Jihoz'}" ta'mirlandi! Ombordan olib ketishingiz mumkin.`,
+          { duration: 6000 }
+        );
+      }
+    };
+
+    const handleAssignmentUpdated = (data: any) => {
+      handleRefetch();
+      if (data?.type === 'ASSIGNMENT_REJECTED') {
+        if (data?.assignerId === user?.id || canManageRequests) {
+          toast.error(
+            `❌ Xodim ${data.rejectedByName || ''} "${data.assetName || 'jihoz'}"ni qabul qilmadi!\nSababi: ${data.reason || 'Sabab ko‘rsatilmadi'}`,
+            { duration: 7000 }
+          );
+        }
+      }
+    };
+
+    socket.on('deletion-request:created', handleRequestCreated);
     socket.on('deletion-request:updated', handleRequestUpdated);
     socket.on('assignment:new', handleNewAssignment);
     socket.on('assignment:created', handleRefetch);
-    socket.on('assignment:updated', handleRefetch);
+    socket.on('assignment:updated', handleAssignmentUpdated);
     socket.on('inventory:updated', handleRefetch);
     socket.on('operation:created', handleRefetch);
 
     return () => {
-      socket.off('deletion-request:created', handleRefetch);
+      socket.off('deletion-request:created', handleRequestCreated);
       socket.off('deletion-request:updated', handleRequestUpdated);
       socket.off('assignment:new', handleNewAssignment);
       socket.off('assignment:created', handleRefetch);
-      socket.off('assignment:updated', handleRefetch);
+      socket.off('assignment:updated', handleAssignmentUpdated);
       socket.off('inventory:updated', handleRefetch);
       socket.off('operation:created', handleRefetch);
     };
@@ -212,10 +251,18 @@ export default function Topbar({}: TopbarProps) {
     refetchInterval: 15000,
   });
 
+  // Recently rejected assignments for Admins / Omborchis to see employee rejections
+  const { data: rejectedAssignmentsData } = useQuery({
+    queryKey: ['rejected-assignments', user?.id],
+    queryFn: () => deletionRequestsApi.getAll({ status: 'REJECTED' }),
+    enabled: canManageRequests,
+    refetchInterval: 15000,
+  });
+
   const { data: myAssignmentsData } = useQuery({
     queryKey: ['profile-assignments', user?.id],
     queryFn: () => usersApi.getAssignments(user!.id),
-    enabled: !!user?.id,
+    enabled: !isRahbar && !!user?.id,
     refetchInterval: 20000,
   });
 
@@ -223,7 +270,7 @@ export default function Topbar({}: TopbarProps) {
   const { data: myRequestsData } = useQuery({
     queryKey: ['my-deletion-requests', user?.id],
     queryFn: () => deletionRequestsApi.getMy(),
-    enabled: !!user?.id,
+    enabled: !isRahbar && !!user?.id,
     refetchInterval: 15000,
   });
 
@@ -256,6 +303,7 @@ export default function Topbar({}: TopbarProps) {
       queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['assigned-assets'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['rejected-assignments'] });
       setRejectingAssignment(null);
     },
     onError: (err: any) => {
@@ -298,6 +346,18 @@ export default function Topbar({}: TopbarProps) {
   const lowStockList: any[] = Array.isArray(lowStock) ? lowStock : [];
   const lowStockCount = lowStockList.length;
 
+  // Unread rejected assignments for Admin / Omborchi (strictly in their organization)
+  const rawRejectedAssignments: any[] = Array.isArray(rejectedAssignmentsData)
+    ? rejectedAssignmentsData
+    : (rejectedAssignmentsData as any)?.data || [];
+  const unreadRejectedAssignments = rawRejectedAssignments.filter(
+    (req: any) =>
+      req.requestType === 'ASSIGNMENT' &&
+      req.status === 'REJECTED' &&
+      !readNotifIds.includes(req.id) &&
+      (!req.organizationId || !user?.organizationId || req.organizationId === user?.organizationId)
+  );
+
   // For Ministry: reviews all pending structural and regional requests
   // For Regional orgs: ONLY reviews internal employee ASSET requests; NEVER reviews self-requests or structural requests awaiting Ministry!
   const rawPendingRequests: DeletionRequest[] = Array.isArray(deletionReqsData)
@@ -305,6 +365,11 @@ export default function Topbar({}: TopbarProps) {
     : (deletionReqsData as any)?.data || [];
 
   const pendingRequestsList: DeletionRequest[] = rawPendingRequests.filter((req: any) => {
+    // Exclude assignments - assignments are confirmed by the recipient
+    if (req.requestType === 'ASSIGNMENT') {
+      return false;
+    }
+
     // 1. Anti-fraud: Never show your own request as a task for you to approve
     if (req.requestedById === user?.id || req.requestedBy?.id === user?.id) {
       return false;
@@ -314,24 +379,28 @@ export default function Topbar({}: TopbarProps) {
       return true;
     }
 
-    // Regional admins / omborchis only approve employee internal ASSET requests
-    return req.entityType === 'ASSET';
+    // Regional admins / omborchis only approve employee internal ASSET requests in their org
+    return req.entityType === 'ASSET' && (!req.organizationId || req.organizationId === user?.organizationId);
   });
 
   const pendingReqCount = canManageRequests ? pendingRequestsList.length : 0;
 
-  // Filter employee's recent reviewed requests that are unread
+  // Filter employee's recent reviewed requests that are unread (strictly ignore assignments)
   const myRequestsList: DeletionRequest[] = Array.isArray(myRequestsData)
     ? myRequestsData
     : (myRequestsData as any)?.data || [];
   const unreadReviewedRequests = myRequestsList.filter(
-    (r) => (r.status === 'APPROVED' || r.status === 'REJECTED') && !readNotifIds.includes(r.id)
+    (r: any) =>
+      r.requestType !== 'ASSIGNMENT' &&
+      (r.status === 'APPROVED' || r.status === 'REJECTED') &&
+      !readNotifIds.includes(r.id)
   );
 
   const totalNotificationBadge =
     myPendingCount +
     deptPendingCount +
-    (canManageRequests ? pendingReqCount + lowStockCount : unreadReviewedRequests.length);
+    unreadReviewedRequests.length +
+    (canManageRequests ? pendingReqCount + lowStockCount + unreadRejectedAssignments.length : 0);
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200 dark:border-white/15 rounded-2xl h-16 shadow-sm m-[10px] gap-2">
@@ -427,7 +496,8 @@ export default function Topbar({}: TopbarProps) {
         </button>
 
         {/* Minimalist Professional Notification Bell Popover */}
-        <div className="relative" ref={bellRef}>
+        {!isRahbar && (
+          <div className="relative" ref={bellRef}>
           <button
             onClick={() => setBellOpen(!bellOpen)}
             className={cn(
@@ -561,13 +631,23 @@ export default function Topbar({}: TopbarProps) {
                   </div>
                 )}
 
-                {/* 3. 📋 Xodimlarga: Qaytarish so'rovi omborchi tomonidan ko'rib chiqilganlik natijasi */}
-                {!canManageRequests && unreadReviewedRequests.length > 0 && (
+                {/* 3. 📋 Xodimlarga: Qaytarish yoki Ta'mirlash so'rovi omborchi tomonidan ko'rib chiqilganlik natijasi */}
+                {unreadReviewedRequests.length > 0 && (
                   <div className="space-y-1.5">
-                    {unreadReviewedRequests.slice(0, 4).map((req: DeletionRequest) => {
+                    {unreadReviewedRequests.slice(0, 4).map((req: any) => {
                       const isRejected = req.status === 'REJECTED';
                       const reviewerName = req.reviewedBy?.fullName || 'Omborchi';
                       const reasonText = req.reviewComment || req.rejectionReason || 'Sabab ko‘rsatilmadi';
+                      const isRepairedComplete = req.reason?.includes("[TA'MIRLANDI]");
+                      const isRepair =
+                        req.reason?.toLowerCase().includes("ta'mirlash") ||
+                        req.reason?.toLowerCase().includes("tamirlash") ||
+                        req.reason?.toLowerCase().includes("servis");
+                      const actionLabel = isRepairedComplete
+                        ? "Jihoz ta'mirlandi"
+                        : isRepair
+                        ? "Ta'mirlash so'rovi"
+                        : "Qaytarish so'rovi";
 
                       return (
                         <div
@@ -576,6 +656,8 @@ export default function Topbar({}: TopbarProps) {
                             'p-2.5 rounded-xl border space-y-1.5',
                             isRejected
                               ? 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50'
+                              : isRepairedComplete
+                              ? 'bg-teal-50/60 dark:bg-teal-950/20 border-teal-200/80 dark:border-teal-900/50'
                               : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50'
                           )}
                         >
@@ -585,10 +667,16 @@ export default function Topbar({}: TopbarProps) {
                                 'font-extrabold text-[10px] px-1.5 py-0.5 rounded',
                                 isRejected
                                   ? 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/60'
+                                  : isRepairedComplete
+                                  ? 'text-teal-800 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60'
                                   : 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60'
                               )}
                             >
-                              {isRejected ? "❌ Qaytarish so'rovi rad etildi" : "✅ Qaytarish so'rovi qabul qilindi"}
+                              {isRejected
+                                ? `❌ ${actionLabel} rad etildi`
+                                : isRepairedComplete
+                                ? `🛠️ ${actionLabel} (Sozlandi)`
+                                : `✅ ${actionLabel} qabul qilindi`}
                             </span>
                             <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
                               {reviewerName}
@@ -603,9 +691,22 @@ export default function Topbar({}: TopbarProps) {
                             <p className="text-[11px] text-rose-700 dark:text-rose-300 italic bg-rose-100/60 dark:bg-rose-950/40 px-2 py-1 rounded">
                               Rad sababi: "{reasonText}"
                             </p>
+                          ) : isRepairedComplete ? (
+                            <div className="space-y-1">
+                              {req.reviewComment && (
+                                <p className="text-[11px] text-teal-800 dark:text-teal-300 italic bg-white dark:bg-teal-950/60 px-2.5 py-1 rounded-lg border border-teal-200/60 dark:border-teal-800/60">
+                                  Tavsif: "{req.reviewComment}"
+                                </p>
+                              )}
+                              <p className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
+                                Jihoz soz holatga keltirildi. Ombordan olib ketishingiz mumkin.
+                              </p>
+                            </div>
                           ) : (
                             <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
-                              Jihoz ombor hisobiga muvaffaqiyatli qabul qilindi
+                              {isRepair
+                                ? "Jihoz ta'mirlash uchun omborga qabul qilindi"
+                                : "Jihoz ombor hisobiga muvaffaqiyatli qabul qilindi"}
                             </p>
                           )}
 
@@ -622,12 +723,51 @@ export default function Topbar({}: TopbarProps) {
                   </div>
                 )}
 
-                {/* 4. 📋 Admin / Omborchi uchun: Xodimlardan kelgan so'rovlar va rad etilganlik bildirishnomalari */}
+                {/* 4a. ❌ Admin / Omborchi uchun: Xodim jihoz biriktirishni rad etganligi */}
+                {canManageRequests && unreadRejectedAssignments.length > 0 && (
+                  <div className="space-y-1.5">
+                    {unreadRejectedAssignments.slice(0, 4).map((asgn: any) => (
+                      <div
+                        key={asgn.id}
+                        className="p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-1.5 transition-all shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+                            ❌ Xodim rad etdi
+                          </span>
+                          <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
+                            {asgn.recipientName || asgn.user?.fullName || 'Xodim'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                            {asgn.entityName || asgn.entityTitle || 'Jihoz'}
+                          </p>
+                        </div>
+
+                        {asgn.rejectionReason && (
+                          <p className="text-[11px] text-neutral-600 dark:text-neutral-300 italic bg-white dark:bg-neutral-900/60 px-2.5 py-1 rounded-lg border border-neutral-200/60 dark:border-neutral-700/40">
+                            Sabab: "{asgn.rejectionReason}"
+                          </p>
+                        )}
+
+                        <button
+                          onClick={() => markAsRead(asgn.id)}
+                          className="w-full py-1.5 px-3 bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>O'qildi deb belgilash</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 4b. 📋 Admin / Omborchi uchun: Xodimlardan kelgan Qaytarish va Ta'mirlash so'rovlari */}
                 {canManageRequests && pendingReqCount > 0 && (
                   <div className="space-y-1.5">
                     {pendingRequestsList.slice(0, 6).map((req: DeletionRequest) => {
-                      const isRejectionNotice = req.reason?.toLowerCase().includes('rad etildi');
-                      
                       // Extract clean short title and inventory number
                       let title = (req.entityName || req.entityTitle || req.entityId || 'Jihoz').trim();
                       let invNumber: string | undefined;
@@ -645,63 +785,23 @@ export default function Topbar({}: TopbarProps) {
 
                       // Extract clean reason
                       let cleanReason = (req.reason || '').trim();
-                      let reqType = cleanReason.includes("TA'MIRLASH") || cleanReason.includes("Ta'mirlash") ? "Ta'mirlash" : "Qaytarish";
+                      const isRepair =
+                        cleanReason.toLowerCase().includes("ta'mirlash") ||
+                        cleanReason.toLowerCase().includes("tamirlash") ||
+                        cleanReason.toLowerCase().includes("servis");
+                      const reqType = isRepair ? "Ta'mirlash" : "Qaytarish";
+
                       const dotIndex = cleanReason.lastIndexOf('. ');
                       if (dotIndex !== -1 && (cleanReason.startsWith('[') || cleanReason.includes('Jihoz:'))) {
                         cleanReason = cleanReason.substring(dotIndex + 2).trim();
                       }
                       cleanReason = cleanReason
-                        .replace(/^[❌\s]*Jihozni qabul qilish rad etildi:\s*"?/i, '')
                         .replace(/^\[OMBORGA QAYTARISH\]\s*/i, '')
                         .replace(/^\[TA'MIRLASH\/SERVIS\]\s*/i, '')
                         .replace(/^Qaytarish:\s*/i, '')
                         .replace(/^Ta'mirlash:\s*/i, '')
                         .replace(/"?$/, '')
                         .trim();
-
-                      if (isRejectionNotice) {
-                        return (
-                          <div
-                            key={req.id}
-                            className="p-3 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/60 rounded-xl space-y-1.5 transition-all shadow-2xs"
-                          >
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-semibold text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/70 px-2 py-0.5 rounded-full">
-                                ❌ Xodim rad etdi
-                              </span>
-                              <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
-                                {req.requestedBy?.fullName || 'Xodim'}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                                {title}
-                              </p>
-                              {invNumber && (
-                                <span className="text-[10px] font-mono text-neutral-400 shrink-0">
-                                  № {invNumber}
-                                </span>
-                              )}
-                            </div>
-
-                            {cleanReason && (
-                              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 italic bg-white dark:bg-neutral-900/60 px-2.5 py-1 rounded-lg border border-neutral-200/60 dark:border-neutral-700/40">
-                                Sabab: "{cleanReason}"
-                              </p>
-                            )}
-
-                            <button
-                              onClick={() => approveRequestMutation.mutate(req.id)}
-                              disabled={approveRequestMutation.isPending}
-                              className="w-full py-1.5 px-3 bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>O'qildi deb belgilash</span>
-                            </button>
-                          </div>
-                        );
-                      }
 
                       return (
                         <div
@@ -710,18 +810,12 @@ export default function Topbar({}: TopbarProps) {
                         >
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-semibold text-[10px] text-teal-800 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/70 px-2 py-0.5 rounded-full">
-                              {req.entityType === 'PRODUCT'
-                                ? `🗑️ Mahsulot (${req.organization?.name || 'Boshqarma'})`
-                                : req.entityType === 'USER'
-                                ? `👤 Xodim (${req.organization?.name || 'Boshqarma'})`
-                                : req.entityType === 'DEPARTMENT'
-                                ? `🏢 Bo'lim (${req.organization?.name || 'Boshqarma'})`
-                                : reqType === "Ta'mirlash"
+                              {reqType === "Ta'mirlash"
                                 ? "🛠️ Ta'mirlash so'rovi"
                                 : "📦 Qaytarish so'rovi"}
                             </span>
                             <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
-                              {req.requestedBy?.fullName || req.requestedBy?.username || 'Mas\'ul'}
+                              {req.requestedBy?.fullName || req.requestedBy?.username || 'Xodim'}
                             </span>
                           </div>
 
@@ -818,6 +912,7 @@ export default function Topbar({}: TopbarProps) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Reject Assignment Modal (When user rejects taking an asset) */}

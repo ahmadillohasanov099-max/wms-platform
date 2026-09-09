@@ -89,7 +89,6 @@ export function RoleBadge({ role }: { role: string }) {
     VAZIRLIK_OMBORCHI: 'purple',
     ORG_ADMIN: 'danger',
     ORG_OMBORCHI: 'info',
-    ADMIN: 'danger',
     OMBORCHI: 'info',
     KADR: 'purple',
     XODIM: 'success',
