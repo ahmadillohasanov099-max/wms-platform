@@ -12,6 +12,8 @@ import {
   Globe,
   Check,
   X,
+  AlertTriangle,
+  Warehouse,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -244,6 +246,28 @@ export default function Topbar({}: TopbarProps) {
     refetchInterval: 60000,
   });
 
+  // Automatically unmark low_stock ids from readNotifIds if product is replenished (no longer low in stock)
+  useEffect(() => {
+    if (Array.isArray(lowStock)) {
+      const activeLowStockIds = new Set(
+        lowStock.map((item: any) => `low_stock_${item.productId || item.id}`)
+      );
+      setReadNotifIds((prev) => {
+        const filtered = prev.filter((id) => {
+          if (id.startsWith('low_stock_')) {
+            return activeLowStockIds.has(id);
+          }
+          return true;
+        });
+        if (filtered.length !== prev.length) {
+          localStorage.setItem('read_request_notif_ids', JSON.stringify(filtered));
+          return filtered;
+        }
+        return prev;
+      });
+    }
+  }, [lowStock]);
+
   const { data: deletionReqsData } = useQuery({
     queryKey: ['deletion-requests', 'PENDING'],
     queryFn: () => deletionRequestsApi.getAll({ status: 'PENDING' }),
@@ -344,7 +368,22 @@ export default function Topbar({}: TopbarProps) {
   const myPendingCount = pendingMyAssignments.length;
 
   const lowStockList: any[] = Array.isArray(lowStock) ? lowStock : [];
-  const lowStockCount = lowStockList.length;
+  const unreadLowStockList = lowStockList.filter(
+    (item: any) => !readNotifIds.includes(`low_stock_${item.productId || item.id}`)
+  );
+  const lowStockCount = unreadLowStockList.length;
+
+  const markAllLowStockAsRead = () => {
+    const idsToMark = unreadLowStockList.map(
+      (item: any) => `low_stock_${item.productId || item.id}`
+    );
+    setReadNotifIds((prev) => {
+      const updated = [...new Set([...prev, ...idsToMark])];
+      localStorage.setItem('read_request_notif_ids', JSON.stringify(updated));
+      return updated;
+    });
+    toast.success("Barcha kam qolgan tovarlar bildirishnomasi o'qildi deb belgilandi");
+  };
 
   // Unread rejected assignments for Admin / Omborchi (strictly in their organization)
   const rawRejectedAssignments: any[] = Array.isArray(rejectedAssignmentsData)
@@ -527,13 +566,24 @@ export default function Topbar({}: TopbarProps) {
                     Bildirishnomalar
                   </h4>
                 </div>
-                {totalNotificationBadge > 0 ? (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                    {totalNotificationBadge} ta yangi
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-gray-400">Yangi xabar yo'q</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {totalNotificationBadge > 0 ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                      {totalNotificationBadge} ta yangi
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400">Yangi xabar yo'q</span>
+                  )}
+                  {canManageRequests && unreadLowStockList.length > 0 && (
+                    <button
+                      onClick={markAllLowStockAsRead}
+                      className="text-[10px] font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer"
+                      title="Barcha kam qolgan tovarlar bildirishnomasini o'qildi deb belgilash"
+                    >
+                      Barchasini o'qildi qilish
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Notification Unified Feed List */}
@@ -860,27 +910,67 @@ export default function Topbar({}: TopbarProps) {
                   </div>
                 )}
 
-                {/* 5. ⚠️ Kam qolgan tovarlar (Admin / Omborchi uchun) */}
+                {/* 5. ⚠️ Kam qolgan tovarlar (Omborchi va mas'ullar uchun) */}
                 {canManageRequests && lowStockCount > 0 && (
                   <div className="space-y-1.5">
-                    {lowStockList.slice(0, 3).map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="p-2.5 bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/50 rounded-xl flex items-center justify-between text-xs"
-                      >
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-gray-900 dark:text-gray-100 truncate">
-                            {item.product?.name || item.name}
-                          </span>
-                          <p className="text-[10px] text-rose-600 dark:text-rose-400">
-                            Minimal qoldiqdan kam qoldi
-                          </p>
+                    {unreadLowStockList.slice(0, 5).map((item: any) => {
+                      const itemKey = `low_stock_${item.productId || item.id}`;
+                      const productName = item.name || item.product?.name || 'Mahsulot';
+                      const currentQty = item.quantity ?? 0;
+                      const minLvl = item.minLevel ?? item.minQuantity ?? 0;
+                      const unitStr = item.unit || item.product?.unit || 'ta';
+
+                      return (
+                        <div
+                          key={itemKey}
+                          className="p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-1.5 transition-all shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                              <span>⚠️ Kam qoldi</span>
+                            </span>
+                            <span className="font-mono font-bold text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900 text-[11px]">
+                              Qoldiq: <b className="text-xs">{currentQty}</b> / min: {minLvl} {unitStr}
+                            </span>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                              {productName}
+                            </p>
+                            <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5">
+                              Minimal qoldiqdan kam qoldi
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <button
+                              onClick={() => {
+                                markAsRead(itemKey);
+                                setBellOpen(false);
+                                navigate('/inventory');
+                              }}
+                              className="py-1 px-2.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                              title="Omborni ko'rish"
+                            >
+                              <Warehouse className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Ombor</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                markAsRead(itemKey);
+                                toast.success(`"${productName}" bildirishnomasi o'qildi deb belgilandi`);
+                              }}
+                              className="flex-1 py-1.5 px-3 bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>O'qildi deb belgilash</span>
+                            </button>
+                          </div>
                         </div>
-                        <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900 text-xs">
-                          {item.quantity} {item.product?.unit || 'ta'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
