@@ -33,7 +33,6 @@ const MANAGERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
   UserRole.KADR,
 ];
 
@@ -54,7 +53,6 @@ const ASSET_TRANSFER_ROLES = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
 ];
 
 @ApiTags('Users')

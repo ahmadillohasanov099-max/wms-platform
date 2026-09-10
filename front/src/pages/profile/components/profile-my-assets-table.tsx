@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import Card, { CardContent } from '../../../components/ui/card';
+import Card, { CardHeader, CardContent } from '../../../components/ui/card';
 import Button from '../../../components/ui/button';
 import CopyableInventoryNumber from '../../../components/ui/copyable-inventory-number';
 import { PageLoader } from '../../../components/ui/spinner';
@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Boxes,
 } from 'lucide-react';
 
 interface Props {
@@ -48,7 +49,7 @@ export default function ProfileMyAssetsTable({
   const acceptMutation = useMutation({
     mutationFn: (assignmentId: string) => operationsApi.acceptAssignment(assignmentId),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Jihoz muvaffaqiyatli qabul qilindi!");
+      toast.success(res?.message || t('profile.acceptSuccess'));
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
@@ -56,7 +57,7 @@ export default function ProfileMyAssetsTable({
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Qabul qilishda xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('profile.acceptError'));
     },
   });
 
@@ -64,7 +65,7 @@ export default function ProfileMyAssetsTable({
     mutationFn: ({ assignmentId, reason }: { assignmentId: string; reason: string }) =>
       operationsApi.rejectAssignment(assignmentId, { reason }),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Jihoz rad etildi va omborga qaytarildi");
+      toast.success(res?.message || t('profile.rejectSuccess'));
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
@@ -73,7 +74,7 @@ export default function ProfileMyAssetsTable({
       setRejectingItem(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Rad etishda xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('profile.rejectError'));
     },
   });
 
@@ -135,35 +136,78 @@ export default function ProfileMyAssetsTable({
 
   return (
     <>
-      <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
-        {/* Navigation Tabs Header */}
-        <div className="flex border-b border-gray-200 dark:border-gray-800 px-5 pt-3 bg-gray-50/50 dark:bg-gray-800/20 flex-wrap gap-2">
-          <button
-            className={`px-4 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'assets'
-                ? 'border-teal-600 text-teal-600 dark:text-teal-400 font-bold'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            }`}
-            onClick={() => setActiveTab('assets')}
-          >
-            <Package className="w-4 h-4 text-teal-500" />
-            <span>Asosiy vositalar ({assignments.length})</span>
-          </button>
-
-          {tmzOperations.length > 0 && (
-            <button
-              className={`px-4 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'tmz'
-                  ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-              }`}
-              onClick={() => setActiveTab('tmz')}
-            >
-              <Layers className="w-4 h-4 text-emerald-500" />
-              <span>Topshirilgan TMZ ({tmzOperations.length})</span>
-            </button>
+      {/* Modern Navigation Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/60 rounded-2xl border border-gray-200/80 dark:border-white/10 w-fit flex-wrap">
+        <button
+          onClick={() => setActiveTab('assets')}
+          className={cn(
+            'px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+            activeTab === 'assets'
+              ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm border border-gray-200/60 dark:border-slate-700/60'
+              : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
           )}
-        </div>
+        >
+          <Package className="w-4 h-4" />
+          <span>{t('profile.fixedAssets')}</span>
+          <span
+            className={cn(
+              'text-[11px] px-2 py-0.5 rounded-full font-extrabold',
+              activeTab === 'assets'
+                ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200/60 dark:border-teal-900/60'
+                : 'bg-gray-200/70 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+            )}
+          >
+            {assignments.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tmz')}
+          className={cn(
+            'px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+            activeTab === 'tmz'
+              ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm border border-gray-200/60 dark:border-slate-700/60'
+              : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <Boxes className="w-4 h-4" />
+          <span>{t('profile.handedTmz')}</span>
+          <span
+            className={cn(
+              'text-[11px] px-2 py-0.5 rounded-full font-extrabold',
+              activeTab === 'tmz'
+                ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/60'
+                : 'bg-gray-200/70 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+            )}
+          >
+            {tmzOperations.length}
+          </span>
+        </button>
+      </div>
+
+      <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
+        <CardHeader
+          title={
+            activeTab === 'assets' ? (
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                <span className="font-bold text-slate-900 dark:text-white">{t('profile.assignedFixedAssets')}</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 font-extrabold border border-teal-200 dark:border-teal-900/50">
+                  {assignments.length} {t('common.pcs')}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                <span className="font-bold text-slate-900 dark:text-white">{t('profile.handedTmzMaterials')}</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 font-extrabold border border-amber-200 dark:border-amber-900/50">
+                  {tmzOperations.length} {t('common.pcs')}
+                </span>
+              </div>
+            )
+          }
+          className="border-b border-gray-100 dark:border-slate-800/60 pb-3.5"
+        />
 
         <CardContent className="p-0">
           {isLoading ? (
@@ -174,7 +218,7 @@ export default function ProfileMyAssetsTable({
             assignments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center gap-2">
                 <Package className="w-10 h-10 text-gray-300 dark:text-slate-700 stroke-1" />
-                <span>Sizga biriktirilgan asosiy vositalar yo'q</span>
+                <span>{t('profile.noFixedAssets')}</span>
               </div>
             ) : (
               <>
@@ -194,7 +238,7 @@ export default function ProfileMyAssetsTable({
                           <div className="flex items-center gap-1.5">
                             {hasPending && (
                               <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-300">
-                                Kutilmoqda
+                                {t('profile.waitingConfirm')}
                               </span>
                             )}
                             {batch.documentNumber && (
@@ -226,7 +270,7 @@ export default function ProfileMyAssetsTable({
                                           ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                       )}
-                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                      title={isPending ? t('profile.statusDotPending') : isRejected ? t('profile.statusDotRejected') : isBroken ? t('profile.statusDotBroken') : t('profile.statusDotAccepted')}
                                     />
                                     <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                                       {idx + 1}. {item.asset?.product?.name || '—'}
@@ -243,7 +287,7 @@ export default function ProfileMyAssetsTable({
                                 {isPending ? (
                                   <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
                                     <span className="text-2xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                      <Clock className="w-3 h-3" /> Qabul qilish kutilmoqda
+                                      <Clock className="w-3 h-3" /> {t('profile.pendingApproval')}
                                     </span>
                                     <div className="flex items-center gap-1.5">
                                       <Button
@@ -252,7 +296,7 @@ export default function ProfileMyAssetsTable({
                                         onClick={() => acceptMutation.mutate(item.id)}
                                         loading={acceptMutation.isPending}
                                       >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> Qabul
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('profile.accept')}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -260,21 +304,21 @@ export default function ProfileMyAssetsTable({
                                         className="h-7 px-2 text-2xs"
                                         onClick={() => setRejectingItem(item)}
                                       >
-                                        <XCircle className="w-3 h-3 mr-1" /> Rad
+                                        <XCircle className="w-3 h-3 mr-1" /> {t('profile.reject')}
                                       </Button>
                                     </div>
                                   </div>
                                 ) : isRejected ? (
                                   <div className="pt-1 text-2xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                                    <XCircle className="w-3 h-3" /> Rad etilgan: {item.rejectionReason || 'Sabab ko‘rsatilmadi'}
+                                    <XCircle className="w-3 h-3" /> {t('profile.rejectedWithReason', { reason: item.rejectionReason || t('profile.reasonNotSpecified') })}
                                   </div>
                                 ) : isBroken ? (
                                   <div className="pt-1 text-2xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded border border-amber-300/40">
-                                    <Clock className="w-3 h-3" /> Ta'mirlashda
+                                    <Clock className="w-3 h-3" /> {t('profile.inRepair')}
                                   </div>
                                 ) : isRequested ? (
                                   <div className="pt-1 text-2xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" /> So'rov yuborilgan (ko'rib chiqilmoqda)
+                                    <Clock className="w-3 h-3" /> {t('profile.requestUnderReview')}
                                   </div>
                                 ) : (
                                   <div className="pt-1 flex items-center justify-end">
@@ -283,7 +327,7 @@ export default function ProfileMyAssetsTable({
                                       onClick={() => onRequestModal(item)}
                                       className="text-2xs font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                                     >
-                                      Qaytarish / Ta'mirlash so'rovi
+                                      {t('profile.requestReturnRepair')}
                                     </button>
                                   </div>
                                 )}
@@ -293,7 +337,7 @@ export default function ProfileMyAssetsTable({
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-slate-800 text-xs">
-                          <span className="text-gray-400">Jami qiymati:</span>
+                          <span className="text-gray-400">{t('profile.totalValue')}:</span>
                           <span className="font-bold text-teal-600 dark:text-teal-400 font-mono">
                             {formatCurrency(batch.totalPrice)}
                           </span>
@@ -305,7 +349,7 @@ export default function ProfileMyAssetsTable({
                           className="w-full justify-center text-xs font-bold text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 py-2 flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          <span>Shartnoma ({batch.items.length} ta jihoz)</span>
+                          <span>{t('profile.contractWithCount', { count: batch.items.length })}</span>
                         </Button>
                       </div>
                     );
@@ -327,9 +371,9 @@ export default function ProfileMyAssetsTable({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200/70 dark:border-slate-800/80 text-left bg-gray-50/70 dark:bg-slate-800/40">
-                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Vaqt / Hujjat №</th>
-                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Biriktirilgan Jihozlar ({assignments.length} ta)</th>
-                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Qiymati</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{t('profile.timeOrDoc')}</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('profile.assignedAssetsCol', { count: assignments.length })}</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{t('profile.valueCol')}</th>
                         <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap">{t('common.actions')}</th>
                       </tr>
                     </thead>
@@ -371,7 +415,7 @@ export default function ProfileMyAssetsTable({
                                           ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                           : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                       )}
-                                      title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                      title={isPending ? t('profile.statusDotPending') : isRejected ? t('profile.statusDotRejected') : isBroken ? t('profile.statusDotBroken') : t('profile.statusDotAccepted')}
                                     />
                                     <span className="font-semibold text-slate-900 dark:text-slate-100">
                                       {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
@@ -392,7 +436,7 @@ export default function ProfileMyAssetsTable({
                                           className="px-2 py-0.5 text-2xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shadow-2xs flex items-center gap-0.5"
                                           title="Jihozni qabul qilish"
                                         >
-                                          <CheckCircle2 className="w-3 h-3" /> Qabul
+                                          <CheckCircle2 className="w-3 h-3" /> {t('profile.accept')}
                                         </button>
                                         <button
                                           type="button"
@@ -400,20 +444,20 @@ export default function ProfileMyAssetsTable({
                                           className="px-2 py-0.5 text-2xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer transition-colors shadow-2xs flex items-center gap-0.5"
                                           title="Jihozni rad etish"
                                         >
-                                          <XCircle className="w-3 h-3" /> Rad
+                                          <XCircle className="w-3 h-3" /> {t('profile.reject')}
                                         </button>
                                       </div>
                                     ) : isRejected ? (
                                       <span className="text-2xs font-bold text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-950 px-1.5 py-0.5 rounded">
-                                        Rad etilgan
+                                        {t('profile.rejectedBadge')}
                                       </span>
                                     ) : isBroken ? (
                                       <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-                                        <Clock className="w-3 h-3" /> Ta'mirlashda
+                                        <Clock className="w-3 h-3" /> {t('profile.inRepair')}
                                       </span>
                                     ) : isRequested ? (
                                       <span className="text-2xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded border border-amber-300/50">
-                                        So'rov yuborilgan
+                                        {t('profile.requestSent')}
                                       </span>
                                     ) : (
                                       <button
@@ -421,7 +465,7 @@ export default function ProfileMyAssetsTable({
                                         onClick={() => onRequestModal(item)}
                                         className="text-2xs font-semibold text-amber-600 dark:text-amber-400 hover:underline px-1 py-0.5 cursor-pointer"
                                       >
-                                        So'rov yuborish
+                                        {t('profile.sendRequest')}
                                       </button>
                                     )}
                                   </div>
@@ -441,7 +485,7 @@ export default function ProfileMyAssetsTable({
                               title="Operatsiya bo'yicha umumiy shartnomani ko'rish"
                             >
                               <FileText className="w-3.5 h-3.5" />
-                              <span>Shartnoma ({batch.items.length})</span>
+                              <span>{t('profile.contract')} ({batch.items.length})</span>
                             </Button>
                           </td>
                         </tr>
@@ -461,10 +505,10 @@ export default function ProfileMyAssetsTable({
               <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center gap-2">
                 <Layers className="w-10 h-10 text-gray-300 dark:text-slate-700 stroke-1" />
                 <p className="font-semibold text-gray-700 dark:text-gray-300">
-                  Sizga topshirilgan TMZ materiallari topilmadi
+                  {t('profile.noTmzMaterials')}
                 </p>
                 <p className="text-xs text-gray-400">
-                  Ushbu hisob bo'yicha hali sarflanadigan materiallar topshirilmagan.
+                  {t('profile.noTmzMaterialsDesc')}
                 </p>
               </div>
             ) : (
@@ -480,7 +524,7 @@ export default function ProfileMyAssetsTable({
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-900/60">
-                            {row.documentNumber || 'Hujjat № Siz'}
+                            {row.documentNumber || t('profile.noDoc')}
                           </span>
                           <span className="text-xs text-gray-400">
                             {formatDate(row.createdAt)}
@@ -494,14 +538,14 @@ export default function ProfileMyAssetsTable({
                                 {items.length > 1 ? `${idx + 1}. ` : ''}{gi.product?.name ?? '—'}
                               </span>
                               <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                                {gi.quantity ?? 1} {gi.product?.unit || 'dona'}
+                                {gi.quantity ?? 1} {gi.product?.unit || t('common.pcs')}
                               </span>
                             </div>
                           ))}
                         </div>
 
                         <div className="pt-2 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-xs text-gray-500">
-                          <span>Beruvchi: <strong className="text-gray-700 dark:text-gray-300">{row.performedBy?.fullName || '—'}</strong></span>
+                          <span>{t('profile.giver')}: <strong className="text-gray-700 dark:text-gray-300">{row.performedBy?.fullName || '—'}</strong></span>
                         </div>
                       </div>
                     );
@@ -514,19 +558,19 @@ export default function ProfileMyAssetsTable({
                     <thead>
                       <tr className="border-b border-gray-200/70 dark:border-slate-800/80 text-left bg-gray-50/70 dark:bg-slate-800/40">
                         <th className="px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Sana
+                          {t('common.date')}
                         </th>
                         <th className="px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Material Nomi
+                          {t('profile.materialName')}
                         </th>
                         <th className="px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Topshirilgan Soni
+                          {t('profile.handedQty')}
                         </th>
                         <th className="px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Beruvchi Mas'ul
+                          {t('profile.giverResponsible')}
                         </th>
                         <th className="px-5 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Hujjat №
+                          {t('common.documentNumber')}
                         </th>
                       </tr>
                     </thead>
@@ -554,7 +598,7 @@ export default function ProfileMyAssetsTable({
                               <div className="space-y-1">
                                 {items.map((gi: any, idx: number) => (
                                   <p key={gi.id || idx} className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-                                    {gi.quantity ?? 1} {gi.product?.unit || 'dona'}
+                                    {gi.quantity ?? 1} {gi.product?.unit || t('common.pcs')}
                                   </p>
                                 ))}
                               </div>
@@ -595,7 +639,7 @@ export default function ProfileMyAssetsTable({
             reason,
           });
         }}
-        itemTitle={rejectingItem?.asset?.product?.name || rejectingItem?.product?.name || 'Jihoz'}
+        itemTitle={rejectingItem?.asset?.product?.name || rejectingItem?.product?.name || t('profile.asset')}
         isLoading={rejectMutation.isPending}
       />
     </>

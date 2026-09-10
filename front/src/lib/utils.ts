@@ -10,25 +10,27 @@ export function formatCurrency(amount?: number | string | null): string {
   return `${new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 2 }).format(num)} so'm`;
 }
 
-export function formatCompactCurrency(amount?: number | string | null): string {
-  if (amount === undefined || amount === null || amount === '') return '0 so\'m';
+export function formatCompactCurrency(amount?: number | string | null, includeUnit: boolean = true): string {
+  if (amount === undefined || amount === null || amount === '') return includeUnit ? '0 so\'m' : '0';
   const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
-  if (isNaN(num) || num === 0) return '0 so\'m';
+  if (isNaN(num) || num === 0) return includeUnit ? '0 so\'m' : '0';
 
   const formatNum = (val: number) => {
-    return Number(val.toFixed(1)).toLocaleString('uz-UZ');
+    return Number(val.toFixed(2)).toLocaleString('uz-UZ');
   };
 
+  const suffix = includeUnit ? ' so\'m' : '';
+
   if (num >= 1_000_000_000) {
-    return `${formatNum(num / 1_000_000_000)} mlrd`;
+    return `${formatNum(num / 1_000_000_000)} mlrd${suffix}`;
   }
   if (num >= 1_000_000) {
-    return `${formatNum(num / 1_000_000)} mln`;
+    return `${formatNum(num / 1_000_000)} mln${suffix}`;
   }
   if (num >= 1_000) {
-    return `${formatNum(num / 1_000)} ming`;
+    return `${formatNum(num / 1_000)} ming${suffix}`;
   }
-  return `${num.toLocaleString('uz-UZ')} so'm`;
+  return `${num.toLocaleString('uz-UZ')}${suffix}`;
 }
 export function formatDate(dateString?: string | Date | null): string {
   if (!dateString) return '—';

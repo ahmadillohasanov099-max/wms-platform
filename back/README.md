@@ -272,3 +272,6 @@ Loyiha to'liq Docker-ready holatiga keltirilgan.
    7                                 │ XODIM                            │ xodim                                           │ test12345                        │ Akmal Xodimov                    │ AKT bo'limi dasturchisi (Jihozlar biriktirilgan)
    8                                 │ ORG_ADMIN                        │ org_admin                                       │ test12345                        │ Farrux Quyi-Admin                │ Toshkent shahar boshqarma admini
    9                                 │ ORG_OMBORCHI                     │ org_omborchi                                    │ test12345                        │ Davron Quyi-Omborchi             │ Toshkent shahar boshqarma omborchisi
+
+
+  1 kadr tizimga kirganda avtomatik dashboardga otvoryabdi lekin kadr ga accesss yoq dashboardga shuni xalqlish  2.kadr role dagi acces larni tekshirish 

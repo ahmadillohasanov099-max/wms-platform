@@ -33,7 +33,6 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
     'VAZIRLIK_OMBORCHI',
     'ORG_ADMIN',
     'ORG_OMBORCHI',
-    'OMBORCHI',
   ].includes(user?.role || '');
 
   const completeRepairMutation = useMutation({

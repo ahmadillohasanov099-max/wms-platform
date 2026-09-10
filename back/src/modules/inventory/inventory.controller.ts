@@ -30,7 +30,6 @@ const INVENTORY_VIEWERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
   UserRole.KADR,
 ];
 
@@ -39,7 +38,6 @@ const WAREHOUSE_MUTATORS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
 ];
 
 @ApiTags('Inventory')

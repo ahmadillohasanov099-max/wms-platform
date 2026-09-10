@@ -28,7 +28,20 @@ export class HistoryService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const targetUserId = currentUserRole === 'XODIM' ? currentUserId : userId;
+    let targetUserId = userId;
+    if (currentUserRole === 'XODIM') {
+      if (departmentId) {
+        const me = await this.prisma.user.findUnique({
+          where: { id: currentUserId },
+          select: { departmentId: true },
+        });
+        if (me?.departmentId !== departmentId) {
+          targetUserId = currentUserId;
+        }
+      } else {
+        targetUserId = currentUserId;
+      }
+    }
     const resolvedOrgId = enforceTenantOrgId(
       { id: currentUserId, role: currentUserRole, organizationId: currentUserOrgId },
       organizationId,

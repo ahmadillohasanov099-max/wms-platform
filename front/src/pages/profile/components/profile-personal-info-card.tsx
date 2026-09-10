@@ -1,5 +1,5 @@
 import Card, { CardHeader, CardContent } from '../../../components/ui/card';
-import { User, AtSign, Building2, Briefcase, Phone, PhoneCall, ShieldCheck, MapPin } from 'lucide-react';
+import { User, AtSign, Building2, Briefcase, Phone, PhoneCall, ShieldCheck, MapPin, BadgeCheck } from 'lucide-react';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 interface Props {
@@ -19,30 +19,42 @@ export default function ProfilePersonalInfoCard({ profileUser }: Props) {
     { label: t('profile.department'), value: profileUser?.department?.name ?? '—', icon: <Building2 className="w-4 h-4" /> },
     { label: t('profile.position'), value: profileUser?.position ?? '—', icon: <Briefcase className="w-4 h-4" /> },
     { label: t('profile.phone'), value: profileUser?.phone ?? '—', icon: <Phone className="w-4 h-4" /> },
-    { label: 'Ichki raqami', value: profileUser?.internalPhone ?? '—', icon: <PhoneCall className="w-4 h-4" /> },
-    { label: 'Pasport seriyasi va №', value: passportVal ?? '—', icon: <ShieldCheck className="w-4 h-4" /> },
-    { label: 'JSHSHIR', value: pinflVal ?? '—', icon: <ShieldCheck className="w-4 h-4" /> },
-    { label: 'Yashash / Registratsiya manzili', value: addressVal ?? '—', icon: <MapPin className="w-4 h-4" /> },
+    { label: t('profile.internalPhone'), value: profileUser?.internalPhone ?? '—', icon: <PhoneCall className="w-4 h-4" /> },
+    { label: t('profile.passport'), value: passportVal, icon: <BadgeCheck className="w-4 h-4" /> },
+    { label: t('profile.pinfl'), value: pinflVal, icon: <ShieldCheck className="w-4 h-4" /> },
+    { label: t('profile.address'), value: addressVal, icon: <MapPin className="w-4 h-4" />, fullWidth: true },
   ];
 
   return (
-    <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs">
+    <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
       <CardHeader
-        title={t('profile.personalInfo')}
-        className="border-b border-gray-100 dark:border-slate-800/60 pb-3"
-      />
-      <CardContent className="p-4 space-y-3">
-        {infoFields.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center flex-shrink-0 border border-teal-200/50 dark:border-teal-800/40">
-              {item.icon}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.label}</p>
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{item.value}</p>
-            </div>
+        title={
+          <div className="flex items-center gap-2">
+            <User className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+            <span className="font-bold text-slate-900 dark:text-white">{t('profile.personalInfo')}</span>
           </div>
-        ))}
+        }
+        className="border-b border-gray-100 dark:border-slate-800/60 pb-3.5"
+      />
+      <CardContent className="p-4 sm:p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {infoFields.map((item, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center gap-3 p-3 rounded-xl bg-gray-50/60 dark:bg-slate-800/40 border border-gray-100 dark:border-slate-800 hover:border-teal-300 dark:hover:border-teal-700/60 transition-all ${
+                item.fullWidth ? 'sm:col-span-2' : ''
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-200/60 dark:border-teal-800/50">
+                {item.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">{item.label}</p>
+                <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{item.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

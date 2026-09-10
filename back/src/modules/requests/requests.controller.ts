@@ -20,7 +20,6 @@ const MODERATORS = [
   UserRole.SUPER_ADMIN,
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
-  UserRole.OMBORCHI,
   UserRole.ORG_OMBORCHI,
 ];
 
@@ -57,7 +56,6 @@ export class RequestsController {
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ORG_ADMIN,
     UserRole.ORG_OMBORCHI,
-    UserRole.OMBORCHI,
     UserRole.KADR,
   )
   @Get()

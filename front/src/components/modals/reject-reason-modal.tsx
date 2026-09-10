@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from '../ui/modal';
 import Button from '../ui/button';
 import { AlertCircle } from 'lucide-react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface RejectReasonModalProps {
   open: boolean;
@@ -16,17 +17,20 @@ export default function RejectReasonModal({
   open,
   onClose,
   onConfirm,
-  title = "Jihozni rad etish",
+  title,
   itemTitle,
   isLoading = false,
 }: RejectReasonModalProps) {
+  const { t } = useTranslation();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+
+  const modalTitle = title || t('rejectModal.title');
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!reason.trim()) {
-      setError('Iltimos, rad etish sababini kiriting');
+      setError(t('rejectModal.reasonRequiredError'));
       return;
     }
     setError('');
@@ -44,12 +48,12 @@ export default function RejectReasonModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={title}
+      title={modalTitle}
       size="md"
       footer={
         <>
           <Button variant="outline" onClick={handleClose} disabled={isLoading}>
-            Bekor qilish
+            {t('rejectModal.cancel')}
           </Button>
           <Button
             variant="danger"
@@ -57,7 +61,7 @@ export default function RejectReasonModal({
             loading={isLoading}
             disabled={isLoading || !reason.trim()}
           >
-            Rad etishni tasdiqlash
+            {t('rejectModal.confirm')}
           </Button>
         </>
       }
@@ -66,13 +70,13 @@ export default function RejectReasonModal({
         <div className="flex items-start gap-3 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-rose-800 dark:text-rose-300 text-xs">
           <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold">Diqqat: Ushbu amal bekor qilinmaydi!</p>
+            <p className="font-bold">{t('rejectModal.warningTitle')}</p>
             <p className="text-rose-700 dark:text-rose-400">
-              Jihoz rad etilgandan so'ng, u avtomatik ravishda ombor hisobiga qaytariladi va omborchiga bildirishnoma yuboriladi.
+              {t('rejectModal.warningDesc')}
             </p>
             {itemTitle && (
               <p className="font-semibold pt-1 text-slate-900 dark:text-white">
-                Jihoz: <span className="underline">{itemTitle}</span>
+                {t('rejectModal.assetLabel')}: <span className="underline">{itemTitle}</span>
               </p>
             )}
           </div>
@@ -80,7 +84,7 @@ export default function RejectReasonModal({
 
         <div className="space-y-1.5">
           <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
-            Rad etish sababi <span className="text-red-500">*</span>
+            {t('rejectModal.reasonLabel')} <span className="text-red-500">*</span>
           </label>
           <textarea
             rows={4}
@@ -89,7 +93,7 @@ export default function RejectReasonModal({
               setReason(e.target.value);
               if (error) setError('');
             }}
-            placeholder="Masalan: Ushbu jihoz nosoz holatda / menga boshqa model kerak edi / tasodifan biriktirilgan..."
+            placeholder={t('rejectModal.placeholder')}
             className="w-full text-xs rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500 p-3 resize-none"
             autoFocus
           />

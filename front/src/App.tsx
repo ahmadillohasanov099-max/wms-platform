@@ -66,7 +66,6 @@ export default function App() {
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
-    "OMBORCHI",
   ];
 
   const WAREHOUSE_MANAGERS: UserRole[] = [
@@ -74,7 +73,6 @@ export default function App() {
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
-    "OMBORCHI",
   ];
 
   return (
@@ -108,7 +106,7 @@ export default function App() {
           <Route
             path="/requests"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'OMBORCHI', 'KADR', 'XODIM']}>
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'XODIM']}>
                 <RequestsPage />
               </RequireRole>
             }
@@ -117,7 +115,7 @@ export default function App() {
           <Route
             path="/deletion-requests"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'OMBORCHI', 'KADR', 'XODIM']}>
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'XODIM']}>
                 <RequestsPage />
               </RequireRole>
             }

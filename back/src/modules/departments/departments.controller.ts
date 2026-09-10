@@ -26,7 +26,6 @@ const MANAGERS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
   UserRole.KADR,
 ];
 

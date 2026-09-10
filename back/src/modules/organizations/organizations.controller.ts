@@ -43,7 +43,6 @@ export class OrganizationsController {
     UserRole.RAHBAR,
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ORG_ADMIN,
-    UserRole.OMBORCHI,
     UserRole.ORG_OMBORCHI,
     UserRole.KADR,
     UserRole.XODIM,

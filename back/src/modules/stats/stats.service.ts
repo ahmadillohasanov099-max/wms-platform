@@ -23,7 +23,8 @@ export class StatsService {
       totalDepartments,
       totalOperations,
       activeAssignments,
-      inventories,
+      inventoryStats,
+      productTypeCounts,
       thisMonthOpsCount,
       lastMonthOpsCount,
       thisMonthProductsCount,
@@ -43,9 +44,19 @@ export class StatsService {
           ...(organizationId ? { asset: { organizationId } } : {}),
         },
       }),
-      this.prisma.inventory.findMany({
-        where: { product: { deletedAt: null, ...orgFilter } },
-        select: { quantity: true, minLevel: true, unitPrice: true },
+      this.prisma.$queryRaw<Array<{ total_value: number; low_stock_count: bigint }>>`
+        SELECT
+          COALESCE(SUM(i.quantity * COALESCE(i."unitPrice", 0)), 0)::float AS total_value,
+          COUNT(*) FILTER (WHERE i.quantity <= i."minLevel")::bigint AS low_stock_count
+        FROM "Inventory" i
+        JOIN "Product" p ON i."productId" = p.id
+        WHERE p."deletedAt" IS NULL
+          AND (${organizationId ?? null}::text IS NULL OR p."organizationId" = ${organizationId})
+      `,
+      this.prisma.product.groupBy({
+        by: ['productType'],
+        where: { deletedAt: null, ...orgFilter },
+        _count: { id: true },
       }),
       this.prisma.operation.count({ where: { createdAt: { gte: thisMonthStart }, ...orgFilter } }),
       this.prisma.operation.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd }, ...orgFilter } }),
@@ -94,18 +105,15 @@ export class StatsService {
     const operationsTrend = getPercentageChange(thisMonthOpsCount, lastMonthOpsCount);
     const assignmentsTrend = getPercentageChange(thisMonthAssignmentsCount, lastMonthAssignmentsCount);
 
-    const lowStockCount = inventories.filter(
-      (i) => i.quantity <= i.minLevel,
-    ).length;
-
-    const totalInventoryValue = inventories.reduce(
-      (sum, i) => sum + Number(i.quantity) * Number(i.unitPrice ?? 0),
-      0,
-    );
+    const lowStockCount = Number(inventoryStats[0]?.low_stock_count ?? 0);
+    const totalInventoryValue = Number(inventoryStats[0]?.total_value ?? 0);
 
     const totalAssignedValue = Number(assignedAssetsSum[0]?.total ?? 0);
     const totalWriteOffCount = Number(writeOffStats[0]?.count ?? 0);
     const totalWriteOffLoss = Number(writeOffStats[0]?.total_loss ?? 0);
+
+    const assetProductsCount = productTypeCounts.find((p) => p.productType === 'BERILADIGAN')?._count.id ?? 0;
+    const consumableProductsCount = productTypeCounts.find((p) => p.productType === 'SARFLANADIGAN')?._count.id ?? 0;
 
     return {
       totalProducts,
@@ -119,6 +127,10 @@ export class StatsService {
       totalAssignedValue,
       totalWriteOffCount,
       totalWriteOffLoss,
+      productTypeDistribution: {
+        assetCount: assetProductsCount,
+        consumableCount: consumableProductsCount,
+      },
       trends: {
         products: productsTrend,
         operations: operationsTrend,
@@ -166,17 +178,32 @@ export class StatsService {
       }
     }
 
-    return departments.map((dept) => ({
-      id: dept.id,
-      name: dept.name,
-      userCount: dept._count.users,
-      totalAssetValue: valueMap.get(dept.id) || 0,
-      assets: dept.departmentAssets.map((da) => ({
-        productName: da.product.name,
-        productType: da.product.productType,
-        quantity: da.quantity,
-      })),
-    }));
+    return departments.map((dept) => {
+      let assetCount = 0;
+      let consumableCount = 0;
+      for (const da of dept.departmentAssets) {
+        if (da.product?.productType === 'BERILADIGAN') {
+          assetCount += Number(da.quantity ?? 0);
+        } else if (da.product?.productType === 'SARFLANADIGAN') {
+          consumableCount += Number(da.quantity ?? 0);
+        }
+      }
+
+      return {
+        id: dept.id,
+        name: dept.name,
+        userCount: dept._count.users,
+        totalAssetValue: valueMap.get(dept.id) || 0,
+        assetCount,
+        consumableCount,
+        sharedCount: 0,
+        assets: dept.departmentAssets.map((da) => ({
+          productName: da.product?.name || 'Jihoz',
+          productType: da.product?.productType || 'BERILADIGAN',
+          quantity: da.quantity,
+        })),
+      };
+    });
   }
 
   async getByProduct(organizationId?: string) {
@@ -254,34 +281,29 @@ export class StatsService {
 
   async getMonthly(organizationId?: string) {
     const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
 
-    const orgFilter = organizationId ? { organizationId } : {};
+    const result = await this.prisma.$queryRaw<
+      Array<{ month: string; stock_in: bigint; stock_out: bigint }>
+    >`
+      SELECT
+        to_char(o."createdAt", 'YYYY-MM') AS month,
+        COALESCE(SUM(CASE WHEN o.type::text = 'STOCK_IN' THEN o.quantity ELSE 0 END), 0)::bigint AS stock_in,
+        COALESCE(SUM(CASE WHEN o.type::text != 'STOCK_IN' THEN o.quantity ELSE 0 END), 0)::bigint AS stock_out
+      FROM "Operation" o
+      WHERE o."createdAt" >= ${sixMonthsAgo}
+        AND (${organizationId ?? null}::text IS NULL OR o."organizationId" = ${organizationId})
+      GROUP BY to_char(o."createdAt", 'YYYY-MM')
+      ORDER BY month ASC
+    `;
 
-    const operations = await this.prisma.operation.findMany({
-      where: { createdAt: { gte: sixMonthsAgo }, ...orgFilter },
-      select: { type: true, quantity: true, createdAt: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const monthly: Record<
-      string,
-      { month: string; stockIn: number; stockOut: number }
-    > = {};
-
-    operations.forEach((op) => {
-      const month = op.createdAt.toISOString().slice(0, 7);
-      if (!monthly[month]) {
-        monthly[month] = { month, stockIn: 0, stockOut: 0 };
-      }
-      if (op.type === 'STOCK_IN') {
-        monthly[month].stockIn += op.quantity;
-      } else {
-        monthly[month].stockOut += op.quantity;
-      }
-    });
-
-    return Object.values(monthly);
+    return result.map((r) => ({
+      month: r.month,
+      stockIn: Number(r.stock_in),
+      stockOut: Number(r.stock_out),
+    }));
   }
 
   async getComparison(organizationId?: string) {
@@ -291,9 +313,9 @@ export class StatsService {
   async getByUser(organizationId?: string) {
     const orgFilter = organizationId ? { organizationId } : {};
 
-    const [users, activeAssignments] = await Promise.all([
+    const [users, userAssetStats] = await Promise.all([
       this.prisma.user.findMany({
-        where: { deletedAt: null, isActive: true, ...orgFilter },
+        where: { deletedAt: null, isActive: true, role: 'XODIM', ...orgFilter },
         select: {
           id: true,
           fullName: true,
@@ -303,61 +325,42 @@ export class StatsService {
         },
         orderBy: { fullName: 'asc' },
       }),
-      this.prisma.assignment.findMany({
-        where: {
-          returnedAt: null,
-          asset: { deletedAt: null, ...orgFilter },
-          userId: { not: null },
-        },
-        select: {
-          userId: true,
-          assignedAt: true,
-          asset: {
-            select: {
-              id: true,
-              inventoryNumber: true,
-              status: true,
-              purchasePrice: true,
-              product: {
-                select: { id: true, name: true, productType: true },
-              },
-            },
-          },
-        },
-      }),
+      this.prisma.$queryRaw<Array<{ user_id: string; asset_count: bigint; total_value: number }>>`
+        SELECT
+          asgn."userId" AS user_id,
+          COUNT(asgn.id)::bigint AS asset_count,
+          COALESCE(SUM(a."purchasePrice"), 0)::float AS total_value
+        FROM "Assignment" asgn
+        JOIN "Asset" a ON asgn."assetId" = a.id
+        WHERE asgn."returnedAt" IS NULL
+          AND asgn."userId" IS NOT NULL
+          AND a."deletedAt" IS NULL
+          AND (${organizationId ?? null}::text IS NULL OR a."organizationId" = ${organizationId})
+        GROUP BY asgn."userId"
+      `,
     ]);
 
-    const assignmentsByUser = new Map<string, any[]>();
-    for (const asgn of activeAssignments) {
-      if (!asgn.userId) continue;
-      const list = assignmentsByUser.get(asgn.userId) || [];
-      list.push({
-        assetId: asgn.asset.id,
-        inventoryNumber: asgn.asset.inventoryNumber,
-        status: asgn.asset.status,
-        productName: asgn.asset.product?.name || 'Jihoz',
-        purchasePrice: asgn.asset.purchasePrice ?? 0,
-        assignedAt: asgn.assignedAt,
-      });
-      assignmentsByUser.set(asgn.userId, list);
+    const statsMap = new Map<string, { count: number; value: number }>();
+    for (const row of userAssetStats) {
+      if (row.user_id) {
+        statsMap.set(row.user_id, {
+          count: Number(row.asset_count),
+          value: Number(row.total_value),
+        });
+      }
     }
 
     return users.map((user) => {
-      const assets = assignmentsByUser.get(user.id) || [];
-      const totalValue = assets.reduce(
-        (sum, a) => sum + Number(a.purchasePrice),
-        0,
-      );
-
+      const stats = statsMap.get(user.id);
       return {
         id: user.id,
         fullName: user.fullName,
         username: user.username,
         position: user.position,
         department: user.department,
-        assetCount: assets.length,
-        totalValue,
-        assets,
+        assetCount: stats?.count ?? 0,
+        totalValue: stats?.value ?? 0,
+        assets: [],
       };
     });
   }

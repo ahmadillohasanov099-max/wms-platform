@@ -6,6 +6,7 @@ import { User, Package, Lock, Layers } from 'lucide-react';
 import { usersApi } from '../../api';
 import { PageLoader } from '../../components/ui/spinner';
 import { useAuthStore } from '../../store/auth.store';
+import { useTranslation } from '../../hooks/useTranslation';
 
 import ProfileHeaderBanner from './components/profile-header-banner';
 import ProfileStatsCards from './components/profile-stats-cards';
@@ -16,6 +17,7 @@ import ProfileRequestModal from './components/profile-request-modal';
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'info';
 
@@ -62,16 +64,19 @@ export default function ProfilePage() {
       localStorage.setItem(`user_requested_assets_${user?.id}`, JSON.stringify(updated));
     } catch {}
 
-    const typeText = requestType === 'RETURN' ? "Omborga qaytarish" : "Ta'mirlash";
-    toast.success(`"${requestModalAsset?.asset?.product?.name || 'Jihoz'}" bo'yicha ${typeText} so'rovi omborchiga yuborildi!`);
+    const typeText = requestType === 'RETURN' ? t('profile.returnType') : t('profile.repairType');
+    toast.success(t('profile.toastRequestSuccess', {
+      name: requestModalAsset?.asset?.product?.name || t('profile.asset'),
+      type: typeText,
+    }));
     setRequestModalAsset(null);
   };
 
   const tabsList = [
-    { key: 'info', label: "Shaxsiy ma'lumotlar", icon: <User className="w-4 h-4" /> },
-    { key: 'assets', label: "Mening jihozlarim", icon: <Package className="w-4 h-4" /> },
-    { key: 'security', label: "Parolni almashtirish", icon: <Lock className="w-4 h-4" /> },
-    { key: 'all', label: "Barchasini ko'rish", icon: <Layers className="w-4 h-4" /> },
+    { key: 'info', label: t('menu.profileInfo'), icon: <User className="w-4 h-4" /> },
+    { key: 'assets', label: t('menu.profileAssets'), icon: <Package className="w-4 h-4" /> },
+    { key: 'security', label: t('menu.profileSecurity'), icon: <Lock className="w-4 h-4" /> },
+    { key: 'all', label: t('common.viewAll'), icon: <Layers className="w-4 h-4" /> },
   ];
 
   return (

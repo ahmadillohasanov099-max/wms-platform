@@ -134,7 +134,7 @@ async function main() {
   });
 
   // 3.4. Vazirlik Omborchisi (VAZIRLIK_OMBORCHI)
-  await prisma.user.create({
+  const vazirlikOmborchiUser = await prisma.user.create({
     data: {
       fullName: 'Sardor Vohidov',
       username: 'vazirlik_omborchi',
@@ -147,22 +147,7 @@ async function main() {
     },
   });
 
-
-  // 3.6. Asosiy Omborchi (OMBORCHI)
-  const omborchiUser = await prisma.user.create({
-    data: {
-      fullName: 'Bobur Omborchiyev',
-      username: 'omborchi',
-      passwordHash: testPasswordHash,
-      role: UserRole.OMBORCHI,
-      position: 'Markaziy ombor mudiri',
-      organizationId: ministry.id,
-      phone: '+998905555555',
-      isActive: true,
-    },
-  });
-
-  // 3.7. Kadrlar bo'limi (KADR)
+  // 3.6. Kadrlar bo'limi (KADR)
   await prisma.user.create({
     data: {
       fullName: 'Dilnoza Kadrlarova',
@@ -355,7 +340,7 @@ async function main() {
       quantity: 5,
       productId: pPaper.id,
       userId: xodimUser.id,
-      performedById: omborchiUser.id,
+      performedById: vazirlikOmborchiUser.id,
       organizationId: ministry.id,
       documentNumber: 'TLB-2026-0001',
       documentDate: new Date(),
@@ -372,9 +357,8 @@ async function main() {
   console.log('  3. VAZIRLIK_OMBORCHI: vazirlik_omborchi');
   console.log('  4. ORG_ADMIN:         org_admin');
   console.log('  5. ORG_OMBORCHI:      org_omborchi');
-  console.log('  6. OMBORCHI:          omborchi');
-  console.log('  7. KADR:              kadr');
-  console.log('  8. XODIM:             xodim');
+  console.log('  6. KADR:              kadr');
+  console.log('  7. XODIM:             xodim');
   console.log('====================================================');
 }
 

@@ -10,14 +10,13 @@ datasource db {
 // ─── ENUMLAR ───────────────────────────────────────────
 
 enum UserRole {
-  SUPER_ADMIN      // Vazirlik Admini (Barcha tashkilotlarni nazorat qiladi)
-  RAHBAR           // Vazirlik Rahbariyati (Vazir o'rinbosari, Yordamchi - faqat kuzatuv va tahlil)
-  VAZIRLIK_OMBORCHI// Vazirlik Omborchisi (Vazirlik omborini yuritadi, so'rovlarni tasdiqlaydi)
-  ORG_ADMIN        // Quyi tashkilot admini
-  ORG_OMBORCHI     // Quyi tashkilot omborchisi
-  OMBORCHI         // Mavjud Omborchi roli
-  KADR             // Kadrlar bo'limi
-  XODIM            // Oddiy xodim
+  SUPER_ADMIN
+  RAHBAR           
+  VAZIRLIK_OMBORCHI
+  ORG_ADMIN   
+  ORG_OMBORCHI
+  KADR     
+  XODIM
 }
 
 enum OrganizationType {

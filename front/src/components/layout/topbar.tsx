@@ -71,7 +71,7 @@ export default function Topbar({}: TopbarProps) {
   const canManageRequests =
     !isRahbar &&
     (isMinistry ||
-      ['OMBORCHI', 'ORG_OMBORCHI', 'ORG_ADMIN', 'SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'].includes(
+      ['ORG_OMBORCHI', 'ORG_ADMIN', 'SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'].includes(
         user?.role || ''
       ));
 
@@ -301,7 +301,7 @@ export default function Topbar({}: TopbarProps) {
   const acceptAssignmentMutation = useMutation({
     mutationFn: (id: string) => operationsApi.acceptAssignment(id),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Jihoz qabul qilindi!");
+      toast.success(res?.message || t('topbar.assetAccepted'));
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['topbar-department-detail'] });
@@ -311,7 +311,7 @@ export default function Topbar({}: TopbarProps) {
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
@@ -319,7 +319,7 @@ export default function Topbar({}: TopbarProps) {
     mutationFn: ({ assignmentId, reason }: { assignmentId: string; reason: string }) =>
       operationsApi.rejectAssignment(assignmentId, { reason }),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Jihoz rad etildi va omborga qaytarildi");
+      toast.success(res?.message || t('topbar.assetRejected'));
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['topbar-department-detail'] });
@@ -331,21 +331,21 @@ export default function Topbar({}: TopbarProps) {
       setRejectingAssignment(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
   const approveRequestMutation = useMutation({
     mutationFn: (id: string) => deletionRequestsApi.approve(id),
     onSuccess: () => {
-      toast.success("So'rov qabul qilindi!");
+      toast.success(t('topbar.requestApprovedToast'));
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Xatolik yuz berdi");
+      toast.error(err?.message || t('common.error'));
     },
   });
 
@@ -353,13 +353,13 @@ export default function Topbar({}: TopbarProps) {
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       deletionRequestsApi.reject(id, { rejectionReason: reason }),
     onSuccess: () => {
-      toast.success("So'rov rad etildi!");
+      toast.success(t('topbar.requestRejectedToast'));
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       setRejectingRequest(null);
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Xatolik yuz berdi");
+      toast.error(err?.message || t('common.error'));
     },
   });
 
@@ -382,7 +382,7 @@ export default function Topbar({}: TopbarProps) {
       localStorage.setItem('read_request_notif_ids', JSON.stringify(updated));
       return updated;
     });
-    toast.success("Barcha kam qolgan tovarlar bildirishnomasi o'qildi deb belgilandi");
+    toast.success(t('topbar.allLowStockMarkedRead'));
   };
 
   // Unread rejected assignments for Admin / Omborchi (strictly in their organization)
@@ -563,16 +563,16 @@ export default function Topbar({}: TopbarProps) {
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Bildirishnomalar
+                    {t('topbar.notifications')}
                   </h4>
                 </div>
                 <div className="flex items-center gap-2">
                   {totalNotificationBadge > 0 ? (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
-                      {totalNotificationBadge} ta yangi
+                      {t('topbar.newNotificationsCount', { count: totalNotificationBadge })}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-gray-400">Yangi xabar yo'q</span>
+                    <span className="text-[10px] text-gray-400">{t('topbar.noNewMessages')}</span>
                   )}
                   {canManageRequests && unreadLowStockList.length > 0 && (
                     <button
@@ -979,7 +979,7 @@ export default function Topbar({}: TopbarProps) {
                   <div className="py-8 text-center text-xs text-gray-400 flex flex-col items-center gap-2">
                     <CheckCircle2 className="w-7 h-7 text-emerald-500 stroke-1" />
                     <span className="font-medium text-gray-600 dark:text-gray-300">
-                      Hozircha yangi bildirishnomalar yo'q
+                      {t('topbar.noNotifications')}
                     </span>
                   </div>
                 )}
@@ -994,7 +994,7 @@ export default function Topbar({}: TopbarProps) {
                   }}
                   className="w-full py-1.5 px-3 rounded-lg text-teal-600 hover:text-teal-700 dark:text-teal-400 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>Barcha so'rov va bildirishnomalar</span>
+                  <span>{t('topbar.allRequestsAndNotifications')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

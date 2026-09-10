@@ -23,7 +23,7 @@ export default function ProfileActivityTable({ history, isLoading }: Props) {
               <span className="font-bold">{t('profile.recentActivity')}</span>
             </div>
             <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 font-extrabold border border-teal-200 dark:border-teal-900/50">
-              {history.length} ta yozuv
+              {t('profile.recordsCount', { count: history.length })}
             </span>
           </div>
         }

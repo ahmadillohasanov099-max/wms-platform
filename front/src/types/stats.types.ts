@@ -8,13 +8,23 @@ export interface StatsOverview {
   activeAssignments: number;
   totalInventoryValue: number;
   totalAssignedValue: number;
+  totalWriteOffCount?: number;
+  totalWriteOffLoss?: number;
+  productTypeDistribution?: {
+    assetCount: number;
+    consumableCount: number;
+  };
   trends?: any;
 }
 export interface StatsByDepartment {
   id: string;
   name: string;
   userCount: number;
-  assets: {
+  totalAssetValue?: number;
+  assetCount?: number;
+  consumableCount?: number;
+  sharedCount?: number;
+  assets?: {
     productName: string;
     productType: string;
     quantity: number;

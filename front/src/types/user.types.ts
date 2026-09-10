@@ -6,8 +6,7 @@ export type UserRole =
   | 'ORG_ADMIN' 
   | 'ORG_OMBORCHI' 
   | 'KADR' 
-  | 'XODIM'
-  | 'OMBORCHI';
+  | 'XODIM';
 export type EmploymentStatus = 'ACTIVE' | 'OFFBOARDING_PENDING' | 'OFFBOARDED';
 export interface User {
   id: string;

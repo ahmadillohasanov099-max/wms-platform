@@ -41,7 +41,7 @@ export default function UserDetailSubView({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user: loggedInUser } = useAuthStore();
-  const isStaff = loggedInUser?.role === 'ORG_ADMIN' || loggedInUser?.role === 'OMBORCHI' || loggedInUser?.role === 'ORG_OMBORCHI' || loggedInUser?.role === 'SUPER_ADMIN' || loggedInUser?.role === 'VAZIRLIK_OMBORCHI';
+  const isStaff = loggedInUser?.role === 'ORG_ADMIN' || loggedInUser?.role === 'ORG_OMBORCHI' || loggedInUser?.role === 'SUPER_ADMIN' || loggedInUser?.role === 'VAZIRLIK_OMBORCHI';
   const passportVal = selectedUser?.passport || selectedUser?.passportSeries || '';
   const pinflVal = selectedUser?.pinfl || '';
   const addressVal = selectedUser?.address || '';

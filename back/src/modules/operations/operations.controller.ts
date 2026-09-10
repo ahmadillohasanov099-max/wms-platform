@@ -23,7 +23,6 @@ const WAREHOUSE_MUTATORS = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
 ];
 
 const ALL_ROLES = [
@@ -32,7 +31,6 @@ const ALL_ROLES = [
   UserRole.VAZIRLIK_OMBORCHI,
   UserRole.ORG_ADMIN,
   UserRole.ORG_OMBORCHI,
-  UserRole.OMBORCHI,
   UserRole.KADR,
   UserRole.XODIM,
 ];

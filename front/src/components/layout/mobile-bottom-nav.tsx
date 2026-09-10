@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   User,
+  Building2,
   Package,
   Lock,
   LayoutDashboard,
@@ -23,6 +24,7 @@ export default function MobileBottomNav() {
 
   const xodimItems = [
     { path: '/profile/info', label: t('menu.profileInfo'), icon: <User className="w-5 h-5" /> },
+    { path: '/profile/department', label: t('menu.myDepartment'), icon: <Building2 className="w-5 h-5" /> },
     { path: '/profile/assets', label: t('menu.profileAssets'), icon: <Package className="w-5 h-5" /> },
     { path: '/profile/security', label: t('menu.profileSecurity'), icon: <Lock className="w-5 h-5" /> },
   ];

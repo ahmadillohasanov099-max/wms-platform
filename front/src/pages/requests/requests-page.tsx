@@ -23,7 +23,6 @@ export default function RequestsPage() {
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
     user?.role === 'VAZIRLIK_OMBORCHI' ||
-    user?.role === 'OMBORCHI' ||
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'ORG_OMBORCHI';
 
@@ -107,7 +106,7 @@ export default function RequestsPage() {
       } else {
         await requestsApi.approve(id);
       }
-      toast.success("Muvaffaqiyatli qabul qilindi!");
+      toast.success(t('requests.approveSuccess'));
       refetch();
     } catch (error: any) {
       toast.error(error?.message || t('common.error'));
@@ -125,7 +124,7 @@ export default function RequestsPage() {
       } else {
         await requestsApi.reject(rejectingId, { rejectionReason, reviewComment: rejectionReason });
       }
-      toast.success("So'rov rad etildi!");
+      toast.success(t('requests.rejectSuccess'));
       setRejectingId(null);
       refetch();
     } catch (error: any) {
@@ -139,21 +138,21 @@ export default function RequestsPage() {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
             <Clock className="w-3.5 h-3.5" />
-            Kutilmoqda
+            {t('requests.pendingBadge')}
           </span>
         );
       case 'APPROVED':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Tasdiqlangan
+            {t('requests.approvedBadge')}
           </span>
         );
       case 'REJECTED':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-500 border border-rose-500/20">
             <XCircle className="w-3.5 h-3.5" />
-            Rad etilgan
+            {t('requests.rejectedBadge')}
           </span>
         );
       default:
@@ -164,13 +163,13 @@ export default function RequestsPage() {
   const getEntityTypeLabel = (type: string) => {
     switch (type) {
       case 'ASSET':
-        return 'Jihoz (Asosiy vosita)';
+        return t('requests.entityAsset');
       case 'PRODUCT':
-        return 'Mahsulot (TMZ)';
+        return t('requests.entityProduct');
       case 'USER':
-        return 'Xodim profili';
+        return t('requests.entityUser');
       case 'DEPARTMENT':
-        return 'Bo‘lim';
+        return t('requests.entityDept');
       default:
         return type;
     }
@@ -179,20 +178,20 @@ export default function RequestsPage() {
   const columns: Column<RequestItem>[] = [
     {
       key: 'entity',
-      title: 'Obyekt / Jihoz',
+      title: t('requests.colEntity'),
       render: (_: any, row: RequestItem) => (
         <div>
           <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
             <span>{row.entityName || row.entityTitle || `ID: ${row.entityId.slice(0, 8)}...`}</span>
             {row.requestType === 'ASSIGNMENT' && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                Biriktirish
+                {t('requests.assignmentBadge')}
               </span>
             )}
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400">
             {row.requestType === 'ASSIGNMENT'
-              ? row.recipientName || 'Jihoz biriktirish'
+              ? row.recipientName || t('requests.assignmentDefault')
               : getEntityTypeLabel(row.entityType)}
           </div>
         </div>
@@ -200,7 +199,7 @@ export default function RequestsPage() {
     },
     {
       key: 'reason',
-      title: "So'rov sababi",
+      title: t('requests.colReason'),
       render: (_: any, row: RequestItem) => (
         <div className="max-w-xs text-sm text-slate-700 dark:text-slate-300">
           <p className="line-clamp-2">{row.reason || '—'}</p>
@@ -209,11 +208,11 @@ export default function RequestsPage() {
     },
     {
       key: 'requestedBy',
-      title: 'Yuboruvchi',
+      title: t('requests.colSender'),
       render: (_: any, row: RequestItem) => (
         <div>
           <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-            {row.requestedBy?.fullName || row.requestedBy?.username || "Noma'lum"}
+            {row.requestedBy?.fullName || row.requestedBy?.username || t('requests.unknown')}
           </div>
           <div className="text-xs text-slate-500">
             {formatDate(row.createdAt)}
@@ -223,18 +222,18 @@ export default function RequestsPage() {
     },
     {
       key: 'status',
-      title: 'Holati',
+      title: t('requests.colStatus'),
       render: (_: any, row: RequestItem) => getStatusBadge(row.status),
     },
     {
       key: 'reviewComment',
-      title: 'Izoh / Javob',
+      title: t('requests.colComment'),
       render: (_: any, row: RequestItem) => {
         const comment = row.reviewComment || row.rejectionReason;
         if (!comment) return <span className="text-xs text-slate-400">—</span>;
         return (
           <div className="text-xs text-slate-600 dark:text-slate-400 max-w-xs">
-            <span className="font-medium">{row.reviewedBy?.fullName || "Mas'ul"}: </span>
+            <span className="font-medium">{row.reviewedBy?.fullName || t('requests.responsible')}: </span>
             {comment}
           </div>
         );
@@ -242,10 +241,10 @@ export default function RequestsPage() {
     },
     {
       key: 'actions',
-      title: 'Amallar',
+      title: t('requests.colActions'),
       render: (_: any, row: RequestItem) => {
         if (row.status !== 'PENDING') {
-          return <span className="text-xs text-slate-400 font-medium">Ko‘rib chiqilgan</span>;
+          return <span className="text-xs text-slate-400 font-medium">{t('requests.reviewed')}</span>;
         }
 
         const isLoadingThis = actionLoading === row.id;
@@ -268,11 +267,11 @@ export default function RequestsPage() {
                   disabled={Boolean(actionLoading)}
                 >
                   {isLoadingThis ? (
-                    <span className="text-xs">Yuklanmoqda...</span>
+                    <span className="text-xs">{t('common.loading')}</span>
                   ) : (
                     <span className="flex items-center">
                       <Check className="w-3.5 h-3.5 mr-1" />
-                      Qabul qilish
+                      {t('requests.accept')}
                     </span>
                   )}
                 </Button>
@@ -284,7 +283,7 @@ export default function RequestsPage() {
                   disabled={Boolean(actionLoading)}
                 >
                   <X className="w-3.5 h-3.5 mr-1" />
-                  Rad etish
+                  {t('requests.reject')}
                 </Button>
               </div>
             );
@@ -294,7 +293,7 @@ export default function RequestsPage() {
           // NEVER sees Qabul/Rad buttons! Only shows waiting indicator
           return (
             <span className="text-xs text-amber-600 dark:text-amber-400 font-medium italic">
-              {row.recipientDeptId ? "Bo'lim tasdiqlashi kutilmoqda" : "Xodim tasdiqlashi kutilmoqda"}
+              {row.recipientDeptId ? t('requests.waitingDeptConfirm') : t('requests.waitingUserConfirm')}
             </span>
           );
         }
@@ -303,7 +302,7 @@ export default function RequestsPage() {
         if (row.requestedById === user?.id) {
           return (
             <span className="text-xs text-amber-600 dark:text-amber-400 italic">
-              Tasdiqlanishi kutilmoqda
+              {t('requests.waitingConfirm')}
             </span>
           );
         }
@@ -323,11 +322,11 @@ export default function RequestsPage() {
                 disabled={Boolean(actionLoading)}
               >
                 {isLoadingThis ? (
-                  <span className="text-xs">Yuklanmoqda...</span>
+                  <span className="text-xs">{t('common.loading')}</span>
                 ) : (
                   <span className="flex items-center">
                     <Check className="w-3.5 h-3.5 mr-1" />
-                    Qabul qilish
+                    {t('requests.accept')}
                   </span>
                 )}
               </Button>
@@ -339,7 +338,7 @@ export default function RequestsPage() {
                 disabled={Boolean(actionLoading)}
               >
                 <X className="w-3.5 h-3.5 mr-1" />
-                Rad etish
+                {t('requests.reject')}
               </Button>
             </div>
           );
@@ -348,7 +347,7 @@ export default function RequestsPage() {
         if (canManage && !isMinistry) {
           return (
             <span className="text-xs text-slate-400 italic">
-              Vazirlik tasdiqlashi kutilmoqda
+              {t('requests.waitingMinistryConfirm')}
             </span>
           );
         }
@@ -361,32 +360,32 @@ export default function RequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="So'rovlar va Bildirishnomalar"
-        subtitle="Jihozlarni omborga qaytarish, hisobdan chiqarish va xodimlar murojaatlari markazi"
+        title={t('requests.title')}
+        subtitle={t('requests.subtitle')}
       />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card className="p-4 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800">
-          <div className="text-xs text-slate-500 dark:text-slate-400">Jami so‘rovlar</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{t('requests.totalRequests')}</div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
             {stats.total}
           </div>
         </Card>
         <Card className="p-4 bg-amber-500/5 border-amber-500/20">
-          <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Kutilayotganlar</div>
+          <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">{t('requests.pending')}</div>
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
             {stats.pending}
           </div>
         </Card>
         <Card className="p-4 bg-emerald-500/5 border-emerald-500/20">
-          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tasdiqlanganlar</div>
+          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('requests.approved')}</div>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
             {stats.approved}
           </div>
         </Card>
         <Card className="p-4 bg-rose-500/5 border-rose-500/20">
-          <div className="text-xs text-rose-600 dark:text-rose-400 font-medium">Rad etilganlar</div>
+          <div className="text-xs text-rose-600 dark:text-rose-400 font-medium">{t('requests.rejected')}</div>
           <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">
             {stats.rejected}
           </div>
@@ -405,7 +404,7 @@ export default function RequestsPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              Hammasi ({stats.total})
+              {t('requests.all')} ({stats.total})
             </button>
             <button
               onClick={() => setSelectedStatus('PENDING')}
@@ -415,7 +414,7 @@ export default function RequestsPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              Kutilayotgan ({stats.pending})
+              {t('requests.pendingBadge')} ({stats.pending})
             </button>
             <button
               onClick={() => setSelectedStatus('APPROVED')}
@@ -425,7 +424,7 @@ export default function RequestsPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              Tasdiqlangan ({stats.approved})
+              {t('requests.approvedBadge')} ({stats.approved})
             </button>
             <button
               onClick={() => setSelectedStatus('REJECTED')}
@@ -435,7 +434,7 @@ export default function RequestsPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              Rad etilgan ({stats.rejected})
+              {t('requests.rejectedBadge')} ({stats.rejected})
             </button>
           </div>
 
@@ -443,7 +442,7 @@ export default function RequestsPage() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Qidiruv..."
+              placeholder={t('requests.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -459,7 +458,7 @@ export default function RequestsPage() {
           columns={columns}
           loading={isLoading}
           rowKey={(item: RequestItem) => item.id}
-          emptyTitle="Hech qanday so‘rov topilmadi"
+          emptyTitle={t('requests.emptyTitle')}
         />
       </Card>
 

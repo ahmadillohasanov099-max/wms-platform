@@ -4,6 +4,7 @@ import Modal from '../../../components/ui/modal';
 import Button from '../../../components/ui/button';
 import { RotateCcw, Wrench, CheckCircle2 } from 'lucide-react';
 import { requestsApi } from '../../../api';
+import { useTranslation } from '../../../hooks/useTranslation';
 
 interface Props {
   assetItem: any | null;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function ProfileRequestModal({ assetItem, onClose, onSubmitSuccess }: Props) {
+  const { t } = useTranslation();
   const [requestType, setRequestType] = useState<'RETURN' | 'REPAIR'>('RETURN');
   const [requestReason, setRequestReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,13 +22,13 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
 
   const handleSend = async () => {
     if (!requestReason.trim()) {
-      toast.error("Iltimos, so'rov sababi yoki izohini yozing!");
+      toast.error(t('profile.reasonEmptyError'));
       return;
     }
 
     setLoading(true);
     try {
-      const typePrefix = requestType === 'RETURN' ? "Qaytarish: " : "Ta'mirlash: ";
+      const typePrefix = requestType === 'RETURN' ? t('profile.returnPrefix') : t('profile.repairPrefix');
       
       await requestsApi.create({
         entityType: 'ASSET',
@@ -36,11 +38,11 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
 
       onSubmitSuccess(assetItem.asset?.id, requestType, requestReason);
       setRequestReason('');
-      toast.success("So'rov Omborchiga muvaffaqiyatli yuborildi");
+      toast.success(t('profile.requestSentSuccess'));
       onClose();
     } catch (err: any) {
       const msg = err?.response?.data?.message;
-      toast.error(Array.isArray(msg) ? msg.join(', ') : msg || err?.message || "So'rovni yuborishda xatolik yuz berdi");
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg || err?.message || t('profile.requestSentError'));
     } finally {
       setLoading(false);
     }
@@ -50,29 +52,29 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
     <Modal
       open={!!assetItem}
       onClose={onClose}
-      title="🛠️ Jihozni qaytarish yoki ta'mirlash so'rovi"
-      subtitle="Omborchiga jihoz bo'yicha bildirishnoma va so'rov yuborish"
+      title={t('profile.requestModalTitle')}
+      subtitle={t('profile.requestModalSubtitle')}
       size="md"
       footer={
         <div className="flex justify-end gap-2 w-full">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Bekor qilish</Button>
+          <Button variant="outline" onClick={onClose} disabled={loading}>{t('common.cancel')}</Button>
           <Button onClick={handleSend} loading={loading} className="bg-amber-600 hover:bg-amber-700 text-white font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" /> So'rovni Omborchiga Yuborish
+            <CheckCircle2 className="w-4 h-4" /> {t('profile.sendToWarehouse')}
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
         <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1">
-          <p className="text-3xs font-extrabold uppercase text-amber-700 dark:text-amber-400">Tanlangan jihoz</p>
+          <p className="text-3xs font-extrabold uppercase text-amber-700 dark:text-amber-400">{t('profile.selectedAsset')}</p>
           <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-gray-900 dark:text-white">{assetItem?.asset?.product?.name || 'Jihoz'}</span>
+            <span className="font-bold text-gray-900 dark:text-white">{assetItem?.asset?.product?.name || t('profile.asset')}</span>
             <span className="font-mono font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded">Inv: {assetItem?.asset?.inventoryNumber}</span>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-700 dark:text-gray-300">So'rov turi:</label>
+          <label className="text-xs font-bold text-gray-700 dark:text-gray-300">{t('profile.requestType')}</label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -84,7 +86,7 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
               }`}
             >
               <RotateCcw className="w-4 h-4 text-amber-600" />
-              <span>🔄 Omborga qaytarish</span>
+              <span>{t('profile.typeReturn')}</span>
             </button>
 
             <button
@@ -97,19 +99,19 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
               }`}
             >
               <Wrench className="w-4 h-4 text-amber-600" />
-              <span>🛠️ Ta'mirlash</span>
+              <span>{t('profile.typeRepair')}</span>
             </button>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-700 dark:text-gray-300">So'rov sababi yoki izoh kiritishingiz shart:</label>
+          <label className="text-xs font-bold text-gray-700 dark:text-gray-300">{t('profile.reasonRequired')}</label>
           <textarea
             rows={3}
             placeholder={
               requestType === 'RETURN'
-                ? "Masalan: Jihozdan foydalanilmayapti, omborga qaytarmoqchiman..."
-                : "Masalan: Texnikaning displeyida nosozlik bor, ta'mirlash kerak..."
+                ? t('profile.reasonPlaceholderReturn')
+                : t('profile.reasonPlaceholderRepair')
             }
             value={requestReason}
             onChange={(e) => setRequestReason(e.target.value)}

@@ -312,6 +312,17 @@ export default function HistoryPage() {
     }
   }
 
+  const formatUnit = (unit?: string) => {
+    if (!unit) return t('common.pcs');
+    const u = unit.toUpperCase();
+    if (u === 'DONA' || u === 'TA' || u === 'PIECE') return t('common.pcs');
+    if (u === 'PACHKA' || u === 'PACK') return t('common.units.PACK');
+    if (u === 'KOMPLEKT') return t('common.units.KOMPLEKT');
+    if (u === 'KG') return t('common.units.KG');
+    if (u === 'LITER' || u === 'LITR') return t('common.units.LITER');
+    return unit;
+  };
+
   const columns = [
     {
       key: 'createdAt',
@@ -366,7 +377,7 @@ export default function HistoryPage() {
           <div className="space-y-1 py-0.5">
             {items.map((gi: any, idx: number) => (
               <p key={gi.id || idx} className="text-xs font-extrabold text-gray-700 dark:text-gray-300">
-                {gi.quantity ?? 1} {gi.product?.unit || 'dona'}
+                {gi.quantity ?? 1} {formatUnit(gi.product?.unit)}
               </p>
             ))}
           </div>
@@ -433,7 +444,7 @@ export default function HistoryPage() {
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-bold text-xs transition-colors border border-blue-200/80 dark:border-blue-800 shadow-2xs"
             >
               <Printer className="w-3.5 h-3.5" />
-              Talabnoma
+              {t('history.talabnoma')}
             </button>
           );
         }
@@ -445,7 +456,7 @@ export default function HistoryPage() {
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-bold text-xs transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-2xs"
             >
               <Printer className="w-3.5 h-3.5" />
-              Shartnoma
+              {t('history.contract')}
             </button>
           );
         }
@@ -457,7 +468,7 @@ export default function HistoryPage() {
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-bold text-xs transition-colors border border-purple-200/80 dark:border-purple-800 shadow-2xs"
             >
               <Printer className="w-3.5 h-3.5" />
-              {isKirim ? 'Kirim Dalolatnomasi' : 'Dalolatnoma'}
+              {isKirim ? t('history.stockInAct') : t('history.act')}
             </button>
           );
         }
@@ -474,7 +485,7 @@ export default function HistoryPage() {
             ) : (
               <FileText className="w-3.5 h-3.5" />
             )}
-            {isPdfLoading ? "Yuklanmoqda..." : t('history.pdfBtn')}
+            {isPdfLoading ? t('common.loading') : t('history.pdfBtn')}
           </button>
         );
       },
