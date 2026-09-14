@@ -103,10 +103,28 @@ export default function RequestsPage() {
     try {
       if (isAssignment) {
         await operationsApi.acceptAssignment(id);
+        toast.success("Jihoz qabul qilindi");
       } else {
+        const target = rawListAll.find((x) => x.id === id);
+        const normReason = String(target?.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+        const isRepair =
+          target?.requestType === 'REPAIR' ||
+          normReason.includes('tamirlash') ||
+          normReason.includes('servis') ||
+          normReason.includes('remont') ||
+          normReason.includes('nosoz');
+        const isReturn = target?.requestType === 'RETURN' || normReason.includes('qaytarish');
+
         await requestsApi.approve(id);
+
+        if (isRepair) {
+          toast.success("🛠️ Ta'mirlash so'rovi qabul qilindi. Jihoz ta'mirlashda holatiga o'tkazildi!");
+        } else if (isReturn) {
+          toast.success("📦 Qaytarish so'rovi qabul qilindi. Jihoz omborga qabul qilindi!");
+        } else {
+          toast.success(t('requests.approveSuccess'));
+        }
       }
-      toast.success(t('requests.approveSuccess'));
       refetch();
     } catch (error: any) {
       toast.error(error?.message || t('common.error'));
@@ -179,23 +197,46 @@ export default function RequestsPage() {
     {
       key: 'entity',
       title: t('requests.colEntity'),
-      render: (_: any, row: RequestItem) => (
-        <div>
-          <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-            <span>{row.entityName || row.entityTitle || `ID: ${row.entityId.slice(0, 8)}...`}</span>
-            {row.requestType === 'ASSIGNMENT' && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                {t('requests.assignmentBadge')}
-              </span>
-            )}
+      render: (_: any, row: RequestItem) => {
+        const normReason = String(row.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+        const isRepair =
+          row.requestType === 'REPAIR' ||
+          normReason.includes('tamirlash') ||
+          normReason.includes('servis') ||
+          normReason.includes('remont') ||
+          normReason.includes('nosoz');
+        const isReturn = row.requestType === 'RETURN' || normReason.includes('qaytarish');
+
+        return (
+          <div>
+            <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+              <span>{row.entityName || row.entityTitle || `ID: ${row.entityId.slice(0, 8)}...`}</span>
+              {row.requestType === 'ASSIGNMENT' ? (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  {t('requests.assignmentBadge')}
+                </span>
+              ) : isRepair ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                  🛠️ Ta'mirlash so'rovi
+                </span>
+              ) : isReturn ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                  📦 Qaytarish so'rovi
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+                  🗑️ O'chirish so'rovi
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {row.requestType === 'ASSIGNMENT'
+                ? row.recipientName || t('requests.assignmentDefault')
+                : getEntityTypeLabel(row.entityType)}
+            </div>
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            {row.requestType === 'ASSIGNMENT'
-              ? row.recipientName || t('requests.assignmentDefault')
-              : getEntityTypeLabel(row.entityType)}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'reason',

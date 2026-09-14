@@ -6,6 +6,7 @@ import Modal from "../../components/ui/modal";
 import toast from "react-hot-toast";
 import { Upload, Download, CheckCircle2, AlertCircle, Loader2, Boxes, Package, Sparkles, Users, Building2, Laptop } from "lucide-react";
 import { formatCurrency, invalidateAppQueries } from "../../lib/utils";
+import { useTranslation } from "../../hooks/useTranslation";
 import * as xlsx from "xlsx";
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function ExcelImportModal({ open, onClose }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,14 +36,14 @@ export default function ExcelImportModal({ open, onClose }: Props) {
       toast.success(
         data?.message ||
           (importType === 'MASTER'
-            ? "Barcha ma'lumotlar muvaffaqiyatli import qilindi!"
+            ? t('inventory.excelImport.masterSuccess')
             : importType === 'SARFLANADIGAN'
-            ? "TMZ Excel orqali muvaffaqiyatli kiritildi!"
-            : "Asosiy vositalar Excel orqali muvaffaqiyatli kiritildi!")
+            ? t('inventory.excelImport.consumableSuccess')
+            : t('inventory.excelImport.assetSuccess'))
       );
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Excel faylini yuklashda xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('inventory.excelImport.uploadError'));
     },
   });
 
@@ -64,7 +66,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
     if (importType === 'MASTER') {
       try {
         await inventoryApi.downloadMasterTemplate();
-        toast.success("Master Excel shablon yuklab olindi!");
+        toast.success(t('inventory.excelImport.masterTemplateDownloaded'));
       } catch {
         // Client-side fallback with XLSX
         const wb = xlsx.utils.book_new();
@@ -91,7 +93,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
         xlsx.utils.book_append_sheet(wb, ws3, "3. TMZ (Sarflanadigan)");
 
         xlsx.writeFile(wb, "Master_Barcha_Malumotlar_Shabloni.xlsx");
-        toast.success("Master Excel shablon yuklab olindi!");
+        toast.success(t('inventory.excelImport.masterTemplateDownloaded'));
       }
       return;
     }
@@ -117,7 +119,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
       const workbook = xlsx.utils.book_new();
       xlsx.utils.book_append_sheet(workbook, worksheet, "TMZ Kirim Shabloni");
       xlsx.writeFile(workbook, "tmz_kirim_shabloni.xlsx");
-      toast.success("TMZ bo'sh Excel shablon yuklab olindi!");
+      toast.success(t('inventory.excelImport.tmzTemplateDownloaded'));
     } else {
       const assetData = [
         ["Tartib raqami", "Mahsulot nomi", "Mahsulot turi", "Qabul qilingan yili", "Inventar raqami", "O'lchov birligi", "Soni", "Narxi"],
@@ -139,13 +141,13 @@ export default function ExcelImportModal({ open, onClose }: Props) {
       const workbook = xlsx.utils.book_new();
       xlsx.utils.book_append_sheet(workbook, worksheet, "Asosiy Vosita Kirim Shabloni");
       xlsx.writeFile(workbook, "asosiy_vosita_kirim_shabloni.xlsx");
-      toast.success("Asosiy vosita bo'sh Excel shablon yuklab olindi!");
+      toast.success(t('inventory.excelImport.assetsTemplateDownloaded'));
     }
   };
 
   const handleStartImport = () => {
     if (!selectedFile) {
-      toast.error("Iltimos, Excel faylni tanlang!");
+      toast.error(t('inventory.excelImport.selectFileError'));
       return;
     }
     importMutation.mutate(selectedFile);
@@ -161,7 +163,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
     <Modal
       open={open}
       onClose={handleCloseModal}
-      title="📥 Ommaviy Excel Kirim va Biriktirish"
+      title={t('inventory.excelImport.title')}
       size="lg"
     >
       <div className="space-y-4">
@@ -181,7 +183,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             }`}
           >
             <Sparkles className="w-4 h-4 text-indigo-500" />
-            <span>🌟 Master Excel (Hammasi)</span>
+            <span>{t('inventory.excelImport.tabMaster')}</span>
           </button>
 
           <button
@@ -198,7 +200,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             }`}
           >
             <Boxes className="w-4 h-4 text-primary-500" />
-            <span>Asosiy vositalar</span>
+            <span>{t('inventory.excelImport.tabAssets')}</span>
           </button>
 
           <button
@@ -215,7 +217,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             }`}
           >
             <Package className="w-4 h-4 text-emerald-500" />
-            <span>TMZ (Materiallar)</span>
+            <span>{t('inventory.excelImport.tabConsumables')}</span>
           </button>
         </div>
 
@@ -223,10 +225,10 @@ export default function ExcelImportModal({ open, onClose }: Props) {
         <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/40 p-2.5 rounded-xl border border-gray-200/80 dark:border-gray-800">
           <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
             {importType === 'MASTER'
-              ? "3 ta varaq: Xodimlar + Jihozlar (xodimi bilan) + TMZ"
+              ? t('inventory.excelImport.descMaster')
               : importType === 'SARFLANADIGAN'
-              ? "Mahsulot turi ustunida 'TMZ' ko'rsatilgan"
-              : "Mahsulot turi ustunida 'Asosiy vosita' ko'rsatilgan"}
+              ? t('inventory.excelImport.descConsumables')
+              : t('inventory.excelImport.descAssets')}
           </span>
           <button
             type="button"
@@ -234,7 +236,9 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline"
           >
             <Download className="w-3.5 h-3.5" />
-            {importType === 'MASTER' ? 'Master Shablonni yuklab olish (.xlsx)' : 'Excel shablonini yuklab olish'}
+            {importType === 'MASTER'
+              ? t('inventory.excelImport.downloadMasterTemplate')
+              : t('inventory.excelImport.downloadTemplate')}
           </button>
         </div>
 
@@ -244,11 +248,11 @@ export default function ExcelImportModal({ open, onClose }: Props) {
               <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
                 <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
-                  {result.message || "Fayl muvaffaqiyatli import qilindi!"}
+                  {result.message || t('inventory.excelImport.fileSuccess')}
                 </h3>
                 {result.documentNumber && (
                   <p className="text-xs text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">
-                    Hujjat raqami: {result.documentNumber}
+                    {t('common.documentNumber')}: {result.documentNumber}
                   </p>
                 )}
               </div>
@@ -259,43 +263,43 @@ export default function ExcelImportModal({ open, onClose }: Props) {
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-blue-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">Bo'limlar</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.departmentsCreated ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.departments')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.departmentsCreated ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <Users className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">Xodimlar</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.usersCreated ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.users')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.usersCreated ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <Laptop className="w-5 h-5 text-purple-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">Jihozlar (Asosiy vosita)</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsCreated ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.assets')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsCreated ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">Xodimlarga biriktirildi</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsAssigned ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.assignedToUsers')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsAssigned ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <Boxes className="w-5 h-5 text-amber-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">Ombordagi erkin qoldiq</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsInStock ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.freeInStock')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.assetsInStock ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 flex items-center gap-2">
                   <Package className="w-5 h-5 text-sky-600 shrink-0" />
                   <div>
-                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">TMZ Mahsulotlari</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.tmzCreated ?? 0} ta</p>
+                    <p className="text-3xs uppercase tracking-wider font-semibold text-gray-500">{t('inventory.excelImport.tmzProducts')}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{result.tmzCreated ?? 0} {t('common.pcs')}</p>
                   </div>
                 </div>
               </div>
@@ -303,23 +307,23 @@ export default function ExcelImportModal({ open, onClose }: Props) {
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800">
                   <p className="text-3xs uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-300">
-                    Turlar Soni
+                    {t('inventory.excelImport.typesCount')}
                   </p>
                   <p className="text-base font-extrabold text-emerald-900 dark:text-emerald-100 mt-0.5">
-                    {result.importedCount} ta
+                    {result.importedCount} {t('common.pcs')}
                   </p>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800">
                   <p className="text-3xs uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-300">
-                    Jami Soni
+                    {t('inventory.excelImport.totalQty')}
                   </p>
                   <p className="text-base font-extrabold text-emerald-900 dark:text-emerald-100 mt-0.5">
-                    {result.totalQtyCount} dona
+                    {result.totalQtyCount} {t('common.pcs')}
                   </p>
                 </div>
                 <div className="bg-white/80 dark:bg-emerald-900/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800">
                   <p className="text-3xs uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-300">
-                    Jami Summasi
+                    {t('inventory.excelImport.totalSum')}
                   </p>
                   <p className="text-xs font-extrabold text-emerald-900 dark:text-emerald-100 mt-0.5 font-mono">
                     {formatCurrency(result.totalSumValue)}
@@ -331,7 +335,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             {result.errors && result.errors.length > 0 && (
               <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 text-xs text-amber-800 dark:text-amber-200">
                 <p className="font-bold mb-0.5 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> Ogohlantirishlar:
+                  <AlertCircle className="w-3.5 h-3.5" /> {t('inventory.excelImport.warnings')}
                 </p>
                 <ul className="list-disc pl-4 space-y-0.5">
                   {result.errors.map((errStr: string, idx: number) => (
@@ -345,7 +349,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
           <div className="py-10 text-center space-y-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl border border-gray-200 dark:border-gray-800">
             <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto" />
             <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-              ⏳ Excel fayli tahlil qilinmoqda, iltimos kuting...
+              ⏳ {t('inventory.excelImport.analyzing')}
             </h4>
           </div>
         ) : (
@@ -371,22 +375,22 @@ export default function ExcelImportModal({ open, onClose }: Props) {
                   {selectedFile.name}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {(selectedFile.size / 1024).toFixed(1)} KB • Bosib boshqa fayl tanlang
+                  {(selectedFile.size / 1024).toFixed(1)} KB • {t('inventory.excelImport.changeFileHint')}
                 </p>
               </div>
             ) : (
               <div>
                 <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
                   {importType === 'MASTER'
-                    ? "Yagona Master Excel faylini (.xlsx / .xlsm) ushbu yerga yuklang"
+                    ? t('inventory.excelImport.dropMasterTitle')
                     : importType === 'SARFLANADIGAN'
-                    ? 'TMZ Excel faylini ushbu yerga yuklang'
-                    : 'Asosiy vositalar Excel faylini ushbu yerga yuklang'}
+                    ? t('inventory.excelImport.dropTmzTitle')
+                    : t('inventory.excelImport.dropAssetsTitle')}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   {importType === 'MASTER'
-                    ? "Bitta fayl orqali Bo'limlar, Xodimlar, Jihozlar (biriktirilgan holda) va TMZ lar kiritiladi"
-                    : "yoki bosib kompyuterdan tanlang (.xlsx, .xlsm, .xls)"}
+                    ? t('inventory.excelImport.dropMasterSub')
+                    : t('inventory.excelImport.dropOrBrowse')}
                 </p>
               </div>
             )}
@@ -401,7 +405,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             onClick={handleCloseModal}
             disabled={importMutation.isPending}
           >
-            {result ? "Yopish" : "Bekor qilish"}
+            {result ? t('common.close') : t('common.cancel')}
           </Button>
 
           {!result && (
@@ -413,7 +417,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
               disabled={!selectedFile || importMutation.isPending}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
-              🚀 Kirim Qilish
+              🚀 {t('inventory.excelImport.startImport')}
             </Button>
           )}
         </div>

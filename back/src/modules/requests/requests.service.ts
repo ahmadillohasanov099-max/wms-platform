@@ -20,6 +20,32 @@ export class RequestsService {
     private telegramService: TelegramService,
   ) {}
 
+  checkIsRepair(reason?: string | null): boolean {
+    if (!reason) return false;
+    const normalized = reason.toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+    return (
+      normalized.includes('tamirlash') ||
+      normalized.includes('servis') ||
+      normalized.includes('remont') ||
+      normalized.includes('tuzatish') ||
+      normalized.includes('nosoz') ||
+      reason.includes("[TA'MIRLASH") ||
+      reason.includes('[REPAIR')
+    );
+  }
+
+  checkIsReturn(reason?: string | null): boolean {
+    if (!reason) return false;
+    const normalized = reason.toLowerCase();
+    return (
+      normalized.includes('qaytarish') ||
+      normalized.includes('qaytardi') ||
+      normalized.includes('qaytarmoq') ||
+      normalized.includes('[omborga qaytarish]') ||
+      normalized.includes('[return')
+    );
+  }
+
   async create(userId: any, organizationId: string, dto: CreateRequestDto) {
     const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : String(userId || '');
     const user = await this.prisma.user.findUnique({ where: { id: actualUserId } });
@@ -58,6 +84,23 @@ export class RequestsService {
       entityName = entityName || dept.name;
     }
 
+    const isRepair =
+      dto.requestType === 'REPAIR' ||
+      this.checkIsRepair(dto.reason);
+
+    let finalReason = (dto.reason || '').trim();
+    if (dto.entityType === EntityType.ASSET) {
+      if (isRepair) {
+        if (!finalReason.startsWith("[TA'MIRLASH/SERVIS]") && !finalReason.startsWith("[TA'MIRLASH]")) {
+          finalReason = `[TA'MIRLASH/SERVIS] ${finalReason.replace(/^Ta'mirlash:\s*/i, '').replace(/^\[TA'MIRLASH[^\]]*\]\s*/i, '')}`.trim();
+        }
+      } else {
+        if (!finalReason.startsWith("[OMBORGA QAYTARISH]")) {
+          finalReason = `[OMBORGA QAYTARISH] ${finalReason.replace(/^Qaytarish:\s*/i, '').replace(/^\[OMBORGA QAYTARISH[^\]]*\]\s*/i, '')}`.trim();
+        }
+      }
+    }
+
     const newRequest = await this.prisma.deletionRequest.create({
       data: {
         organizationId: targetOrgId,
@@ -65,7 +108,7 @@ export class RequestsService {
         entityType: dto.entityType,
         entityId: dto.entityId,
         entityName,
-        reason: dto.reason,
+        reason: finalReason,
         status: RequestStatus.PENDING,
       },
       include: {
@@ -98,10 +141,17 @@ export class RequestsService {
         orderBy: { createdAt: 'desc' },
       });
 
-      formattedDeletions = deletionRequests.map((d) => ({
-        ...d,
-        requestType: 'DELETION',
-      }));
+      formattedDeletions = deletionRequests.map((d) => {
+        const isRepair = this.checkIsRepair(d.reason);
+        const isReturn = this.checkIsReturn(d.reason);
+        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : 'DELETION';
+        return {
+          ...d,
+          requestType: subType,
+          isRepair,
+          isReturn,
+        };
+      });
     }
 
     if (!type || type === 'ASSIGNMENT') {
@@ -232,10 +282,17 @@ export class RequestsService {
         orderBy: { createdAt: 'desc' },
       });
 
-      formattedDeletions = myDeletions.map((d) => ({
-        ...d,
-        requestType: 'DELETION',
-      }));
+      formattedDeletions = myDeletions.map((d) => {
+        const isRepair = this.checkIsRepair(d.reason);
+        const isReturn = this.checkIsReturn(d.reason);
+        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : 'DELETION';
+        return {
+          ...d,
+          requestType: subType,
+          isRepair,
+          isReturn,
+        };
+      });
     }
 
     if (!type || type === 'ASSIGNMENT') {
@@ -545,10 +602,7 @@ export class RequestsService {
     }
 
     const now = new Date();
-    const isRepair =
-      request.reason?.toLowerCase().includes("ta'mirlash") ||
-      request.reason?.toLowerCase().includes("tamirlash") ||
-      request.reason?.toLowerCase().includes("servis");
+    const isRepair = this.checkIsRepair(request.reason);
 
     const result = await this.prisma.$transaction(async (tx) => {
       if (request.entityType === EntityType.ASSET) {
@@ -742,14 +796,17 @@ export class RequestsService {
     });
 
     this.eventsGateway.broadcastRequestUpdated(result);
+    if (request.entityType === EntityType.ASSET) {
+      this.eventsGateway.broadcastAssignmentUpdated({
+        type: 'ASSIGNMENT_UPDATED',
+        assetId: request.entityId,
+        status: isRepair ? 'BROKEN' : 'RETURNED',
+      });
+    }
     if (result.requestedById) {
-      const isRepair =
-        request.reason?.toLowerCase().includes("ta'mirlash") ||
-        request.reason?.toLowerCase().includes("tamirlash") ||
-        request.reason?.toLowerCase().includes("servis");
       const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
       const detailMsg = isRepair
-        ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga topshirildi."
+        ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga/ta'mirlashga olindi. Jihoz ta'mirlangach yana bildirishnoma olasiz."
         : "Siz yuborgan qaytarish so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz ombor hisobiga o'tkazildi.";
 
       void this.telegramService.sendUserNotificationAlert(
@@ -937,10 +994,7 @@ export class RequestsService {
 
     this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
-      const isRepair =
-        request.reason?.toLowerCase().includes("ta'mirlash") ||
-        request.reason?.toLowerCase().includes("tamirlash") ||
-        request.reason?.toLowerCase().includes("servis");
+      const isRepair = this.checkIsRepair(request.reason);
       const reqTitle = isRepair ? "Ta'mirlash so'rovi rad etildi" : "Qaytarish so'rovi rad etildi";
 
       void this.telegramService.sendUserNotificationAlert(

@@ -37,7 +37,7 @@ export default function UserFormModal({ open, onClose, user, departments }: Prop
 
   const createSchema = z
     .object({
-      fullName: z.string().min(2, t('users.validationName')),
+      fullName: z.string().min(2, t('users.validationName')).max(200),
       username: z.string().min(3, t('users.validationUsername')),
       password: z.string().min(6, t('users.validationPassword')),
       role: z.enum(ALL_ROLES),
@@ -59,7 +59,7 @@ export default function UserFormModal({ open, onClose, user, departments }: Prop
 
   const editSchema = z
     .object({
-      fullName: z.string().min(2).optional(),
+      fullName: z.string().min(2).max(200).optional(),
       username: z.string().min(3).optional(),
       role: z.enum(ALL_ROLES).optional(),
       departmentId: z.string().optional(),

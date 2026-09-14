@@ -3,7 +3,7 @@ import PageHeader from '../../components/ui/page-header';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import Card, { CardHeader, CardContent } from '../../components/ui/card';
-import { ShieldCheck, KeyRound, Lock, CheckCircle2, ShieldAlert, Laptop } from 'lucide-react';
+import { ShieldCheck, KeyRound, CheckCircle2, ShieldAlert, Laptop } from 'lucide-react';
 
 import ProfileSecurityCard from './components/profile-security-card';
 

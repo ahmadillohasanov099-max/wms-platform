@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { usersApi } from '../../../api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usersApi, operationsApi } from '../../../api';
 import { useAuthStore } from '../../../store/auth.store';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { formatCurrency, formatDate, invalidateAppQueries, cn } from '../../../lib/utils';
 import VerifyIdentityModal from '../../../components/shared/verify-identity-modal';
 import toast from 'react-hot-toast';
 import ModdiyJavobgarlikModal from '../../../components/documents/moddiy-javobgarlik-modal';
+import RepairCompleteModal from '../../../components/modals/repair-complete-modal';
 import {
   Package,
   Phone,
@@ -18,6 +19,7 @@ import {
   Building2,
   Layers,
   FileText,
+  Wrench,
 } from 'lucide-react';
 import Card, { CardContent } from '../../../components/ui/card';
 import Button from '../../../components/ui/button';
@@ -50,6 +52,24 @@ export default function UserDetailSubView({
   const [bulkReturnModalOpen, setBulkReturnModalOpen] = useState(false);
   const [moddiyModalOpen, setModdiyModalOpen] = useState(false);
   const [moddiyContractData, setModdiyContractData] = useState<any>(null);
+  const [selectedRepairAsset, setSelectedRepairAsset] = useState<any | null>(null);
+
+  const completeRepairMutation = useMutation({
+    mutationFn: ({ assetId, note }: { assetId: string; note?: string }) =>
+      operationsApi.completeRepair({ assetId, note }),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Jihoz ta'mirlandi va soz holatga keltirildi!");
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['user-assignments', selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
+      setSelectedRepairAsset(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Xatolik yuz berdi");
+    },
+  });
 
   const { data: assignmentsData, isLoading: assignmentsLoading } = useQuery({
     queryKey: ['user-assignments', selectedUserId],
@@ -502,6 +522,7 @@ export default function UserDetailSubView({
                             {batch.items.map((item: any, idx: number) => {
                               const isPending = item.status === 'PENDING';
                               const isRejected = item.status === 'REJECTED';
+                              const isBroken = item.asset?.status === 'BROKEN';
                               return (
                                 <div
                                   key={item.id || idx}
@@ -511,6 +532,8 @@ export default function UserDetailSubView({
                                       ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200"
                                       : isRejected
                                       ? "bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 opacity-60"
+                                      : isBroken
+                                      ? "bg-amber-50/90 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 text-amber-950 dark:text-amber-200"
                                       : "bg-slate-100/90 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                                   )}
                                 >
@@ -521,9 +544,11 @@ export default function UserDetailSubView({
                                         ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                         : isRejected
                                         ? "bg-rose-500 ring-2 ring-rose-400/40"
+                                        : isBroken
+                                        ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                         : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                     )}
-                                    title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                    title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda (Sariq)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
                                   />
                                   <span className="font-semibold text-slate-900 dark:text-slate-100">
                                     {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
@@ -535,7 +560,25 @@ export default function UserDetailSubView({
                                     />
                                   )}
 
-                                  {isAdmin && (
+                                  {isBroken && (
+                                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300/80">
+                                      🛠️ Ta'mirlashda
+                                    </span>
+                                  )}
+
+                                  {isBroken && isStaff && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedRepairAsset({ ...item.asset, product: item.asset?.product, assignments: [{ ...item, user: selectedUser }] })}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded cursor-pointer transition-colors shadow-2xs ml-0.5"
+                                      title="Jihozni ta'mirlashdan chiqarish va soz holatga keltirish"
+                                    >
+                                      <Wrench className="w-3 h-3" />
+                                      <span>Tuzatildi</span>
+                                    </button>
+                                  )}
+
+                                  {isAdmin && !isBroken && (
                                     <button
                                       type="button"
                                       onClick={() => handleReturnClick(item.asset?.id)}
@@ -762,6 +805,20 @@ export default function UserDetailSubView({
           data={moddiyContractData}
         />
       )}
+
+      <RepairCompleteModal
+        open={!!selectedRepairAsset}
+        onClose={() => setSelectedRepairAsset(null)}
+        assetItem={selectedRepairAsset}
+        isLoading={completeRepairMutation.isPending}
+        onConfirm={async (note) => {
+          if (!selectedRepairAsset) return;
+          await completeRepairMutation.mutateAsync({
+            assetId: selectedRepairAsset.id,
+            note,
+          });
+        }}
+      />
     </div>
   );
 }

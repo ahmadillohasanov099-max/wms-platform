@@ -485,18 +485,31 @@ export class OperationsStockService {
 
       // 4. Create in-app Notification for the employee
       let notif: any = null;
-      if (assignedUserId) {
+      let targetUserId = assignedUserId;
+      if (!targetUserId && assignedDeptId) {
+        const dept = await tx.department.findUnique({
+          where: { id: assignedDeptId },
+          select: { leaderId: true },
+        });
+        targetUserId = dept?.leaderId || null;
+      }
+
+      if (targetUserId) {
+        const noteComment = dto.note?.trim()
+          ? dto.note.trim()
+          : "Jihoz soz holatga keltirildi. Ombor/IT bo'limidan olib ketishingiz mumkin.";
+
         notif = await tx.deletionRequest.create({
           data: {
             organizationId: asset.organizationId || performerOrgId || '',
-            requestedById: assignedUserId,
+            requestedById: targetUserId,
             entityType: 'ASSET',
             entityId: asset.id,
-            entityName: `${asset.product.name} (Inv: ${asset.inventoryNumber})`,
+            entityName: `${asset.product.name} (Inv: ${asset.inventoryNumber || '—'})`,
             reason: `[TA'MIRLANDI] Jihoz ta'mirlandi va soz holatga keltirildi`,
             status: 'APPROVED',
             reviewedById: performedById,
-            reviewComment: dto.note || "Jihoz soz holatga keltirildi. Ombor/IT bo'limidan olib ketishingiz mumkin.",
+            reviewComment: noteComment,
             reviewedAt: new Date(),
           },
           include: {
@@ -507,7 +520,7 @@ export class OperationsStockService {
         });
       }
 
-      return { op, notif };
+      return { op, notif, targetUserId };
     });
 
     // Real-time updates
@@ -521,6 +534,15 @@ export class OperationsStockService {
 
     if (result.notif) {
       this.eventsGateway.broadcastRequestCreated(result.notif);
+    }
+
+    if (result.targetUserId) {
+      this.notifierService.notifyRepairCompleted(
+        result.targetUserId,
+        asset.product.name,
+        asset.inventoryNumber,
+        dto.note,
+      );
     }
 
     return {

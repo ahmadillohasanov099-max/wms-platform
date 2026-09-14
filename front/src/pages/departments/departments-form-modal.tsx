@@ -94,14 +94,14 @@ export default function DepartmentFormModal({ open, onClose, department }: Props
   const leaderOptions = isEdit
     ? deptUsers.length > 0
       ? [
-          { value: "", label: "Tanlanmagan (Boshliqsiz)" },
+          { value: "", label: t("departments.noLeader") },
           ...deptUsers.map((u) => ({
             value: u.id,
-            label: `${u.fullName} (${u.position || u.username || 'Xodim'})`,
+            label: `${u.fullName} (${u.position || u.username || t("departments.employeeDefault")})`,
           })),
         ]
-      : [{ value: "", label: "Bo'limda xodimlar yo'q (avval xodimlarni biriktiring)" }]
-    : [{ value: "", label: "Bo'lim yaratilgach xodimlar qo'shilgach tayinlanadi" }];
+      : [{ value: "", label: t("departments.noEmployeesForLeader") }]
+    : [{ value: "", label: t("departments.assignLeaderAfterCreate") }];
 
   return (
     <Modal
@@ -130,7 +130,7 @@ export default function DepartmentFormModal({ open, onClose, department }: Props
         />
 
         <Select
-          label="Bo'lim boshlig'i (Rahbar)"
+          label={t("departments.leaderLabel")}
           options={leaderOptions}
           error={errors.leaderId?.message}
           {...register("leaderId")}

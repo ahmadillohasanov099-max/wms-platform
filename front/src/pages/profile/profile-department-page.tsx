@@ -84,7 +84,7 @@ export default function ProfileDepartmentPage() {
     ? rawTmzData.items
     : [];
 
-  const deptOperations: any[] = department?.operations || [];
+  const deptOperations: any[] = (department as any)?.operations || [];
   const tmzFromDeptOps = deptOperations.filter((op: any) => op.type === 'GIVE_TO_DEPT');
 
   const tmzItems = tmzFromHistory.length > 0 ? tmzFromHistory : tmzFromDeptOps;

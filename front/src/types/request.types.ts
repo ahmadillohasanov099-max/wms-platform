@@ -23,7 +23,7 @@ export interface RequestItem {
   organization?: Organization;
   createdAt: string;
   updatedAt: string;
-  requestType?: 'DELETION' | 'ASSIGNMENT';
+  requestType?: 'DELETION' | 'ASSIGNMENT' | 'REPAIR' | 'RETURN';
   assignmentId?: string;
   recipientUserId?: string | null;
   recipientDeptId?: string | null;
@@ -35,6 +35,7 @@ export interface CreateRequestDto {
   entityId: string;
   entityName?: string;
   reason: string;
+  requestType?: 'DELETION' | 'ASSIGNMENT' | 'REPAIR' | 'RETURN' | string;
 }
 
 export interface ReviewRequestDto {

@@ -7,10 +7,12 @@ import OrganizationModal from './organization-modal';
 import { organizationsApi } from '../../api';
 import type { Organization } from '../../types';
 import { useAuthStore } from '../../store/auth.store';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export default function OrganizationsPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -48,20 +50,20 @@ export default function OrganizationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Hududiy Boshqarmalar"
-        subtitle="Vazirlik tasarrufidagi viloyat boshqarmalari va quyi tashkilotlar ro'yxati"
+        title={t('organizations.title')}
+        subtitle={t('organizations.subtitle')}
         actions={
           isSuperAdmin ? (
             <Button onClick={handleCreate} className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
-              Yangi Boshqarma Qo‘shish
+              {t('organizations.addNew')}
             </Button>
           ) : undefined
         }
       />
 
       <SearchFilterCard
-        searchPlaceholder="Boshqarma nomi yoki kodi bo'yicha qidirish..."
+        searchPlaceholder={t('organizations.searchPlaceholder')}
         searchValue={search}
         onSearchChange={setSearch}
       />
@@ -74,7 +76,7 @@ export default function OrganizationsPage() {
         <Card className="p-8 text-center">
           <Building2 className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-            Hech qanday boshqarma topilmadi
+            {t('organizations.empty')}
           </p>
         </Card>
       ) : (
@@ -94,7 +96,7 @@ export default function OrganizationsPage() {
                     )}
                   </div>
                   <Badge variant={org.type === 'MINISTRY' ? 'info' : 'gray'}>
-                    {org.type === 'MINISTRY' ? 'Vazirlik' : 'Viloyat Boshqarmasi'}
+                    {org.type === 'MINISTRY' ? t('organizations.typeMinistry') : t('organizations.typeSubOrg')}
                   </Badge>
                 </div>
 
@@ -115,9 +117,9 @@ export default function OrganizationsPage() {
 
                 {org._count && (
                   <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
-                    <span>👥 {org._count.users || 0} xodim</span>
-                    <span>🏢 {org._count.departments || 0} bo‘lim</span>
-                    <span>📦 {org._count.products || 0} tovar</span>
+                    <span>👥 {t('organizations.usersCount', { count: org._count.users || 0 })}</span>
+                    <span>🏢 {t('organizations.deptsCount', { count: org._count.departments || 0 })}</span>
+                    <span>📦 {t('organizations.productsCount', { count: org._count.products || 0 })}</span>
                   </div>
                 )}
               </div>
@@ -130,7 +132,7 @@ export default function OrganizationsPage() {
                   className="flex items-center gap-1.5 text-xs text-primary-600 dark:text-primary-400 border-primary-200 hover:bg-primary-50 dark:hover:bg-primary-950/40"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  Batafsil ko'rish
+                  {t('organizations.viewDetail')}
                 </Button>
                 {isSuperAdmin && (
                   <Button
@@ -140,7 +142,7 @@ export default function OrganizationsPage() {
                     className="flex items-center gap-1.5 text-xs"
                   >
                     <Edit className="w-3.5 h-3.5" />
-                    Tahrirlash
+                    {t('organizations.edit')}
                   </Button>
                 )}
               </div>

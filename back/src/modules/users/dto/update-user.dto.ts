@@ -13,7 +13,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
-  @MaxLength(100)
+  @MaxLength(200)
   fullName?: string;
 
   @ApiPropertyOptional({ example: 'alisher01' })
@@ -52,7 +52,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ example: 'Bosh mutaxassis' })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(200)
   position?: string;
 
   @ApiPropertyOptional({ example: 'AD 1234567' })

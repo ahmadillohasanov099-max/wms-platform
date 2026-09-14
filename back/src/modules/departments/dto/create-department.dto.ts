@@ -6,7 +6,7 @@ export class CreateDepartmentDto {
   @IsString()
   @IsNotEmpty({ message: "Bo'lim nomi bo'sh bo'lishi mumkin emas" })
   @MinLength(2)
-  @MaxLength(100)
+  @MaxLength(200)
   name: string;
 
   @ApiPropertyOptional({ example: "Moliyaviy operatsiyalar bo'limi" })

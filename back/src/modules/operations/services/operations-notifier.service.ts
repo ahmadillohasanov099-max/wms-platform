@@ -262,4 +262,14 @@ export class OperationsNotifierService {
       this.logger.error('Telegram document generation error:', err);
     }
   }
+
+  notifyRepairCompleted(targetUserId: string, productName: string, inventoryNumber?: string | null, note?: string | null) {
+    const invText = inventoryNumber ? ` (Inv: ${inventoryNumber})` : '';
+    const noteText = note?.trim() ? `\n\nUsta/Omborchi izohi: "${note.trim()}"` : '';
+    void this.telegramService.sendUserNotificationAlert(
+      targetUserId,
+      `🛠️ Jihoz ta'mirlandi!`,
+      `Sizga biriktirilgan "${productName}"${invText} jihozi ta'mirlandi va soz holatga keltirildi.${noteText}\n\nOmbor/IT bo'limidan olib ketishingiz mumkin.`,
+    );
+  }
 }

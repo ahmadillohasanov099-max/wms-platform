@@ -90,14 +90,13 @@ const navItems: NavItem[] = [
   {
     path: '/audit-logs',
     labelKey: 'auditLogs',
-    icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
+    icon: <ShieldCheck className="w-4 h-4" />,
     roles: ['SUPER_ADMIN'],
   },
   {
     path: '/organizations',
     labelKey: 'organizations',
-    customLabel: 'Boshqarmalar',
-    icon: <Building2 className="w-4 h-4 text-sky-500" />,
+    icon: <Building2 className="w-4 h-4" />,
     roles: ['SUPER_ADMIN', 'RAHBAR'],
   },
   {

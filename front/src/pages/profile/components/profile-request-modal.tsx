@@ -28,17 +28,22 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
 
     setLoading(true);
     try {
-      const typePrefix = requestType === 'RETURN' ? t('profile.returnPrefix') : t('profile.repairPrefix');
+      const typePrefix = requestType === 'RETURN' ? '[OMBORGA QAYTARISH] ' : "[TA'MIRLASH/SERVIS] ";
       
       await requestsApi.create({
         entityType: 'ASSET',
         entityId: assetItem.asset.id,
         reason: `${typePrefix}${requestReason.trim()}`,
-      });
+        requestType,
+      } as any);
 
       onSubmitSuccess(assetItem.asset?.id, requestType, requestReason);
       setRequestReason('');
-      toast.success(t('profile.requestSentSuccess'));
+      toast.success(
+        requestType === 'REPAIR'
+          ? "🛠️ Jihozni ta'mirlash so'rovi omborchiga yuborildi"
+          : "🔄 Jihozni qaytarish so'rovi omborchiga yuborildi"
+      );
       onClose();
     } catch (err: any) {
       const msg = err?.response?.data?.message;

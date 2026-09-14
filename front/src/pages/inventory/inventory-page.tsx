@@ -371,7 +371,7 @@ export default function InventoryPage() {
                   icon={<Sparkles className="w-4 h-4 text-indigo-500" />}
                   onClick={() => setExcelModal(true)}
                 >
-                  Yagona Master Kirim
+                  {t('inventory.masterImportBtn')}
                 </Button>
                 <Button
                   icon={<Plus className="w-4 h-4" />}

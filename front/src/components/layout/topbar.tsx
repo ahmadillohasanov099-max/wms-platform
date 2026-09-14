@@ -155,89 +155,28 @@ export default function Topbar({}: TopbarProps) {
       queryClient.invalidateQueries({ queryKey: ['operations'] });
     };
 
-    const handleNewAssignment = (data: any) => {
-      handleRefetch();
-      if (data?.departmentId) {
-        toast(`🏢 Bo'limingizga yangi jihoz biriktirildi: ${data.assetName || 'Jihoz'}`, {
-          duration: 4000,
-        });
-      } else {
-        toast(`👤 Sizga yangi shaxsiy jihoz biriktirildi: ${data.assetName || 'Jihoz'}`, {
-          duration: 4000,
-        });
-      }
-    };
-
-    const handleRequestUpdated = (data: any) => {
-      handleRefetch();
-      if (data?.requestedById === user?.id) {
-        if (data.reason?.includes("[TA'MIRLANDI]")) {
-          toast.success(
-            `🛠️ "${data.entityName || 'Jihoz'}" ta'mirlandi! Ombordan olib ketishingiz mumkin.`,
-            { duration: 6000 }
-          );
-          return;
-        }
-
-        const isRepair =
-          data.reason?.toLowerCase().includes("ta'mirlash") ||
-          data.reason?.toLowerCase().includes("tamirlash") ||
-          data.reason?.toLowerCase().includes("servis");
-        const action = isRepair ? "Ta'mirlash" : "Qaytarish";
-
-        if (data?.status === 'REJECTED') {
-          toast.error(
-            `❌ ${action} so'rovingiz rad etildi: ${data.reviewComment || data.rejectionReason || 'Sabab ko‘rsatilmadi'}`,
-            { duration: 6000 }
-          );
-        } else if (data?.status === 'APPROVED') {
-          toast.success(`✅ ${action} so'rovingiz omborchi tomonidan qabul qilindi!`, {
-            duration: 5000,
-          });
-        }
-      }
-    };
-
-    const handleRequestCreated = (data: any) => {
-      handleRefetch();
-      if (data?.requestedById === user?.id && data?.reason?.includes("[TA'MIRLANDI]")) {
-        toast.success(
-          `🛠️ "${data.entityName || 'Jihoz'}" ta'mirlandi! Ombordan olib ketishingiz mumkin.`,
-          { duration: 6000 }
-        );
-      }
-    };
-
-    const handleAssignmentUpdated = (data: any) => {
-      handleRefetch();
-      if (data?.type === 'ASSIGNMENT_REJECTED') {
-        if (data?.assignerId === user?.id || canManageRequests) {
-          toast.error(
-            `❌ Xodim ${data.rejectedByName || ''} "${data.assetName || 'jihoz'}"ni qabul qilmadi!\nSababi: ${data.reason || 'Sabab ko‘rsatilmadi'}`,
-            { duration: 7000 }
-          );
-        }
-      }
-    };
-
-    socket.on('deletion-request:created', handleRequestCreated);
-    socket.on('deletion-request:updated', handleRequestUpdated);
-    socket.on('assignment:new', handleNewAssignment);
+    socket.on('request:created', handleRefetch);
+    socket.on('deletion-request:created', handleRefetch);
+    socket.on('request:updated', handleRefetch);
+    socket.on('deletion-request:updated', handleRefetch);
+    socket.on('assignment:new', handleRefetch);
     socket.on('assignment:created', handleRefetch);
-    socket.on('assignment:updated', handleAssignmentUpdated);
+    socket.on('assignment:updated', handleRefetch);
     socket.on('inventory:updated', handleRefetch);
     socket.on('operation:created', handleRefetch);
 
     return () => {
-      socket.off('deletion-request:created', handleRequestCreated);
-      socket.off('deletion-request:updated', handleRequestUpdated);
-      socket.off('assignment:new', handleNewAssignment);
+      socket.off('request:created', handleRefetch);
+      socket.off('deletion-request:created', handleRefetch);
+      socket.off('request:updated', handleRefetch);
+      socket.off('deletion-request:updated', handleRefetch);
+      socket.off('assignment:new', handleRefetch);
       socket.off('assignment:created', handleRefetch);
-      socket.off('assignment:updated', handleAssignmentUpdated);
+      socket.off('assignment:updated', handleRefetch);
       socket.off('inventory:updated', handleRefetch);
       socket.off('operation:created', handleRefetch);
     };
-  }, [queryClient, user?.id]);
+  }, [queryClient]);
 
   const { data: lowStock } = useQuery({
     queryKey: ['low-stock'],
@@ -428,12 +367,18 @@ export default function Topbar({}: TopbarProps) {
   const myRequestsList: DeletionRequest[] = Array.isArray(myRequestsData)
     ? myRequestsData
     : (myRequestsData as any)?.data || [];
-  const unreadReviewedRequests = myRequestsList.filter(
-    (r: any) =>
-      r.requestType !== 'ASSIGNMENT' &&
-      (r.status === 'APPROVED' || r.status === 'REJECTED') &&
-      !readNotifIds.includes(r.id)
-  );
+  const unreadReviewedRequests = myRequestsList
+    .filter(
+      (r: any) =>
+        r.requestType !== 'ASSIGNMENT' &&
+        (r.status === 'APPROVED' || r.status === 'REJECTED') &&
+        !readNotifIds.includes(r.id)
+    )
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime()
+    );
 
   const totalNotificationBadge =
     myPendingCount +
@@ -684,20 +629,32 @@ export default function Topbar({}: TopbarProps) {
                 {/* 3. 📋 Xodimlarga: Qaytarish yoki Ta'mirlash so'rovi omborchi tomonidan ko'rib chiqilganlik natijasi */}
                 {unreadReviewedRequests.length > 0 && (
                   <div className="space-y-1.5">
-                    {unreadReviewedRequests.slice(0, 4).map((req: any) => {
+                    {unreadReviewedRequests.slice(0, 6).map((req: any) => {
                       const isRejected = req.status === 'REJECTED';
                       const reviewerName = req.reviewedBy?.fullName || 'Omborchi';
                       const reasonText = req.reviewComment || req.rejectionReason || 'Sabab ko‘rsatilmadi';
                       const isRepairedComplete = req.reason?.includes("[TA'MIRLANDI]");
+                      const normReason = (req.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
                       const isRepair =
-                        req.reason?.toLowerCase().includes("ta'mirlash") ||
-                        req.reason?.toLowerCase().includes("tamirlash") ||
-                        req.reason?.toLowerCase().includes("servis");
+                        req.requestType === 'REPAIR' ||
+                        normReason.includes('tamirlash') ||
+                        normReason.includes('servis') ||
+                        normReason.includes('remont') ||
+                        normReason.includes('nosoz');
                       const actionLabel = isRepairedComplete
                         ? "Jihoz ta'mirlandi"
                         : isRepair
                         ? "Ta'mirlash so'rovi"
                         : "Qaytarish so'rovi";
+
+                      // Extract clean title and inventory number
+                      let title = (req.entityName || req.entityTitle || req.entityId || 'Jihoz').trim();
+                      let invNumber: string | undefined;
+                      const invMatch = title.match(/\(Inv:\s*([^\)]+)\)/i);
+                      if (invMatch) {
+                        invNumber = invMatch[1].trim();
+                        title = title.replace(/\(Inv:\s*[^\)]+\)/i, '').trim();
+                      }
 
                       return (
                         <div
@@ -733,9 +690,16 @@ export default function Topbar({}: TopbarProps) {
                             </span>
                           </div>
 
-                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                            {req.entityName || req.entityTitle || 'Jihoz'}
-                          </p>
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {title}
+                            </p>
+                            {invNumber && (
+                              <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0">
+                                № {invNumber}
+                              </span>
+                            )}
+                          </div>
 
                           {isRejected ? (
                             <p className="text-[11px] text-rose-700 dark:text-rose-300 italic bg-rose-100/60 dark:bg-rose-950/40 px-2 py-1 rounded">
@@ -745,7 +709,7 @@ export default function Topbar({}: TopbarProps) {
                             <div className="space-y-1">
                               {req.reviewComment && (
                                 <p className="text-[11px] text-teal-800 dark:text-teal-300 italic bg-white dark:bg-teal-950/60 px-2.5 py-1 rounded-lg border border-teal-200/60 dark:border-teal-800/60">
-                                  Tavsif: "{req.reviewComment}"
+                                  Usta izohi: "{req.reviewComment}"
                                 </p>
                               )}
                               <p className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
@@ -835,11 +799,14 @@ export default function Topbar({}: TopbarProps) {
 
                       // Extract clean reason
                       let cleanReason = (req.reason || '').trim();
+                      const normReason = cleanReason.toLowerCase().replace(/['ʼ’`ʻ]/g, '');
                       const isRepair =
-                        cleanReason.toLowerCase().includes("ta'mirlash") ||
-                        cleanReason.toLowerCase().includes("tamirlash") ||
-                        cleanReason.toLowerCase().includes("servis");
-                      const reqType = isRepair ? "Ta'mirlash" : "Qaytarish";
+                        req.requestType === 'REPAIR' ||
+                        normReason.includes('tamirlash') ||
+                        normReason.includes('servis') ||
+                        normReason.includes('remont') ||
+                        normReason.includes('nosoz');
+                      const isReturn = req.requestType === 'RETURN' || normReason.includes('qaytarish');
 
                       const dotIndex = cleanReason.lastIndexOf('. ');
                       if (dotIndex !== -1 && (cleanReason.startsWith('[') || cleanReason.includes('Jihoz:'))) {
@@ -859,10 +826,21 @@ export default function Topbar({}: TopbarProps) {
                           className="p-3 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/60 rounded-xl space-y-1.5 transition-all shadow-2xs"
                         >
                           <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-[10px] text-teal-800 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/70 px-2 py-0.5 rounded-full">
-                              {reqType === "Ta'mirlash"
+                            <span
+                              className={cn(
+                                "font-bold text-[10px] px-2 py-0.5 rounded-full border",
+                                isRepair
+                                  ? "text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800"
+                                  : isReturn
+                                  ? "text-teal-800 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800"
+                                  : "text-rose-800 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800"
+                              )}
+                            >
+                              {isRepair
                                 ? "🛠️ Ta'mirlash so'rovi"
-                                : "📦 Qaytarish so'rovi"}
+                                : isReturn
+                                ? "📦 Qaytarish so'rovi"
+                                : "🗑️ O'chirish so'rovi"}
                             </span>
                             <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
                               {req.requestedBy?.fullName || req.requestedBy?.username || 'Xodim'}

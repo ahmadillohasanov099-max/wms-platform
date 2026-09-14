@@ -150,7 +150,7 @@ export default function DepartmentsPage() {
                   </h3>
                   {row.leader && (
                     <p className="text-xs font-medium text-teal-600 dark:text-teal-400 flex items-center gap-1">
-                      <span className="text-slate-400 font-normal">Boshliq:</span> {row.leader.fullName}
+                      <span className="text-slate-400 font-normal">{t('departments.leader')}</span> <span className="break-words">{row.leader.fullName}</span>
                     </p>
                   )}
                   {row.description && (

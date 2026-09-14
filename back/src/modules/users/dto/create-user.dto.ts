@@ -12,7 +12,7 @@ export class CreateUserDto {
   @ApiProperty({ example: 'Alisher Karimov' })
   @IsString()
   @MinLength(2)
-  @MaxLength(100)
+  @MaxLength(200)
   fullName: string;
 
   @ApiProperty({ example: 'alisher01' })
@@ -54,7 +54,7 @@ export class CreateUserDto {
   @ApiPropertyOptional({ example: 'Bosh mutaxassis' })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(200)
   position?: string;
 
   @ApiPropertyOptional({ example: 'AD 1234567' })

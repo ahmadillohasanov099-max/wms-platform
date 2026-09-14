@@ -35,6 +35,14 @@ export class CreateRequestDto {
   @IsString()
   @IsNotEmpty()
   reason: string;
+
+  @ApiPropertyOptional({
+    description: "So'rov turi (REPAIR, RETURN, DELETION)",
+    example: 'REPAIR',
+  })
+  @IsString()
+  @IsOptional()
+  requestType?: string;
 }
 
 // Backward compatibility alias

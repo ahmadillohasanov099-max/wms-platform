@@ -42,7 +42,7 @@ export default function StockInModal({ open, onClose }: Props) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['inventoryNumbers', i],
-            message: 'Inventar raqami kiritilishi shart',
+            message: t('inventory.validationInvRequired'),
           });
         }
       }
@@ -54,7 +54,7 @@ export default function StockInModal({ open, onClose }: Props) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['inventoryNumbers'],
-            message: 'Inventar raqamlari takrorlanmasligi shart!',
+            message: t('inventory.validationInvUnique'),
           });
         }
       }
@@ -204,7 +204,7 @@ export default function StockInModal({ open, onClose }: Props) {
                   <div key={index} className="space-y-1">
                     <input
                       type="text"
-                      placeholder={`Inventar raqami #${index + 1}`}
+                      placeholder={t('inventory.invNumberPlaceholder', { index: index + 1 })}
                       className={`w-full rounded-lg border bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 px-3 py-2 ${
                         invError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700'
                       }`}
@@ -220,7 +220,7 @@ export default function StockInModal({ open, onClose }: Props) {
 
             {qty > 100 && (
               <p className="text-2xs text-yellow-600 dark:text-yellow-400">
-                * 100 dan ortiq mahsulotlar uchun Ommaviy kirim (Bulk) xizmatidan foydalaning.
+                {t('inventory.bulkImportNotice')}
               </p>
             )}
           </div>

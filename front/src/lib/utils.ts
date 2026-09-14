@@ -1,43 +1,88 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useUiStore } from '../store/ui.store';
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-export function formatCurrency(amount?: number | string | null): string {
-  if (amount === undefined || amount === null || amount === '') return '0 so\'m';
+
+const CURRENCY_CONFIG: Record<string, {
+  currency: string;
+  billion: string;
+  million: string;
+  thousand: string;
+  locale: string;
+}> = {
+  uz: {
+    currency: "so'm",
+    billion: 'mlrd',
+    million: 'mln',
+    thousand: 'ming',
+    locale: 'uz-UZ',
+  },
+  ru: {
+    currency: 'сум',
+    billion: 'млрд',
+    million: 'млн',
+    thousand: 'тыс.',
+    locale: 'ru-RU',
+  },
+  en: {
+    currency: 'sum',
+    billion: 'B',
+    million: 'M',
+    thousand: 'K',
+    locale: 'en-US',
+  },
+};
+
+export function formatCurrency(amount?: number | string | null, lang?: 'uz' | 'ru' | 'en'): string {
+  const currentLang = lang || useUiStore.getState().language || 'uz';
+  const config = CURRENCY_CONFIG[currentLang] || CURRENCY_CONFIG.uz;
+
+  if (amount === undefined || amount === null || amount === '') return `0 ${config.currency}`;
   const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
-  if (isNaN(num)) return '0 so\'m';
-  return `${new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 2 }).format(num)} so'm`;
+  if (isNaN(num)) return `0 ${config.currency}`;
+  return `${new Intl.NumberFormat(config.locale, { maximumFractionDigits: 2 }).format(num)} ${config.currency}`;
 }
 
-export function formatCompactCurrency(amount?: number | string | null, includeUnit: boolean = true): string {
-  if (amount === undefined || amount === null || amount === '') return includeUnit ? '0 so\'m' : '0';
+export function formatCompactCurrency(
+  amount?: number | string | null,
+  includeUnit: boolean = true,
+  lang?: 'uz' | 'ru' | 'en'
+): string {
+  const currentLang = lang || useUiStore.getState().language || 'uz';
+  const config = CURRENCY_CONFIG[currentLang] || CURRENCY_CONFIG.uz;
+  const suffix = includeUnit ? ` ${config.currency}` : '';
+
+  if (amount === undefined || amount === null || amount === '') return includeUnit ? `0 ${config.currency}` : '0';
   const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
-  if (isNaN(num) || num === 0) return includeUnit ? '0 so\'m' : '0';
+  if (isNaN(num) || num === 0) return includeUnit ? `0 ${config.currency}` : '0';
 
   const formatNum = (val: number) => {
-    return Number(val.toFixed(2)).toLocaleString('uz-UZ');
+    return Number(val.toFixed(2)).toLocaleString(config.locale);
   };
 
-  const suffix = includeUnit ? ' so\'m' : '';
-
   if (num >= 1_000_000_000) {
-    return `${formatNum(num / 1_000_000_000)} mlrd${suffix}`;
+    return `${formatNum(num / 1_000_000_000)} ${config.billion}${suffix}`;
   }
   if (num >= 1_000_000) {
-    return `${formatNum(num / 1_000_000)} mln${suffix}`;
+    return `${formatNum(num / 1_000_000)} ${config.million}${suffix}`;
   }
   if (num >= 1_000) {
-    return `${formatNum(num / 1_000)} ming${suffix}`;
+    return `${formatNum(num / 1_000)} ${config.thousand}${suffix}`;
   }
-  return `${num.toLocaleString('uz-UZ')}${suffix}`;
+  return `${num.toLocaleString(config.locale)}${suffix}`;
 }
-export function formatDate(dateString?: string | Date | null): string {
+
+export function formatDate(dateString?: string | Date | null, lang?: 'uz' | 'ru' | 'en'): string {
   if (!dateString) return '—';
   try {
+    const currentLang = lang || useUiStore.getState().language || 'uz';
+    const locale = currentLang === 'ru' ? 'ru-RU' : currentLang === 'en' ? 'en-US' : 'uz-UZ';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '—';
-    return new Intl.DateTimeFormat('uz-UZ', {
+    return new Intl.DateTimeFormat(locale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
