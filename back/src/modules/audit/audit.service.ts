@@ -106,8 +106,10 @@ export class AuditService {
       const s = query.search.trim();
       where.OR = [
         { userName: { contains: s, mode: 'insensitive' } },
+        { user: { fullName: { contains: s, mode: 'insensitive' } } },
         { endpoint: { contains: s, mode: 'insensitive' } },
         { action: { contains: s, mode: 'insensitive' } },
+        { resource: { contains: s, mode: 'insensitive' } },
         { ipAddress: { contains: s, mode: 'insensitive' } },
       ];
     }

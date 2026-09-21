@@ -7,13 +7,15 @@ import {
 } from 'recharts';
 import {
   Package, Users, AlertTriangle, Boxes, Wallet, TrendingUp,
-  ArrowUpRight, ArrowDownRight,
+  ArrowUpRight, ArrowDownRight, Search,
 } from 'lucide-react';
 import { statsApi } from '../../api';
 import Card, { CardHeader, CardContent } from '../../components/ui/card';
 import { PageLoader } from '../../components/ui/spinner';
+import Pagination from '../../components/ui/pagination';
 import { formatCurrency, formatCompactCurrency, cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useDebounce } from '../../hooks/useDebounce';
 import PageHeader from '../../components/ui/page-header';
 
 const PIE_COLORS = {
@@ -195,6 +197,32 @@ export default function StatsPage() {
   }), [deptData]);
 
   const users = userData ?? [];
+
+  const [userSearch, setUserSearch] = useState('');
+  const debouncedUserSearch = useDebounce(userSearch, 200);
+
+  const filteredUsers = useMemo(() => {
+    if (!debouncedUserSearch.trim()) return users;
+    const q = debouncedUserSearch.toLowerCase().trim();
+    return users.filter((u: any) =>
+      String(u.fullName || '').toLowerCase().includes(q) ||
+      String(u.username || '').toLowerCase().includes(q) ||
+      String(u.position || '').toLowerCase().includes(q) ||
+      String(u.department?.name || '').toLowerCase().includes(q)
+    );
+  }, [users, debouncedUserSearch]);
+
+  const [userPage, setUserPage] = useState(1);
+  const userLimit = 15;
+  const userTotalPages = Math.ceil(filteredUsers.length / userLimit) || 1;
+  const paginatedUsers = useMemo(() => {
+    const start = (userPage - 1) * userLimit;
+    return filteredUsers.slice(start, start + userLimit);
+  }, [filteredUsers, userPage, userLimit]);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [debouncedUserSearch]);
 
   const topUsers = useMemo(() => {
     return [...users]
@@ -611,7 +639,22 @@ export default function StatsPage() {
 
             {/* All Users Table */}
             <Card>
-              <CardHeader title={t('stats.allUsers')} />
+              <CardHeader
+                title={t('stats.allUsers')}
+                subtitle={`${filteredUsers.length} ${t('operations.employee') || 'xodim'}`}
+                action={
+                  <div className="relative w-48 sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder={t('common.search') || 'Qidirish...'}
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                }
+              />
               <div className="overflow-x-auto">
                 <table className="w-full text-xs sm:text-sm">
                   <thead>
@@ -624,64 +667,87 @@ export default function StatsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u: any, i: number) => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
-                      >
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-400 text-xs">{i + 1}</td>
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3">
-                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-[140px]">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
-                              <span className="text-xs font-bold text-teal-600 dark:text-teal-400">
-                                {u.fullName?.slice(0, 2).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{u.fullName}</p>
-                              <p className="text-[11px] text-gray-500 truncate">@{u.username}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                          {u.department?.name ?? '—'}
-                        </td>
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                          {u.position ?? '—'}
-                        </td>
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-900 dark:text-gray-100 font-bold">
-                              {u.assetCount}
-                            </span>
-                            {u.assetCount > 0 && (
-                              <div className="hidden xs:block flex-1 max-w-16 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-teal-500 rounded-full"
-                                  style={{
-                                    width: `${(u.assetCount / maxUserAssetCount) * 100}%`
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 whitespace-nowrap">
-                          <span
-                            className={cn(
-                              'font-bold transition-colors',
-                              u.totalValue > 0 ? 'text-teal-600 dark:text-teal-400 cursor-help hover:underline' : 'text-gray-400'
-                            )}
-                            title={u.totalValue > 0 ? formatCurrency(u.totalValue) : undefined}
-                          >
-                            {u.totalValue > 0 ? formatCompactCurrency(u.totalValue) : '—'}
-                          </span>
+                    {paginatedUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">
+                          {t('common.noData') || 'Ma’lumot topilmadi'}
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paginatedUsers.map((u: any, i: number) => {
+                        const globalIdx = (userPage - 1) * userLimit + i + 1;
+                        return (
+                          <tr
+                            key={u.id}
+                            className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+                          >
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-400 text-xs">{globalIdx}</td>
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3">
+                              <div className="flex items-center gap-2.5 sm:gap-3 min-w-[140px]">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
+                                  <span className="text-xs font-bold text-teal-600 dark:text-teal-400">
+                                    {u.fullName?.slice(0, 2).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{u.fullName}</p>
+                                  <p className="text-[11px] text-gray-500 truncate">@{u.username}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                              {u.department?.name ?? '—'}
+                            </td>
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                              {u.position ?? '—'}
+                            </td>
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-900 dark:text-gray-100 font-bold">
+                                  {u.assetCount}
+                                </span>
+                                {u.assetCount > 0 && (
+                                  <div className="hidden xs:block flex-1 max-w-16 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-teal-500 rounded-full"
+                                      style={{
+                                        width: `${(u.assetCount / maxUserAssetCount) * 100}%`
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3.5 sm:px-5 py-2.5 sm:py-3 whitespace-nowrap">
+                              <span
+                                className={cn(
+                                  'font-bold transition-colors',
+                                  u.totalValue > 0 ? 'text-teal-600 dark:text-teal-400 cursor-help hover:underline' : 'text-gray-400'
+                                )}
+                                title={u.totalValue > 0 ? formatCurrency(u.totalValue) : undefined}
+                              >
+                                {u.totalValue > 0 ? formatCompactCurrency(u.totalValue) : '—'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              {filteredUsers.length > userLimit && (
+                <div className="px-4 pb-3">
+                  <Pagination
+                    page={userPage}
+                    totalPages={userTotalPages}
+                    total={filteredUsers.length}
+                    limit={userLimit}
+                    onPageChange={setUserPage}
+                  />
+                </div>
+              )}
             </Card>
           </div>
         )

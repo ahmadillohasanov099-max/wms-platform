@@ -121,44 +121,58 @@ export class StatsAnalyticsService {
   }
 
   async getConsolidatedStats() {
-    const organizations = await this.prisma.organization.findMany({
-      where: { deletedAt: null },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        type: true,
-        address: true,
-        phone: true,
-        _count: {
-          select: {
-            users: { where: { deletedAt: null, isActive: true } },
-            departments: { where: { deletedAt: null } },
-            products: { where: { deletedAt: null } },
-            assets: { where: { deletedAt: null, status: 'ACTIVE' } },
-            operations: true,
+    const [organizations, stockAggregates] = await Promise.all([
+      this.prisma.organization.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          address: true,
+          phone: true,
+          _count: {
+            select: {
+              users: { where: { deletedAt: null, isActive: true } },
+              departments: { where: { deletedAt: null } },
+              products: { where: { deletedAt: null } },
+              assets: { where: { deletedAt: null, status: 'ACTIVE' } },
+              operations: true,
+            },
           },
         },
-        products: {
-          where: { deletedAt: null },
-          select: {
-            inventory: { select: { quantity: true, unitPrice: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.$queryRaw<
+        Array<{
+          organization_id: string;
+          total_stock_count: bigint;
+          total_inventory_value: number;
+        }>
+      >`
+        SELECT
+          p."organizationId" AS organization_id,
+          COALESCE(SUM(i.quantity), 0)::bigint AS total_stock_count,
+          COALESCE(SUM(i.quantity * COALESCE(i."unitPrice", 0)), 0)::float AS total_inventory_value
+        FROM "Inventory" i
+        JOIN "Product" p ON i."productId" = p.id
+        WHERE p."deletedAt" IS NULL
+        GROUP BY p."organizationId"
+      `,
+    ]);
+
+    const aggMap = new Map<string, { stock: number; value: number }>();
+    for (const row of stockAggregates) {
+      if (row.organization_id) {
+        aggMap.set(row.organization_id, {
+          stock: Number(row.total_stock_count),
+          value: Number(row.total_inventory_value),
+        });
+      }
+    }
 
     return organizations.map((org) => {
-      const totalInventoryValue = org.products.reduce((sum, p) => {
-        const qty = p.inventory?.quantity || 0;
-        const price = Number(p.inventory?.unitPrice || 0);
-        return sum + qty * price;
-      }, 0);
-
-      const totalStockCount = org.products.reduce((sum, p) => {
-        return sum + (p.inventory?.quantity || 0);
-      }, 0);
+      const agg = aggMap.get(org.id) || { stock: 0, value: 0 };
 
       return {
         id: org.id,
@@ -172,8 +186,8 @@ export class StatsAnalyticsService {
         productTypesCount: org._count.products,
         activeAssetsCount: org._count.assets,
         operationsCount: org._count.operations,
-        totalStockCount,
-        totalInventoryValue,
+        totalStockCount: agg.stock,
+        totalInventoryValue: agg.value,
       };
     });
   }

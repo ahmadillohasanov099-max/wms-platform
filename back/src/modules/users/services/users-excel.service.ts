@@ -43,8 +43,11 @@ export class UsersExcelService {
         OR: [
           { fullName: { contains: search, mode: 'insensitive' as const } },
           { username: { contains: search, mode: 'insensitive' as const } },
-          { phone: { contains: search, mode: 'insensitive' as const } },
           { position: { contains: search, mode: 'insensitive' as const } },
+          { phone: { contains: search, mode: 'insensitive' as const } },
+          { internalPhone: { contains: search, mode: 'insensitive' as const } },
+          { passport: { contains: search, mode: 'insensitive' as const } },
+          { pinfl: { contains: search, mode: 'insensitive' as const } },
         ],
       }),
     };
@@ -55,12 +58,22 @@ export class UsersExcelService {
         { department: { name: 'asc' } },
         { fullName: 'asc' },
       ],
-      include: {
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        position: true,
+        phone: true,
+        internalPhone: true,
+        passport: true,
+        pinfl: true,
+        address: true,
+        isActive: true,
         organization: { select: { name: true } },
         department: { select: { name: true } },
         assignments: {
           where: { returnedAt: null },
-          include: {
+          select: {
             asset: {
               select: { inventoryNumber: true },
             },
@@ -97,32 +110,67 @@ export class UsersExcelService {
       width: col.baseWidth,
     }));
 
+    const headerFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1F4E79' },
+    };
+    const headerFont: Partial<ExcelJS.Font> = {
+      name: 'Calibri',
+      size: 11,
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    const headerAlign: Partial<ExcelJS.Alignment> = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    };
+    const headerBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+      bottom: { style: 'medium', color: { argb: 'FF16365C' } },
+      left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+      right: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+    };
+
+    const cellFont: Partial<ExcelJS.Font> = {
+      name: 'Yu Gothic UI',
+      size: 10,
+      bold: false,
+      color: { argb: 'FF000000' },
+    };
+    const cellBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    };
+    const cellAlignLeft: Partial<ExcelJS.Alignment> = {
+      vertical: 'middle',
+      horizontal: 'left',
+      wrapText: true,
+    };
+    const cellAlignCenter: Partial<ExcelJS.Alignment> = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    };
+    const cellZebraFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF9FAFB' },
+    };
+
     const headerRow = worksheet.getRow(1);
     headerRow.height = 30;
     headerRow.eachCell((cell) => {
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFD9E1F2' },
-      };
-      cell.font = {
-        name: 'Yu Gothic UI',
-        size: 11,
-        bold: true,
-        color: { argb: 'FF000000' },
-      };
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: 'center',
-        wrapText: true,
-      };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FF8EA9DB' } },
-        bottom: { style: 'medium', color: { argb: 'FF8EA9DB' } },
-        left: { style: 'thin', color: { argb: 'FF8EA9DB' } },
-        right: { style: 'thin', color: { argb: 'FF8EA9DB' } },
-      };
+      cell.fill = headerFill;
+      cell.font = headerFont;
+      cell.alignment = headerAlign;
+      cell.border = headerBorder;
     });
+
+    const centerCols = new Set([1, 6, 7, 8, 9]);
 
     users.forEach((u, index) => {
       const activeAssetsCount = u.assignments.length;
@@ -150,34 +198,14 @@ export class UsersExcelService {
 
       const row = worksheet.addRow(rowValues);
       row.height = 26;
+      const isZebra = index % 2 === 1;
 
       row.eachCell((cell, colNumber) => {
-        cell.font = {
-          name: 'Yu Gothic UI',
-          size: 10,
-          bold: false,
-          color: { argb: 'FF000000' },
-        };
-
-        if (index % 2 === 1) {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFF9FAFB' },
-          };
-        }
-
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-        };
-
-        if (colNumber === 1 || colNumber === 6 || colNumber === 7 || colNumber === 8 || colNumber === 9) {
-          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-        } else {
-          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        cell.font = cellFont;
+        cell.border = cellBorder;
+        cell.alignment = centerCols.has(colNumber) ? cellAlignCenter : cellAlignLeft;
+        if (isZebra) {
+          cell.fill = cellZebraFill;
         }
       });
     });
@@ -316,7 +344,7 @@ export class UsersExcelService {
 
     const existingUsers = await this.prisma.user.findMany({
       where: { deletedAt: null, ...(targetOrgId ? { organizationId: targetOrgId } : {}) },
-      select: { id: true, username: true },
+      select: { id: true, username: true, role: true },
     });
     const usernameSet = new Set(existingUsers.map((u) => u.username.toLowerCase()));
 
@@ -355,7 +383,9 @@ export class UsersExcelService {
       let userRole: UserRole = UserRole.XODIM;
       if (rawRole && Object.values(UserRole).includes(rawRole as UserRole)) {
         const isSuperAdmin = performer?.role === UserRole.SUPER_ADMIN;
-        if (!isSuperAdmin && (rawRole === UserRole.SUPER_ADMIN || rawRole === UserRole.RAHBAR || rawRole === UserRole.VAZIRLIK_OMBORCHI)) {
+        if (performer?.role === UserRole.KADR) {
+          userRole = UserRole.XODIM;
+        } else if (!isSuperAdmin && (rawRole === UserRole.SUPER_ADMIN || rawRole === UserRole.RAHBAR || rawRole === UserRole.VAZIRLIK_OMBORCHI)) {
           userRole = UserRole.XODIM;
         } else {
           userRole = rawRole as UserRole;
@@ -398,6 +428,9 @@ export class UsersExcelService {
       );
 
       if (existingUser) {
+        if (performer?.role === UserRole.KADR && existingUser.role !== UserRole.XODIM) {
+          continue; // Kadrlar bo'limi boshqa ma'muriy hisoblarni Excel orqali o'zgartira olmaydi
+        }
         await this.prisma.user.update({
           where: { id: existingUser.id },
           data: {

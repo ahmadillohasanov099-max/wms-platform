@@ -12,7 +12,7 @@ import { useUiStore } from "../../store/ui.store";
 import { authApi } from "../../api";
 import Button from "../../components/ui/button";
 import { useTranslation } from "../../hooks/useTranslation";
-import { cn } from "../../lib/utils";
+import { cn, getDefaultRouteForRole } from "../../lib/utils";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -43,7 +43,7 @@ export default function LoginPage() {
       const { accessToken, refreshToken, user } = res.data;
       setAuth(user, accessToken, refreshToken);
       toast.success(t("login.welcome", { name: user.fullName }));
-      navigate(user.role === "XODIM" ? "/profile" : "/dashboard");
+      navigate(getDefaultRouteForRole(user.role));
     },
     onError: (err: any) => {
       toast.error(err?.message || t("login.invalidCredentials"));

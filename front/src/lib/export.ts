@@ -1,11 +1,12 @@
 import api from '../api/axios';
+import ExcelJS from 'exceljs';
 
 export async function downloadExport(url: string, filename: string, params?: any) {
   try {
-    const blob = await api.get(url, {
+    const blob = (await api.get(url, {
       params,
       responseType: 'blob',
-    }) as unknown as Blob;
+    })) as unknown as Blob;
 
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -21,11 +22,12 @@ export async function downloadExport(url: string, filename: string, params?: any
   }
 }
 
-export function exportToStyledExcel({
+export async function exportToStyledExcel({
   filename,
-  sheetName = 'Amallar Tarixi',
+  sheetName = 'Hisobot',
   headers,
   rows,
+  colWidths,
   centerColIndexes = [0, 1, 2, 4, 5, 7, 8],
 }: {
   filename: string;
@@ -35,85 +37,129 @@ export function exportToStyledExcel({
   colWidths?: number[];
   centerColIndexes?: number[];
 }) {
-  const colWidthsMap = [45, 120, 160, 340, 160, 80, 220, 180, 130, 200];
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Ombor Boshqaruv Tizimi';
 
-  const colGroupHtml = colWidthsMap
-    .map((w) => `<col style="width: ${w}px;" />`)
-    .join('');
+  // Sanitize sheet name (Excel limits to 31 chars and disallows \ / ? * : [ ])
+  const safeSheetName = (sheetName || 'Hisobot')
+    .replace(/[\\/?*[\]:]/g, '_')
+    .slice(0, 31);
 
-  const tableHeadersHtml = headers
-    .map(
-      (h, idx) =>
-        `<th style="background-color: #D5D8DC; color: #000000; font-family: 'Times New Roman', Times, serif; font-weight: bold; font-size: 11pt; border: 0.3pt solid #000000; text-align: center; vertical-align: middle; padding: 8px 10px; width: ${colWidthsMap[idx] || 150}px;">${h}</th>`
-    )
-    .join('');
+  const worksheet = workbook.addWorksheet(safeSheetName);
+  worksheet.views = [{ showGridLines: true }];
 
-  const tableRowsHtml = rows
-    .map((row) => {
-      const cells = row
-        .map((cellValue, colIdx) => {
-          const isCenter = centerColIndexes.includes(colIdx);
-          const alignStyle = isCenter ? 'text-align: center;' : 'text-align: left;';
-          const isInventoryCol = colIdx === 4;
-          const numFormatStyle = isInventoryCol ? "mso-number-format:'\\@';" : '';
-          const fontStyle = "font-family: 'Times New Roman', Times, serif;";
-          const val = cellValue != null ? String(cellValue) : '—';
+  // Fast column widths setup (sample at most 50 rows to avoid freezing the UI thread)
+  if (colWidths && colWidths.length > 0) {
+    worksheet.columns = headers.map((header, idx) => ({
+      header,
+      key: `col_${idx}`,
+      width: Math.max(colWidths[idx] || 15, 10),
+    }));
+  } else {
+    const sampleCount = Math.min(rows.length, 50);
+    worksheet.columns = headers.map((header, colIdx) => {
+      let maxLen = String(header || '').length;
+      for (let r = 0; r < sampleCount; r++) {
+        const val = rows[r]?.[colIdx];
+        if (val != null) {
+          maxLen = Math.max(maxLen, String(val).length);
+        }
+      }
+      return {
+        header,
+        key: `col_${colIdx}`,
+        width: Math.min(Math.max(maxLen + 4, 12), 45),
+      };
+    });
+  }
 
-          return `<td style="border: 0.3pt solid #000000; padding: 7px 10px; vertical-align: middle; font-size: 10.5pt; line-height: 1.4; white-space: normal; word-break: break-word; overflow-wrap: break-word; ${alignStyle} ${fontStyle} ${numFormatStyle}">${val}</td>`;
-        })
-        .join('');
-      return `<tr>${cells}</tr>`;
-    })
-    .join('');
+  // Pre-allocated static styles to eliminate GC pressure
+  const headerFill: ExcelJS.Fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1F4E79' },
+  };
+  const headerFont: Partial<ExcelJS.Font> = {
+    name: 'Calibri',
+    size: 11,
+    bold: true,
+    color: { argb: 'FFFFFFFF' },
+  };
+  const headerAlignment: Partial<ExcelJS.Alignment> = {
+    vertical: 'middle',
+    horizontal: 'center',
+    wrapText: true,
+  };
+  const headerBorder: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+    left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+    bottom: { style: 'medium', color: { argb: 'FF16365C' } },
+    right: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+  };
 
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-      <!--[if gte mso 9]>
-      <xml>
-        <x:ExcelWorkbook>
-          <x:ExcelWorksheets>
-            <x:ExcelWorksheet>
-              <x:Name>${sheetName}</x:Name>
-              <x:WorksheetOptions>
-                <x:DisplayGridlines/>
-              </x:WorksheetOptions>
-            </x:ExcelWorksheet>
-          </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-      </xml>
-      <![endif]-->
-      <style>
-        table { border-collapse: collapse; width: 100%; font-family: 'Times New Roman', Times, serif; table-layout: fixed; }
-        th, td { border: 0.3pt solid #000000; font-family: 'Times New Roman', Times, serif; word-wrap: break-word; white-space: normal; word-break: break-word; }
-      </style>
-    </head>
-    <body>
-      <table border="1" style="border-collapse: collapse; border: 0.3pt solid #000000; font-family: 'Times New Roman', Times, serif;">
-        <colgroup>
-          ${colGroupHtml}
-        </colgroup>
-        <thead>
-          <tr style="height: 35px;">${tableHeadersHtml}</tr>
-        </thead>
-        <tbody>
-          ${tableRowsHtml}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
+  const cellFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 10 };
+  const cellBorder: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FFE8E8E8' } },
+    left: { style: 'thin', color: { argb: 'FFE8E8E8' } },
+    bottom: { style: 'thin', color: { argb: 'FFE8E8E8' } },
+    right: { style: 'thin', color: { argb: 'FFE8E8E8' } },
+  };
+  const alignCenter: Partial<ExcelJS.Alignment> = {
+    vertical: 'middle',
+    horizontal: 'center',
+    wrapText: true,
+  };
+  const alignLeft: Partial<ExcelJS.Alignment> = {
+    vertical: 'middle',
+    horizontal: 'left',
+    wrapText: true,
+  };
+  const zebraFill: ExcelJS.Fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
 
-  const blob = new Blob(['\uFEFF' + htmlContent], {
-    type: 'application/vnd.ms-excel;charset=utf-8;',
+  // Style Header Row
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 28;
+  headerRow.eachCell((cell) => {
+    cell.fill = headerFill;
+    cell.font = headerFont;
+    cell.alignment = headerAlignment;
+    cell.border = headerBorder;
   });
+
+  const centerSet = new Set(centerColIndexes || []);
+
+  // Add Data Rows with high-speed styling
+  for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+    const row = worksheet.addRow(rows[rIdx]);
+    row.height = 22;
+    const isZebra = rIdx % 2 === 1;
+
+    row.eachCell((cell, colNumber) => {
+      const isCenter = centerSet.has(colNumber - 1);
+      cell.font = cellFont;
+      cell.alignment = isCenter ? alignCenter : alignLeft;
+      cell.border = cellBorder;
+      if (isZebra) {
+        cell.fill = zebraFill;
+      }
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const cleanName = filename.replace(/\.(xls|xlsx|csv)$/i, '');
+  const exportFilename = `${cleanName}.xlsx`;
 
   const downloadUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = downloadUrl;
-  const cleanName = filename.replace(/\.(xls|xlsx|csv)$/i, '');
-  const exportFilename = `${cleanName}.xls`;
   link.setAttribute('download', exportFilename);
   document.body.appendChild(link);
   link.click();

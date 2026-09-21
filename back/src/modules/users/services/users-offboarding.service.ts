@@ -1,9 +1,10 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, EmploymentStatus, OperationType } from '@prisma/client';
+import { AuditAction, EmploymentStatus, OperationType, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/prisma';
 import { AuditService } from 'src/common/services/audit.service';
 import { EventsGateway } from '../../events/events.gateway';
@@ -23,6 +24,27 @@ export class UsersOffboardingService {
 
     if (!user) {
       throw new NotFoundException("Xodim topilmadi");
+    }
+
+    const performer = await this.prisma.user.findUnique({
+      where: { id: performedById },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    const isSuperAdmin = performer?.role === UserRole.SUPER_ADMIN;
+
+    if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException("Super Admin yoki Rahbariyat hisobini ishdan bo'shatish taqiqlanadi!");
+      }
+    }
+
+    if (!isSuperAdmin && performer?.organizationId && user.organizationId && user.organizationId !== performer.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz!");
+    }
+
+    if (performer?.role === UserRole.KADR && user.role !== UserRole.XODIM) {
+      throw new ForbiddenException("Kadrlar bo'limi faqat oddiy 'Xodim' hisobini ishdan bo'shata oladi!");
     }
 
     if (user.employmentStatus !== EmploymentStatus.ACTIVE) {
@@ -182,6 +204,21 @@ export class UsersOffboardingService {
 
     if (!user) {
       throw new NotFoundException("Xodim topilmadi");
+    }
+
+    const performer = await this.prisma.user.findUnique({
+      where: { id: performedById },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    const isSuperAdmin = performer?.role === UserRole.SUPER_ADMIN;
+
+    if (!isSuperAdmin && performer?.organizationId && user.organizationId && user.organizationId !== performer.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz!");
+    }
+
+    if (performer?.role === UserRole.KADR && user.role !== UserRole.XODIM) {
+      throw new ForbiddenException("Kadrlar bo'limi faqat oddiy 'Xodim' hisobini ishdan bo'shata oladi!");
     }
 
     if (user.employmentStatus !== EmploymentStatus.OFFBOARDING_PENDING) {

@@ -9,6 +9,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    include: ['exceljs'],
+  },
   server: {
     port: 3000,
     host: true,
@@ -36,6 +39,9 @@ export default defineConfig({
             }
             if (id.includes('recharts')) {
               return 'vendor-charts';
+            }
+            if (id.includes('exceljs') || id.includes('xlsx')) {
+              return 'vendor-excel';
             }
             return 'vendor';
           }

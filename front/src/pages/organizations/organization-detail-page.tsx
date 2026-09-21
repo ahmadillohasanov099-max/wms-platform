@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -18,6 +18,7 @@ import Button from '../../components/ui/button';
 import Badge, { ProductTypeBadge } from '../../components/ui/badge';
 import Spinner from '../../components/ui/spinner';
 import Table, { type Column } from '../../components/ui/table';
+import Pagination from '../../components/ui/pagination';
 import { organizationsApi, inventoryApi } from '../../api';
 import type { Organization, Inventory } from '../../types';
 import { formatCurrency, formatCompactCurrency } from '../../lib/utils';
@@ -30,6 +31,9 @@ export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
@@ -47,8 +51,8 @@ export default function OrganizationDetailPage() {
   const org: Organization | null = (orgData as any)?.data || orgData || null;
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['org-inventory', id],
-    queryFn: () => inventoryApi.getAll({ organizationId: id }),
+    queryKey: ['org-inventory', id, debouncedSearch],
+    queryFn: () => inventoryApi.getAll({ organizationId: id, search: debouncedSearch || undefined }),
     enabled: !!id,
   });
 
@@ -87,10 +91,17 @@ export default function OrganizationDetailPage() {
 
   // Qidiruv va Filtr
   const filteredInventory = useMemo(() => {
+    const s = debouncedSearch.toLowerCase().trim();
     return inventoryList.filter((item) => {
       const matchSearch =
-        !debouncedSearch ||
-        item.product?.name?.toLowerCase().includes(debouncedSearch.toLowerCase());
+        !s ||
+        item.product?.name?.toLowerCase().includes(s) ||
+        (item.product?.year && String(item.product.year).includes(s)) ||
+        item.product?.assets?.some(
+          (a) =>
+            a.inventoryNumber?.toLowerCase().includes(s) ||
+            a.serialNumber?.toLowerCase().includes(s)
+        );
       const matchType =
         !typeFilter || item.product?.productType === typeFilter;
       const matchLowStock = !lowStockOnly || item.isLowStock;
@@ -98,10 +109,24 @@ export default function OrganizationDetailPage() {
     });
   }, [inventoryList, debouncedSearch, typeFilter, lowStockOnly]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, typeFilter, lowStockOnly]);
+
+  const totalPages = Math.ceil(filteredInventory.length / limit) || 1;
+
+  const paginatedInventory = useMemo(() => {
+    const start = (page - 1) * limit;
+    return filteredInventory.slice(start, start + limit);
+  }, [filteredInventory, page, limit]);
+
   const handleExportCsv = async () => {
     try {
       setExporting(true);
-      await inventoryApi.exportCsv(id);
+      await inventoryApi.exportExcel(id, typeFilter || undefined, {
+        search: debouncedSearch || undefined,
+        lowStock: lowStockOnly || undefined,
+      });
       toast.success(t('organizations.exportSuccess'));
     } catch {
       toast.error(t('organizations.exportError'));
@@ -230,10 +255,11 @@ export default function OrganizationDetailPage() {
           size="sm"
           onClick={handleExportCsv}
           loading={exporting}
+          disabled={exporting}
           className="border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20"
         >
           <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-          {t('organizations.exportCsv')}
+          {t('common.excel')}
         </Button>
       </div>
 
@@ -382,11 +408,21 @@ export default function OrganizationDetailPage() {
         </div>
 
         <Table
-          data={filteredInventory}
+          data={paginatedInventory}
           columns={columns}
           loading={inventoryLoading}
           emptyTitle={t('organizations.warehouseEmpty')}
         />
+
+        <div className="px-4 pb-3">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={filteredInventory.length}
+            limit={limit}
+            onPageChange={setPage}
+          />
+        </div>
       </Card>
 
       {/* Asset / Product Details Modal */}

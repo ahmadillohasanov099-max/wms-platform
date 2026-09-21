@@ -8,26 +8,42 @@ import { SetMinLevelDto } from './dto/set-min-level.dto';
 import { BulkStockInDto } from './dto';
 import { ProductType } from '@prisma/client';
 import { enforceTenantOrgId } from 'src/common/helper/tenant.helper';
-import { InventoryExcelService } from './services/inventory-excel.service';
-import { InventoryScannerService } from './services/inventory-scanner.service';
+import { InventoryExcelService, ExportInventoryOptions } from './services/inventory-excel.service';
 
 @Injectable()
 export class InventoryService {
   constructor(
     private prisma: PrismaService,
     private excelService: InventoryExcelService,
-    private scannerService: InventoryScannerService,
   ) {}
 
-  async findAll(targetOrgId?: string, currentUser?: any) {
+  async findAll(targetOrgId?: string, currentUser?: any, search?: string) {
     const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
     const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+    const trimmedSearch = search?.trim();
 
     const items = await this.prisma.inventory.findMany({
       where: {
         product: {
           deletedAt: null,
           ...orgFilter,
+          ...(trimmedSearch && {
+            OR: [
+              { name: { contains: trimmedSearch, mode: 'insensitive' } },
+              { description: { contains: trimmedSearch, mode: 'insensitive' } },
+              {
+                assets: {
+                  some: {
+                    deletedAt: null,
+                    OR: [
+                      { inventoryNumber: { contains: trimmedSearch, mode: 'insensitive' } },
+                      { serialNumber: { contains: trimmedSearch, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              },
+            ],
+          }),
         },
       },
       include: {
@@ -38,18 +54,22 @@ export class InventoryService {
             productType: true,
             unit: true,
             imageUrl: true,
-            assets: {
-              where: { deletedAt: null },
-              select: {
-                inventoryNumber: true,
-                serialNumber: true,
-                status: true,
-                assignments: {
-                  where: { returnedAt: null },
-                  select: { id: true },
+            year: true,
+            ...(trimmedSearch && {
+              assets: {
+                where: {
+                  deletedAt: null,
+                  OR: [
+                    { inventoryNumber: { contains: trimmedSearch, mode: 'insensitive' } },
+                    { serialNumber: { contains: trimmedSearch, mode: 'insensitive' } },
+                  ],
+                },
+                select: {
+                  inventoryNumber: true,
+                  serialNumber: true,
                 },
               },
-            },
+            }),
           },
         },
       },
@@ -57,18 +77,12 @@ export class InventoryService {
     });
 
     return items.map((item) => {
-      let realQty = item.quantity;
-      if (item.product?.productType === ProductType.BERILADIGAN && item.product.assets) {
-        realQty = item.product.assets.filter(
-          (a: any) => (!a.status || a.status === 'ACTIVE') && (!a.assignments || a.assignments.length === 0)
-        ).length;
-      }
-
+      const realQty = item.quantity;
       return {
         ...item,
         quantity: realQty,
         totalValue: realQty * Number(item.unitPrice ?? 0),
-        isLowStock: realQty < item.minLevel,
+        isLowStock: realQty <= item.minLevel,
       };
     });
   }
@@ -118,7 +132,87 @@ export class InventoryService {
   }
 
   async getAssignedAssets(targetOrgId?: string, currentUser?: any) {
-    return this.scannerService.getAssignedAssets(targetOrgId, currentUser);
+    const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
+    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+
+    const assignments = await this.prisma.assignment.findMany({
+      where: {
+        returnedAt: null,
+        asset: {
+          deletedAt: null,
+          product: { deletedAt: null, ...orgFilter },
+        },
+      },
+      take: 250,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+        department: { select: { id: true, name: true } },
+        asset: {
+          select: {
+            id: true,
+            inventoryNumber: true,
+            serialNumber: true,
+            purchasePrice: true,
+            createdAt: true,
+            status: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                productType: true,
+                unit: true,
+              },
+            },
+            operations: {
+              where: {
+                type: { in: ['GIVE_TO_USER', 'GIVE_TO_DEPT', 'ASSIGN_TO_DEPT', 'TRANSFER_USER'] },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              include: {
+                performedBy: { select: { id: true, fullName: true, username: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { assignedAt: 'desc' },
+    });
+
+    return assignments.map((asgn) => {
+      const asset = asgn.asset;
+      const latestOp = asset?.operations?.[0];
+      const isUser = !!asgn.userId;
+
+      return {
+        id: asgn.id,
+        assetId: asset?.id,
+        productName: asset?.product?.name,
+        productType: asset?.product?.productType,
+        inventoryNumber: asset?.inventoryNumber,
+        serialNumber: asset?.serialNumber,
+        purchasePrice: Number(asset?.purchasePrice || 0),
+        status: asset?.status,
+        holderType: isUser ? 'USER' : 'DEPARTMENT',
+        holderName: isUser ? asgn.user?.fullName : asgn.department?.name,
+        departmentName: asgn.department?.name || asgn.user?.department?.name || '—',
+        departmentId: asgn.departmentId || asgn.user?.department?.id,
+        assignedAt: asgn.assignedAt,
+        performedBy: latestOp?.performedBy?.fullName || '—',
+        documentNumber: latestOp?.documentNumber || '—',
+        holderUser: asgn.user,
+        isPendingAcceptance: asgn.status === 'PENDING',
+        rejectedAt: asgn.rejectedAt,
+        rejectionReason: asgn.rejectionReason,
+      };
+    });
   }
 
   async getLowStock(organizationId?: string): Promise<any[]> {
@@ -322,8 +416,11 @@ export class InventoryService {
     };
   }
 
-  async exportExcel(organizationId: string): Promise<{ buffer: Buffer; organizationName: string }> {
-    return this.excelService.exportExcel(organizationId);
+  async exportExcel(
+    optionsOrOrgId?: string | ExportInventoryOptions,
+    productType?: ProductType | string,
+  ): Promise<{ buffer: Buffer; organizationName: string; resolvedType?: ProductType }> {
+    return this.excelService.exportExcel(optionsOrOrgId, productType);
   }
 
   async importExcel(fileBuffer: Buffer, performedById: string, requestedProductType?: string) {
@@ -344,13 +441,5 @@ export class InventoryService {
 
   async generateMasterTemplate(): Promise<Buffer> {
     return this.excelService.downloadMasterTemplate();
-  }
-
-  async lookupAssetByCode(code: string, targetOrgId?: string, currentUser?: any) {
-    return this.scannerService.lookupAssetByCode(code, targetOrgId, currentUser);
-  }
-
-  async searchAssets(query: string, targetOrgId?: string, currentUser?: any) {
-    return this.scannerService.searchAssets(query, targetOrgId, currentUser);
   }
 }

@@ -126,7 +126,16 @@ export const translations = {
       "assetAccepted": "Jihoz qabul qilindi!",
       "assetRejected": "Jihoz rad etildi va omborga qaytarildi",
       "requestApprovedToast": "So'rov qabul qilindi!",
-      "requestRejectedToast": "So'rov rad etildi!"
+      "requestRejectedToast": "So'rov rad etildi!",
+      "foundProducts": "Topilgan mahsulotlar",
+      "viewAllInWarehouse": "Barcha natijalarni Ombor sahifasida ko‘rish",
+      "noProductsFound": "\"{query}\" bo‘yicha mahsulot topilmadi",
+      "checkSearchQuery": "Mahsulot nomi yoki inventar raqami to‘g‘ri kiritilganini tekshiring",
+      "searchPlaceholderFull": "Qidiruv (nomi yoki INV)...",
+      "stockBalanceShort": "Qoldiq:",
+      "equipmentBadge": "Jihoz",
+      "tmzBadge": "TMZ",
+      "unnamedProduct": "Nomsiz mahsulot"
     },
     "deletionRequests": {
       "title": "O'chirish So'rovlari Boshqaruvi",
@@ -1192,7 +1201,16 @@ export const translations = {
       "assetAccepted": "Инвентарь принят!",
       "assetRejected": "Инвентарь отклонен и возвращен на склад",
       "requestApprovedToast": "Запрос принят!",
-      "requestRejectedToast": "Запрос отклонен!"
+      "requestRejectedToast": "Запрос отклонен!",
+      "foundProducts": "Найденные товары",
+      "viewAllInWarehouse": "Посмотреть все результаты на странице склада",
+      "noProductsFound": "По запросу «{query}» товары не найдены",
+      "checkSearchQuery": "Проверьте правильность ввода названия или инвентарного номера",
+      "searchPlaceholderFull": "Поиск (название или инв. номер)...",
+      "stockBalanceShort": "Остаток:",
+      "equipmentBadge": "Инвентарь",
+      "tmzBadge": "ТМЦ",
+      "unnamedProduct": "Безымянный товар"
     },
     "deletionRequests": {
       "title": "Управление запросами на удаление",
@@ -2258,7 +2276,16 @@ export const translations = {
       "assetAccepted": "Asset accepted!",
       "assetRejected": "Asset rejected and returned to warehouse",
       "requestApprovedToast": "Request approved!",
-      "requestRejectedToast": "Request rejected!"
+      "requestRejectedToast": "Request rejected!",
+      "foundProducts": "Found products",
+      "viewAllInWarehouse": "View all results on Warehouse page",
+      "noProductsFound": "No products found for \"{query}\"",
+      "checkSearchQuery": "Please check that the product name or inventory number is correct",
+      "searchPlaceholderFull": "Search (name or INV)...",
+      "stockBalanceShort": "Stock:",
+      "equipmentBadge": "Equipment",
+      "tmzBadge": "Consumables",
+      "unnamedProduct": "Unnamed product"
     },
     "deletionRequests": {
       "title": "Deletion Requests Management",

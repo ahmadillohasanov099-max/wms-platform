@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ProductType, UserRole } from '@prisma/client';
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -22,7 +22,7 @@ import { InventoryService } from './inventory.service';
 import { SetMinLevelDto } from './dto/set-min-level.dto';
 import { CurrentUser, Roles } from '../auth';
 import { BulkStockInDto } from './dto';
-import { enforceRequiredTenantOrgId } from '../../common/helper/tenant.helper';
+import { enforceTenantOrgId } from '../../common/helper/tenant.helper';
 
 const INVENTORY_VIEWERS = [
   UserRole.SUPER_ADMIN,
@@ -52,10 +52,11 @@ export class InventoryController {
   @Get()
   findAll(
     @Query('organizationId') organizationId: string,
+    @Query('search') search: string,
     @CurrentUser() user: any,
   ) {
     const targetOrgId = organizationId ? organizationId : user?.organizationId;
-    return this.inventoryService.findAll(targetOrgId, user);
+    return this.inventoryService.findAll(targetOrgId, user, search);
   }
 
   @ApiOperation({ summary: 'Biriktirilgan jihozlar ro\'yxati' })
@@ -69,48 +70,43 @@ export class InventoryController {
     return this.inventoryService.getAssignedAssets(targetOrgId, user);
   }
 
-  @ApiOperation({ summary: 'Inventar raqami orqali tezkor jihoz qidirish (Skaner va Lookup)' })
-  @Roles(...INVENTORY_VIEWERS, UserRole.XODIM)
-  @Get('lookup-asset')
-  lookupAsset(
-    @Query('code') code: string,
-    @Query('organizationId') organizationId: string,
-    @CurrentUser() user: any,
-  ) {
-    const targetOrgId = organizationId ? organizationId : user?.organizationId;
-    return this.inventoryService.lookupAssetByCode(code, targetOrgId, user);
-  }
-
-  @ApiOperation({ summary: 'Inventar raqami / nomi bo\'yicha tezkor live qidiruv' })
-  @Roles(...INVENTORY_VIEWERS, UserRole.XODIM)
-  @Get('search-assets')
-  searchAssets(
-    @Query('query') query: string,
-    @Query('organizationId') organizationId: string,
-    @CurrentUser() user: any,
-  ) {
-    const targetOrgId = organizationId ? organizationId : user?.organizationId;
-    return this.inventoryService.searchAssets(query, targetOrgId, user);
-  }
-
   @ApiOperation({ summary: 'Ombor hisobotini Excel (.xlsx) formatda eksport qilish' })
   @Roles(...INVENTORY_VIEWERS)
   @Get('export')
   async exportExcel(
     @Query('organizationId') organizationId: string,
+    @Query('type') type: string,
+    @Query('productType') productType: string,
+    @Query('search') search: string,
+    @Query('lowStock') lowStock: string,
     @CurrentUser() user: any,
     @Res() res: express.Response,
   ) {
-    const targetOrgId = enforceRequiredTenantOrgId(user, organizationId);
-    const { buffer, organizationName } = await this.inventoryService.exportExcel(targetOrgId);
-    const safeOrgName = encodeURIComponent(organizationName.replace(/[\s/\\:*?"<>|]+/g, '_'));
+    const targetOrgId = enforceTenantOrgId(user, organizationId);
+    const chosenType = productType || type;
+    const { buffer, organizationName, resolvedType } =
+      await this.inventoryService.exportExcel({
+        organizationId: targetOrgId,
+        productType: chosenType,
+        search,
+        lowStock,
+      });
+    const safeOrgName = encodeURIComponent(
+      (organizationName || 'ombor').replace(/[\s/\\:*?"<>|]+/g, '_'),
+    );
+    let typeSuffix = '';
+    if (resolvedType === ProductType.BERILADIGAN) {
+      typeSuffix = '_asosiy_vositalar';
+    } else if (resolvedType === ProductType.SARFLANADIGAN) {
+      typeSuffix = '_tmz';
+    }
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="ombor_${safeOrgName}.xlsx"`,
+      `attachment; filename="ombor_${safeOrgName}${typeSuffix}.xlsx"`,
     );
     return res.status(200).send(buffer);
   }
@@ -190,10 +186,7 @@ export class InventoryController {
 
   @ApiOperation({ summary: "Yagona Master Excel orqali barcha ma'lumotlarni yuklash" })
   @Roles(...WAREHOUSE_MUTATORS)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
+  @UseInterceptors( FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 }}),
   )
   @Post('master-import')
   importMasterExcel(

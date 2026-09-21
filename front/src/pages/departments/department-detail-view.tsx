@@ -34,7 +34,7 @@ export default function DepartmentDetailView({
   const [activeTab, setActiveTab] = useState<'employees' | 'assets' | 'tmz'>('employees');
   const queryClient = useQueryClient();
   const { user: loggedInUser } = useAuthStore();
-  const isAdmin = loggedInUser?.role !== 'XODIM' && loggedInUser?.role !== 'KADR';
+  const isAdmin = loggedInUser?.role !== 'XODIM' && loggedInUser?.role !== 'KADR' && loggedInUser?.role !== 'RAHBAR';
 
   const [selectedAssetItem, setSelectedAssetItem] = useState<any | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);

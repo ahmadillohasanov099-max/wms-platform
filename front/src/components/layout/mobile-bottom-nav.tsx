@@ -9,6 +9,9 @@ import {
   ArrowLeftRight,
   BarChart3,
   Users,
+  PackageCheck,
+  History,
+  Bell,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -21,12 +24,21 @@ export default function MobileBottomNav() {
   if (!user) return null;
 
   const isXodim = user.role === 'XODIM';
+  const isKadr = user.role === 'KADR';
 
   const xodimItems = [
     { path: '/profile/info', label: t('menu.profileInfo'), icon: <User className="w-5 h-5" /> },
     { path: '/profile/department', label: t('menu.myDepartment'), icon: <Building2 className="w-5 h-5" /> },
     { path: '/profile/assets', label: t('menu.profileAssets'), icon: <Package className="w-5 h-5" /> },
     { path: '/profile/security', label: t('menu.profileSecurity'), icon: <Lock className="w-5 h-5" /> },
+  ];
+
+  const kadrItems = [
+    { path: '/users', label: t('menu.users'), icon: <Users className="w-5 h-5" /> },
+    { path: '/departments', label: t('menu.departments'), icon: <Building2 className="w-5 h-5" /> },
+    { path: '/assigned-assets', label: t('menu.assignedAssets') || 'Jihozlar', icon: <PackageCheck className="w-5 h-5" /> },
+    { path: '/history', label: t('menu.history'), icon: <History className="w-5 h-5" /> },
+    { path: '/requests', label: t('menu.requests') || "So'rovlar", icon: <Bell className="w-5 h-5" /> },
   ];
 
   const managerItems = [
@@ -37,7 +49,7 @@ export default function MobileBottomNav() {
     { path: '/users', label: t('menu.users'), icon: <Users className="w-5 h-5" /> },
   ];
 
-  const items = isXodim ? xodimItems : managerItems;
+  const items = isXodim ? xodimItems : isKadr ? kadrItems : managerItems;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200 dark:border-slate-800 px-1 py-1.5 shadow-lg">

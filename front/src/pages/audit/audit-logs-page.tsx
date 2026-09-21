@@ -42,6 +42,7 @@ export default function AuditLogsPage() {
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const {
     data: logsData,
@@ -75,40 +76,47 @@ export default function AuditLogsPage() {
   const totalLogs = logsData?.total ?? 0;
   const totalPages = logsData?.totalPages ?? 1;
 
-  const handleExport = () => {
-    const headers = [
-      '№',
-      t('auditLogs.user'),
-      'Roli',
-      t('auditLogs.action'),
-      'Metod',
-      t('auditLogs.resource'),
-      'Endpoint Path',
-      t('auditLogs.statusCode'),
-      t('auditLogs.ipAddress'),
-      t('auditLogs.time'),
-    ];
+  const handleExport = async () => {
+    try {
+      setExportLoading(true);
+      const headers = [
+        '№',
+        t('auditLogs.user'),
+        'Roli',
+        t('auditLogs.action'),
+        'Metod',
+        t('auditLogs.resource'),
+        'Endpoint Path',
+        t('auditLogs.statusCode'),
+        t('auditLogs.ipAddress'),
+        t('auditLogs.time'),
+      ];
 
-    const rows = logsList.map((log, index) => [
-      index + 1,
-      log.userName || log.user?.fullName || 'Noma\'lum',
-      log.userRole || log.user?.role || 'GUEST',
-      log.action,
-      log.method,
-      log.resource || 'SYSTEM',
-      log.endpoint,
-      log.statusCode,
-      log.ipAddress || '127.0.0.1',
-      formatDate(log.createdAt),
-    ]);
+      const rows = logsList.map((log, index) => [
+        index + 1,
+        log.userName || log.user?.fullName || 'Noma\'lum',
+        log.userRole || log.user?.role || 'GUEST',
+        log.action,
+        log.method,
+        log.resource || 'SYSTEM',
+        log.endpoint,
+        log.statusCode,
+        log.ipAddress || '127.0.0.1',
+        formatDate(log.createdAt),
+      ]);
 
-    exportToStyledExcel({
-      filename: `audit_logs_${new Date().toISOString().split('T')[0]}`,
-      sheetName: t('auditLogs.title'),
-      headers,
-      rows,
-      centerColIndexes: [0, 4, 7, 8, 9],
-    });
+      await exportToStyledExcel({
+        filename: `audit_logs_${new Date().toISOString().split('T')[0]}`,
+        sheetName: t('auditLogs.title'),
+        headers,
+        rows,
+        centerColIndexes: [0, 4, 7, 8, 9],
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const getMethodBadge = (method: string) => {
@@ -258,7 +266,8 @@ export default function AuditLogsPage() {
               onClick={handleExport}
               variant="outline"
               size="sm"
-              disabled={logsList.length === 0}
+              loading={exportLoading}
+              disabled={exportLoading || logsList.length === 0}
               className="flex items-center gap-1.5 text-xs font-bold"
             >
               <Download className="w-3.5 h-3.5" />

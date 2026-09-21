@@ -3,201 +3,244 @@ import { PrismaService } from 'src/prisma';
 import { ProductType, UnitType, UserRole } from '@prisma/client';
 import * as xlsx from 'xlsx';
 import * as ExcelJS from 'exceljs';
+import { PassThrough } from 'stream';
 import * as bcrypt from 'bcrypt';
+
+export interface ExportInventoryOptions {
+  organizationId?: string;
+  productType?: ProductType | string;
+  search?: string;
+  lowStock?: boolean | string;
+}
 
 @Injectable()
 export class InventoryExcelService {
   constructor(private prisma: PrismaService) {}
 
-  async exportExcel(organizationId: string): Promise<{ buffer: Buffer; organizationName: string }> {
-    if (!organizationId) {
-      throw new BadRequestException("Tashkilot tanlanishi shart! Eksport faqat aniq bitta tashkilot/boshqarma bo'yicha amalga oshiriladi.");
+  async exportExcel(
+    organizationIdOrOptions?: string | ExportInventoryOptions,
+    maybeProductType?: ProductType | string,
+  ): Promise<{ buffer: Buffer; organizationName: string; resolvedType?: ProductType }> {
+    let organizationId: string | undefined;
+    let productType: ProductType | string | undefined;
+    let search: string | undefined;
+    let lowStock: boolean | string | undefined;
+
+    if (typeof organizationIdOrOptions === 'object' && organizationIdOrOptions !== null) {
+      organizationId = organizationIdOrOptions.organizationId;
+      productType = organizationIdOrOptions.productType;
+      search = organizationIdOrOptions.search;
+      lowStock = organizationIdOrOptions.lowStock;
+    } else {
+      organizationId = organizationIdOrOptions;
+      productType = maybeProductType;
     }
 
-    const organization = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { id: true, name: true, code: true },
-    });
-    const orgName = organization ? organization.name : 'Boshqarma';
+    const cleanOrgId =
+      organizationId && organizationId !== 'undefined' && organizationId !== 'null'
+        ? organizationId
+        : undefined;
+
+    let orgName = 'Barcha Tashkilotlar';
+    if (cleanOrgId) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: cleanOrgId },
+        select: { id: true, name: true, code: true },
+      });
+      orgName = organization ? organization.name : 'Boshqarma';
+    }
+
+    let resolvedProductType: ProductType | undefined = undefined;
+    if (productType) {
+      const upper = String(productType).toUpperCase().trim();
+      if (
+        upper === ProductType.BERILADIGAN ||
+        upper === 'ASSET' ||
+        upper === 'ASOSIY_VOSITA' ||
+        upper === 'JIHOZ'
+      ) {
+        resolvedProductType = ProductType.BERILADIGAN;
+      } else if (
+        upper === ProductType.SARFLANADIGAN ||
+        upper === 'CONSUMABLE' ||
+        upper === 'TMZ' ||
+        upper === 'SARFLANADIGAN_MATERIAL'
+      ) {
+        resolvedProductType = ProductType.SARFLANADIGAN;
+      }
+    }
+
+    const orgFilter = cleanOrgId ? { organizationId: cleanOrgId } : {};
+    const typeFilter = resolvedProductType ? { productType: resolvedProductType } : {};
+    const searchTrim = search && typeof search === 'string' ? search.trim() : undefined;
+    const searchFilter = searchTrim
+      ? {
+          OR: [
+            { name: { contains: searchTrim, mode: 'insensitive' as const } },
+            { description: { contains: searchTrim, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const shouldIncludeAssets =
+      cleanOrgId !== undefined && resolvedProductType !== ProductType.SARFLANADIGAN;
 
     const products = await this.prisma.product.findMany({
       where: {
         deletedAt: null,
-        organizationId,
+        ...orgFilter,
+        ...typeFilter,
+        ...searchFilter,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        productType: true,
+        unit: true,
+        description: true,
         organization: { select: { name: true, code: true } },
-        inventory: true,
-        assets: {
-          where: { deletedAt: null, organizationId },
-          include: {
-            assignments: {
-              where: { returnedAt: null },
-              include: {
-                user: { select: { fullName: true, username: true } },
-                department: { select: { name: true } },
-              },
-            },
+        inventory: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            minLevel: true,
+            totalValue: true,
           },
         },
         departmentAssets: {
-          include: { department: true },
+          select: { quantity: true },
+        },
+        _count: {
+          select: {
+            assets: {
+              where: {
+                deletedAt: null,
+                ...(cleanOrgId ? { organizationId: cleanOrgId } : {}),
+                assignments: { some: { returnedAt: null } },
+              },
+            },
+          },
         },
       },
       orderBy: { name: 'asc' },
     });
 
-    const workbook = new ExcelJS.Workbook();
+    let filteredProducts = products;
+
+    const isLowStockOnly = lowStock === true || lowStock === 'true' || lowStock === '1';
+    if (isLowStockOnly) {
+      filteredProducts = filteredProducts.filter((p) => {
+        const qty = p.inventory?.quantity ?? 0;
+        const minLevel = p.inventory?.minLevel ?? 0;
+        return qty <= minLevel;
+      });
+    }
+
+    const passThrough = new PassThrough();
+    const chunks: Buffer[] = [];
+    passThrough.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: passThrough,
+      useStyles: true,
+    });
     workbook.creator = 'Ombor Boshqaruv Tizimi';
-    const worksheet = workbook.addWorksheet('Ombor Qoldiqlari');
-    worksheet.views = [{ showGridLines: true }];
+
+    let sheetTitle = 'Ombor Qoldiqlari';
+    if (resolvedProductType === ProductType.BERILADIGAN) {
+      sheetTitle = 'Asosiy vositalar';
+    } else if (resolvedProductType === ProductType.SARFLANADIGAN) {
+      sheetTitle = 'TMZ';
+    }
+    const worksheet = workbook.addWorksheet(sheetTitle, {
+      views: [{ showGridLines: true }],
+    });
 
     worksheet.columns = [
       { header: '№', key: 'num', width: 6 },
       { header: 'Tashkilot / Boshqarma', key: 'organization', width: 34 },
       { header: 'Mahsulot nomi', key: 'name', width: 38 },
-      { header: 'Turi', key: 'type', width: 18 },
+      { header: 'Turi', key: 'type', width: 22 },
       { header: 'O‘lchov birligi', key: 'unit', width: 14 },
-      { header: 'Inventar raqami', key: 'invNumber', width: 22 },
-      { header: 'Seriya raqami', key: 'serialNumber', width: 20 },
-      { header: 'Holati', key: 'status', width: 22 },
-      { header: 'Joylashuvi (Xodim / Bo‘lim)', key: 'location', width: 34 },
-      { header: 'Biriktirilgan sana', key: 'assignedAt', width: 18 },
       { header: 'Ombordagi qoldiq', key: 'warehouseQty', width: 18 },
-      { header: 'Bo‘limlardagi qoldiq', key: 'deptsQty', width: 20 },
-      { header: 'Narxi (so‘m)', key: 'price', width: 18 },
+      { header: 'Biriktirilgan / Bo‘limlarda', key: 'assignedQty', width: 24 },
+      { header: 'Jami qoldiq', key: 'totalQty', width: 16 },
+      { header: 'Birlik narxi (so‘m)', key: 'price', width: 18 },
+      { header: 'Jami qiymati (so‘m)', key: 'totalValue', width: 20 },
       { header: 'Minimal chegara', key: 'minLevel', width: 16 },
+      { header: 'Holati', key: 'status', width: 18 },
       { header: 'Tavsif', key: 'desc', width: 30 },
     ];
+
+    const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } };
+    const headerFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    const headerAlign: Partial<ExcelJS.Alignment> = { vertical: 'middle', horizontal: 'center' };
 
     const headerRow = worksheet.getRow(1);
     headerRow.height = 28;
     headerRow.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } };
-      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.fill = headerFill;
+      cell.font = headerFont;
+      cell.alignment = headerAlign;
     });
+    headerRow.commit();
 
+    const rowAlignment: Partial<ExcelJS.Alignment> = { vertical: 'middle' };
     let rowIdx = 1;
-    for (const product of products) {
+    for (const product of filteredProducts) {
       const currentOrgName = product.organization?.name || orgName;
-      const typeText =
-        product.productType === ProductType.BERILADIGAN
-          ? 'Jihoz (Asosiy vosita)'
-          : 'TMZ (Sarflanadigan)';
+      const isAsset = product.productType === ProductType.BERILADIGAN;
+      const typeText = isAsset ? 'Jihoz (Asosiy vosita)' : 'TMZ (Sarflanadigan)';
       const unitText = product.unit || 'dona';
-      const minLevelText = product.inventory?.minLevel ?? 0;
+      const minLevel = product.inventory?.minLevel ?? 0;
       const descText = product.description || '';
 
-      if (product.productType === ProductType.SARFLANADIGAN) {
-        const warehouseQty = product.inventory?.quantity ?? 0;
-        const deptsQty = product.departmentAssets.reduce(
-          (sum, da) => sum + da.quantity,
-          0,
-        );
-        const unitPrice = product.inventory?.unitPrice
-          ? Number(product.inventory.unitPrice)
-          : 0;
+      const warehouseQty = product.inventory?.quantity ?? 0;
+      const assignedQty = isAsset
+        ? (product._count?.assets ?? 0)
+        : product.departmentAssets.reduce((sum, da) => sum + da.quantity, 0);
+      const totalQty = warehouseQty + assignedQty;
 
-        const row = worksheet.addRow([
-          rowIdx++,
-          currentOrgName,
-          product.name,
-          typeText,
-          unitText,
-          '—',
-          '—',
-          warehouseQty > 0 ? 'Omborda mavjud' : 'Tugagan',
-          'Markaziy Ombor',
-          '—',
-          warehouseQty,
-          deptsQty,
-          unitPrice,
-          minLevelText,
-          descText,
-        ]);
-        row.height = 20;
-        row.alignment = { vertical: 'middle' };
-      } else {
-        if (product.assets.length > 0) {
-          for (const asset of product.assets) {
-            const activeAssignment = asset.assignments[0];
-            let statusText = 'Omborda';
-            let locationText = 'Markaziy Ombor';
-            let assignedDateText = '—';
+      const unitPrice = product.inventory?.unitPrice ? Number(product.inventory.unitPrice) : 0;
+      const totalVal = product.inventory?.totalValue
+        ? Number(product.inventory.totalValue)
+        : totalQty * unitPrice;
 
-            if (asset.status === 'WRITTEN_OFF') {
-              statusText = 'Hisobdan chiqarilgan';
-              locationText = 'Arxiv';
-            } else if (activeAssignment) {
-              if (activeAssignment.user) {
-                statusText = 'Xodimda';
-                locationText = `${activeAssignment.user.fullName} (@${activeAssignment.user.username})`;
-              } else if (activeAssignment.department) {
-                statusText = 'Bo‘limda';
-                locationText = activeAssignment.department.name;
-              }
-              if (activeAssignment.assignedAt) {
-                const d = new Date(activeAssignment.assignedAt);
-                assignedDateText = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
-              }
-            }
-
-            const priceVal = asset.purchasePrice
-              ? Number(asset.purchasePrice)
-              : product.inventory?.unitPrice
-              ? Number(product.inventory.unitPrice)
-              : 0;
-
-            const row = worksheet.addRow([
-              rowIdx++,
-              currentOrgName,
-              product.name,
-              typeText,
-              unitText,
-              asset.inventoryNumber || '—',
-              asset.serialNumber || '—',
-              statusText,
-              locationText,
-              assignedDateText,
-              asset.status === 'ACTIVE' && !activeAssignment ? 1 : 0,
-              activeAssignment ? 1 : 0,
-              priceVal,
-              minLevelText,
-              descText,
-            ]);
-            row.height = 20;
-            row.alignment = { vertical: 'middle' };
-          }
-        } else {
-          const qty = product.inventory?.quantity ?? 0;
-          const row = worksheet.addRow([
-            rowIdx++,
-            currentOrgName,
-            product.name,
-            typeText,
-            unitText,
-            '—',
-            '—',
-            'Omborda (Jihozlar yo‘q)',
-            '—',
-            '—',
-            qty,
-            0,
-            product.inventory?.unitPrice ? Number(product.inventory.unitPrice) : 0,
-            minLevelText,
-            descText,
-          ]);
-          row.height = 20;
-          row.alignment = { vertical: 'middle' };
-        }
+      let statusText = 'Yetarli';
+      if (warehouseQty === 0) {
+        statusText = 'Tugagan';
+      } else if (warehouseQty <= minLevel) {
+        statusText = 'Kam qolgan';
       }
+
+      const row = worksheet.addRow([
+        rowIdx++,
+        currentOrgName,
+        product.name,
+        typeText,
+        unitText,
+        warehouseQty,
+        assignedQty,
+        totalQty,
+        unitPrice,
+        totalVal,
+        minLevel,
+        statusText,
+        descText,
+      ]);
+      row.height = 20;
+      row.alignment = rowAlignment;
+      row.commit();
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
+    worksheet.commit();
+    await workbook.commit();
+
+    const buffer = Buffer.concat(chunks);
     return {
-      buffer: Buffer.from(buffer),
+      buffer,
       organizationName: orgName,
+      resolvedType: resolvedProductType,
     };
   }
 

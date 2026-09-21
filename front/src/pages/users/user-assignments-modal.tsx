@@ -19,7 +19,7 @@ export default function UserAssignmentsModal({ open, onClose, user }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user: loggedInUser } = useAuthStore();
-  const isAdmin = loggedInUser?.role !== 'XODIM' && loggedInUser?.role !== 'KADR';
+  const isAdmin = loggedInUser?.role !== 'XODIM' && loggedInUser?.role !== 'KADR' && loggedInUser?.role !== 'RAHBAR';
   const { data, isLoading } = useQuery({
     queryKey: ['user-assignments', user?.id],
     queryFn: () => usersApi.getAssignments(user.id),

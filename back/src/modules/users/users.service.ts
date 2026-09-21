@@ -53,6 +53,10 @@ export class UsersService {
           { fullName: { contains: search, mode: 'insensitive' } },
           { username: { contains: search, mode: 'insensitive' } },
           { position: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { internalPhone: { contains: search, mode: 'insensitive' } },
+          { passport: { contains: search, mode: 'insensitive' } },
+          { pinfl: { contains: search, mode: 'insensitive' } },
         ],
       }),
     };
@@ -76,8 +80,17 @@ export class UsersService {
           passport: true,
           pinfl: true,
           address: true,
+          organizationId: true,
+          organization: { select: { id: true, name: true } },
           departmentId: true,
           department: { select: { id: true, name: true } },
+          _count: {
+            select: {
+              assignments: {
+                where: { returnedAt: null },
+              },
+            },
+          },
           offboardingStartedAt: true,
           offboardingStartedBy: { select: { id: true, fullName: true, username: true } },
           warehouseApprovedAt: true,
@@ -497,7 +510,32 @@ export class UsersService {
   }
 
   async toggleStatus(id: string, updatedBy: string) {
+    if (id === updatedBy) {
+      throw new BadRequestException("O'z hisobingiz statusini o'zingiz o'zgartira olmaysiz!");
+    }
+
+    const updaterUser = await this.prisma.user.findUnique({
+      where: { id: updatedBy },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    const isSuperAdmin = updaterUser?.role === UserRole.SUPER_ADMIN;
     const user = await this.findOne(id);
+
+    if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.RAHBAR) {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException("Super Admin yoki Rahbariyat hisobini bloklash taqiqlanadi!");
+      }
+    }
+
+    if (!isSuperAdmin && updaterUser?.organizationId && user.organizationId && user.organizationId !== updaterUser.organizationId) {
+      throw new ForbiddenException("Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz!");
+    }
+
+    if (updaterUser?.role === UserRole.KADR && user.role !== UserRole.XODIM) {
+      throw new ForbiddenException("Kadrlar bo'limi faqat oddiy 'Xodim' hisobini bloklash yoki faollashtirish huquqiga ega!");
+    }
+
     const newStatus = !user.isActive;
 
     return this.prisma.$transaction(async (tx) => {

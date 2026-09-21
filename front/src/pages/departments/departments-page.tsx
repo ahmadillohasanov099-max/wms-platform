@@ -28,6 +28,7 @@ export default function DepartmentsPage() {
   const [editDept, setEditDept] = useState<any>(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteDept, setDeleteDept] = useState<any>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['departments'],
@@ -48,21 +49,30 @@ export default function DepartmentsPage() {
 
   const departments = data ?? [];
 
-  const filtered = departments.filter(
-    (d: any) =>
-      !search || d.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = departments.filter((d: any) => {
+    if (!search) return true;
+    const q = search.toLowerCase().trim();
+    return (
+      d.name?.toLowerCase().includes(q) ||
+      d.description?.toLowerCase().includes(q) ||
+      d.leader?.fullName?.toLowerCase().includes(q) ||
+      d.leader?.username?.toLowerCase().includes(q)
+    );
+  });
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
       await downloadExport(
         '/departments/export',
-        `bolimlar_${new Date().toISOString().split('T')[0]}.csv`,
+        `bolimlar_${new Date().toISOString().split('T')[0]}.xlsx`,
         user?.organizationId ? { organizationId: user.organizationId } : undefined,
       );
       toast.success(t('departments.exportSuccess'));
     } catch {
       toast.error(t('departments.exportError'));
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -89,6 +99,8 @@ export default function DepartmentsPage() {
               variant="outline"
               className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/30"
               onClick={handleExport}
+              loading={exportLoading}
+              disabled={exportLoading}
             >
               {t('common.excel')}
             </Button>

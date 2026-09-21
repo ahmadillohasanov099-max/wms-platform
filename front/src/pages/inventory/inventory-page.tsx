@@ -46,10 +46,11 @@ export default function InventoryPage() {
   const [deleteProduct, setDeleteProduct] = useState<any>(null);
   const [minLevelEdit, setMinLevelEdit] = useState<string | null>(null);
   const [minLevelValue, setMinLevelValue] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory'],
-    queryFn: () => inventoryApi.getAll(),
+    queryKey: ['inventory', debouncedSearch],
+    queryFn: () => inventoryApi.getAll({ search: debouncedSearch || undefined }),
     staleTime: 30000,
   });
 
@@ -91,6 +92,7 @@ export default function InventoryPage() {
         !s ||
         item.product?.name?.toLowerCase().includes(s) ||
         item.product?.code?.toLowerCase().includes(s) ||
+        (item.product?.year && String(item.product.year).includes(s)) ||
         item.product?.assets?.some(
           (a: any) =>
             a.inventoryNumber?.toLowerCase().includes(s) ||
@@ -129,14 +131,42 @@ export default function InventoryPage() {
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
+      const exportParams: Record<string, any> = {};
+      if (user?.organizationId) {
+        exportParams.organizationId = user.organizationId;
+      }
+      if (typeFilter) {
+        exportParams.type = typeFilter;
+        exportParams.productType = typeFilter;
+      }
+      if (debouncedSearch && debouncedSearch.trim()) {
+        exportParams.search = debouncedSearch.trim();
+      }
+      if (lowStockOnly) {
+        exportParams.lowStock = 'true';
+      }
+
+      let typeSuffix = '';
+      if (typeFilter === 'BERILADIGAN') {
+        typeSuffix = '_asosiy_vositalar';
+      } else if (typeFilter === 'SARFLANADIGAN') {
+        typeSuffix = '_tmz';
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `ombor${typeSuffix}_${dateStr}.xlsx`;
+
       await downloadExport(
         '/inventory/export',
-        `ombor_${new Date().toISOString().split('T')[0]}.xlsx`,
-        user?.organizationId ? { organizationId: user.organizationId } : undefined,
+        filename,
+        Object.keys(exportParams).length > 0 ? exportParams : undefined,
       );
       toast.success(t('common.success'));
     } catch {
       toast.error(t('common.error'));
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -360,6 +390,8 @@ export default function InventoryPage() {
               variant="outline"
               className="border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20"
               onClick={handleExport}
+              loading={exportLoading}
+              disabled={exportLoading}
             >
               {t('common.excel')}
             </Button>

@@ -217,12 +217,14 @@ export class StatsService {
       }),
       this.prisma.product.findMany({
         where: { deletedAt: null, ...orgFilter },
+        take: 200,
         select: {
           id: true,
           name: true,
           productType: true,
           inventory: { select: { quantity: true, minLevel: true } },
         },
+        orderBy: { updatedAt: 'desc' },
       }),
     ]);
 
@@ -245,38 +247,41 @@ export class StatsService {
   }
 
   async getLowStock(organizationId?: string) {
-    const orgFilter = organizationId ? { organizationId } : {};
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        productId: string;
+        name: string;
+        productType: string;
+        unit: string;
+        quantity: number;
+        minLevel: number;
+      }>
+    >`
+      SELECT
+        i."productId",
+        p.name,
+        p."productType"::text AS "productType",
+        p.unit::text AS unit,
+        i.quantity,
+        i."minLevel"
+      FROM "Inventory" i
+      JOIN "Product" p ON i."productId" = p.id
+      WHERE p."deletedAt" IS NULL
+        AND i.quantity <= i."minLevel"
+        AND (${organizationId ?? null}::text IS NULL OR p."organizationId" = ${organizationId})
+      ORDER BY (i."minLevel" - i.quantity) DESC
+      LIMIT 100
+    `;
 
-    const items = await this.prisma.inventory.findMany({
-      where: {
-        product: { deletedAt: null, ...orgFilter },
-      },
-      select: {
-        productId: true,
-        quantity: true,
-        minLevel: true,
-        product: {
-          select: {
-            id: true,
-            name: true,
-            productType: true,
-            unit: true,
-          },
-        },
-      },
-    });
-
-    return items
-      .filter((item) => item.quantity < item.minLevel)
-      .map((item) => ({
-        productId: item.productId,
-        name: item.product.name,
-        productType: item.product.productType,
-        unit: item.product.unit,
-        quantity: item.quantity,
-        minLevel: item.minLevel,
-        shortage: item.minLevel - item.quantity,
-      }));
+    return rows.map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      productType: item.productType,
+      unit: item.unit,
+      quantity: item.quantity,
+      minLevel: item.minLevel,
+      shortage: Math.max(0, item.minLevel - item.quantity),
+    }));
   }
 
   async getMonthly(organizationId?: string) {
@@ -311,34 +316,41 @@ export class StatsService {
   }
 
   async getByUser(organizationId?: string) {
-    const orgFilter = organizationId ? { organizationId } : {};
+    const userAssetStats = await this.prisma.$queryRaw<
+      Array<{ user_id: string; asset_count: bigint; total_value: number }>
+    >`
+      SELECT
+        asgn."userId" AS user_id,
+        COUNT(asgn.id)::bigint AS asset_count,
+        COALESCE(SUM(a."purchasePrice"), 0)::float AS total_value
+      FROM "Assignment" asgn
+      JOIN "Asset" a ON asgn."assetId" = a.id
+      WHERE asgn."returnedAt" IS NULL
+        AND asgn."userId" IS NOT NULL
+        AND a."deletedAt" IS NULL
+        AND (${organizationId ?? null}::text IS NULL OR a."organizationId" = ${organizationId})
+      GROUP BY asgn."userId"
+      ORDER BY asset_count DESC
+      LIMIT 200
+    `;
 
-    const [users, userAssetStats] = await Promise.all([
-      this.prisma.user.findMany({
-        where: { deletedAt: null, isActive: true, role: 'XODIM', ...orgFilter },
-        select: {
-          id: true,
-          fullName: true,
-          username: true,
-          position: true,
-          department: { select: { id: true, name: true } },
-        },
-        orderBy: { fullName: 'asc' },
-      }),
-      this.prisma.$queryRaw<Array<{ user_id: string; asset_count: bigint; total_value: number }>>`
-        SELECT
-          asgn."userId" AS user_id,
-          COUNT(asgn.id)::bigint AS asset_count,
-          COALESCE(SUM(a."purchasePrice"), 0)::float AS total_value
-        FROM "Assignment" asgn
-        JOIN "Asset" a ON asgn."assetId" = a.id
-        WHERE asgn."returnedAt" IS NULL
-          AND asgn."userId" IS NOT NULL
-          AND a."deletedAt" IS NULL
-          AND (${organizationId ?? null}::text IS NULL OR a."organizationId" = ${organizationId})
-        GROUP BY asgn."userId"
-      `,
-    ]);
+    const userIds = userAssetStats.map((r) => r.user_id).filter(Boolean);
+    const users = userIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: {
+            id: { in: userIds },
+            deletedAt: null,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            position: true,
+            department: { select: { id: true, name: true } },
+          },
+        })
+      : [];
 
     const statsMap = new Map<string, { count: number; value: number }>();
     for (const row of userAssetStats) {
@@ -362,7 +374,7 @@ export class StatsService {
         totalValue: stats?.value ?? 0,
         assets: [],
       };
-    });
+    }).sort((a, b) => b.assetCount - a.assetCount);
   }
 
   async getConsolidatedStats() {

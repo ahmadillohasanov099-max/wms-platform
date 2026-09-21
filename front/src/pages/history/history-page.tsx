@@ -503,6 +503,7 @@ export default function HistoryPage() {
             className="border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20"
             onClick={handleExport}
             loading={exportLoading}
+            disabled={exportLoading || total === 0}
           >
             {t('common.excel')}
           </Button>

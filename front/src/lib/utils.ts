@@ -134,3 +134,9 @@ export function invalidateAppQueries(queryClient: any) {
     queryClient.invalidateQueries({ queryKey: [key], refetchType: 'all' });
   }
 }
+
+export function getDefaultRouteForRole(role?: string): string {
+  if (role === 'XODIM') return '/profile';
+  if (role === 'KADR') return '/users';
+  return '/dashboard';
+}

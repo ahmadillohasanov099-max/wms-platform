@@ -380,6 +380,10 @@ export class DepartmentsService {
     });
   }
 
+  async exportExcel(organizationId?: string) {
+    return this.excelService.exportExcel(organizationId);
+  }
+
   async exportCsv(organizationId: string) {
     return this.excelService.exportCsv(organizationId);
   }

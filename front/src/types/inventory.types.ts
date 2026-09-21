@@ -14,6 +14,11 @@ export interface Inventory {
     productType: string;
     unit: string;
     imageUrl?: string;
+    year?: number;
+    assets?: {
+      inventoryNumber: string;
+      serialNumber?: string | null;
+    }[];
   };
 }
 export interface SetMinLevelDto {

@@ -25,6 +25,7 @@ import AuditLogsPage from "./pages/audit/audit-logs-page";
 import AuditLogDetailPage from "./pages/audit/audit-log-detail-page";
 import OrganizationsPage from "./pages/organizations/organizations-page";
 import OrganizationDetailPage from "./pages/organizations/organization-detail-page";
+import { getDefaultRouteForRole } from "./lib/utils";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -41,7 +42,7 @@ function RequireRole({
 }) {
   const { user } = useAuthStore();
   if (!user || !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
   }
   return <>{children}</>;
 }
@@ -51,7 +52,7 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
   if (isAuthenticated) {
     return (
       <Navigate
-        to={user?.role === "XODIM" ? "/profile" : "/dashboard"}
+        to={getDefaultRouteForRole(user?.role)}
         replace
       />
     );
@@ -303,11 +304,7 @@ export default function App() {
             path="/"
             element={
               <Navigate
-                to={
-                  useAuthStore.getState().user?.role === "XODIM"
-                    ? "/profile"
-                    : "/dashboard"
-                }
+                to={getDefaultRouteForRole(useAuthStore.getState().user?.role)}
                 replace
               />
             }

@@ -4,7 +4,6 @@ import {
   Bell,
   Moon,
   Sun,
-  Search,
   ChevronDown,
   ArrowRight,
   CheckCircle2,
@@ -30,6 +29,7 @@ import {
 import { socketService } from '../../lib/socket';
 import { cn } from '../../lib/utils';
 import RejectReasonModal from '../modals/reject-reason-modal';
+import TopbarSearch from './topbar-search';
 import type { DeletionRequest } from '../../types';
 
 interface TopbarProps {
@@ -420,10 +420,7 @@ export default function Topbar({}: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm text-gray-400 dark:text-gray-500 w-40 lg:w-48">
-          <Search className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>{t('topbar.searchPlaceholder')}</span>
-        </div>
+        <TopbarSearch />
 
         <div className="relative" ref={dropdownRef}>
           <button

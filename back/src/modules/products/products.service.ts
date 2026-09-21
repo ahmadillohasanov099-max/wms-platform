@@ -31,7 +31,10 @@ export class ProductsService {
       ...(targetOrgId && { organizationId: targetOrgId }),
       ...(productType && { productType }),
       ...(search && {
-        name: { contains: search, mode: 'insensitive' },
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
       }),
     };
 

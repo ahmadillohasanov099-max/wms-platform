@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { Check, X, Search, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { Card, Button, Table, PageHeader, type Column } from '../../components/ui';
+import { Card, Button, Table, PageHeader, Pagination, type Column } from '../../components/ui';
 import RejectReasonModal from '../../components/modals/reject-reason-modal';
 import { requestsApi, operationsApi, departmentsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
@@ -15,6 +15,8 @@ export default function RequestsPage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const [selectedStatus, setSelectedStatus] = useState<RequestStatus | 'ALL'>('ALL');
+  const [page, setPage] = useState(1);
+  const limit = 15;
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -91,12 +93,23 @@ export default function RequestsPage() {
         const matchesReason = String(item.reason || '').toLowerCase().includes(q);
         const matchesRejection = String(item.rejectionReason || item.reviewComment || '').toLowerCase().includes(q);
         const matchesRequester = String(item.requestedBy?.fullName || item.requestedBy?.username || '').toLowerCase().includes(q);
-        return matchesEntity || matchesReason || matchesRejection || matchesRequester;
+        const matchesRecipient = String(item.recipientName || '').toLowerCase().includes(q);
+        return matchesEntity || matchesReason || matchesRejection || matchesRequester || matchesRecipient;
       }
 
       return true;
     });
   }, [rawListAll, selectedStatus, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStatus, debouncedSearch]);
+
+  const totalPages = Math.ceil(filteredList.length / limit) || 1;
+  const paginatedList = useMemo(() => {
+    const start = (page - 1) * limit;
+    return filteredList.slice(start, start + limit);
+  }, [filteredList, page, limit]);
 
   const handleApprove = async (id: string, isAssignment?: boolean) => {
     setActionLoading(id);
@@ -495,12 +508,24 @@ export default function RequestsPage() {
       {/* Table */}
       <Card className="overflow-hidden">
         <Table<RequestItem>
-          data={filteredList}
+          data={paginatedList}
           columns={columns}
           loading={isLoading}
           rowKey={(item: RequestItem) => item.id}
           emptyTitle={t('requests.emptyTitle')}
         />
+
+        {filteredList.length > limit && (
+          <div className="px-4 pb-3">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={filteredList.length}
+              limit={limit}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </Card>
 
       {/* Reject Modal */}

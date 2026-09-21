@@ -274,4 +274,20 @@ Loyiha to'liq Docker-ready holatiga keltirilgan.
    9                                 │ ORG_OMBORCHI                     │ org_omborchi                                    │ test12345                        │ Davron Quyi-Omborchi             │ Toshkent shahar boshqarma omborchisi
 
 
-  1 kadr tizimga kirganda avtomatik dashboardga otvoryabdi lekin kadr ga accesss yoq dashboardga shuni xalqlish  2.kadr role dagi acces larni tekshirish 
+  ✅ 1. Kadr tizimga kirganda avtomatik dashboardga otib qolish muammosi hal qilindi (Kadr uchun asosiy sahifa /users qilib belgilandi, App.tsx, login-page.tsx, mobile-bottom-nav va RequireRole da to'g'ri getDefaultRouteForRole ulandi).
+  ✅ 2. Kadr roliga doir ruxsatlar (access) to'liq tekshirildi va cheklandi:
+     - Kadr faqat o'z tashkilotidagi oddiy XODIM roliga ega foydalanuvchilarni yarata oladi, tahrirlay oladi, statusini o'zgartira oladi, offboarding qila oladi va o'chira oladi.
+     - Super Admin, Rahbariyat yoki boshqa tashkilot xodimlarini boshqarish backend (users.service, users-offboarding.service, users-excel.service) va frontend (users-page.tsx) darajasida to'liq bloklandi.
+     - Kadr uchun ombor amallari (jihoz topshirish/qaytarish, mahsulot o'zgartirish) cheklandi.
+
+  ✅ 3. Rahbariyat (RAHBAR) uchun xodimlar sahifasi (users-page) tajribasi to'liq optimallashtirildi va ortiqcha IT-rollar filtri tozalandi:
+     - Rahbar (va Kadr) uchun texnik RBAC rollari bo'yicha filter (SUPER_ADMIN, ORG_OMBORCHI va h.k.) butunlay yashirildi (faqat Adminlarga qoldirildi).
+     - Rahbariyat va Super Admin uchun barcha hududiy tashkilotlar / boshqarmalar bo'yicha saralash (Tashkilot tanlash) filtri ulandi va bo'limlar ro'yxati tanlangan tashkilotga qarab dinamik yangilanadigan qilindi.
+     - Jadvalda Rahbar uchun ma'nosiz tizim roli o'rniga "Biriktirilgan jihozlar" (faol moddiy aktivlar soni - _count.assignments) ko'rsatkich ustuni va Tashkilot nomi chiqarildi.
+  
+  ⏳ 4. can-delete.guard.ts tahlili:
+     • Muammo: Loyiha arxitekturasida "Quyi tashkilotlar resurslarni to'g'ridan-to'g'ri o'chira olmaydi, faqat Vazirlikka so'rov yuboradi" degan biznes qoida bor va buning uchun CanDeleteGuard yaratilgan. Lekin ushbu Guard na app.module.ts da va na biror Controllerda chaqirilgan.
+     • Oqibati: Quyi tashkilot admini (ORG_ADMIN) bo'limlarni (DELETE /departments/:id), mahsulotlarni (DELETE /products/:id) va xodimlarni to'g'ridan-to'g'ri o'chirib yubora oladi, bu narsa keyinchalik loyihada qo'llanilishi mumkin, hozircha turishi kerak.
+
+yana bir narsa ombor xolatini yuklab olish ishlayabdi lekin filter da faqat asosiy vosita yoki tmz ni filterda belgilab turb yuklasa xam butun ombor asosiy vosita xamda tmz larni yuklanyabdi agar bu xam lolyhadagi nomuvofiqlik deb topilsa buni xam togirlash !
+                                

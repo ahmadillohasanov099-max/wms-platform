@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Eye, Upload, Edit2, Trash2, Lock, Unlock, ChevronRight } from 'lucide-react';
-import { usersApi, departmentsApi } from '../../api';
-import { Card, Button, Select, Table, ConfirmDialog, RoleBadge, PageHeader, SearchFilterCard } from '../../components/ui';
+import { usersApi, departmentsApi, organizationsApi } from '../../api';
+import { Card, Button, Select, Table, ConfirmDialog, RoleBadge, PageHeader, SearchFilterCard, Pagination } from '../../components/ui';
 import toast from 'react-hot-toast';
 import UserFormModal from './user-form-modal';
 import UserExcelImportModal from './user-excel-import-modal';
@@ -18,11 +18,18 @@ export default function UsersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const isRahbar = user?.role === 'RAHBAR';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN';
+  const isGlobalViewer = user?.role === 'SUPER_ADMIN' || user?.role === 'RAHBAR';
   const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
   const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
 
+  const [page, setPage] = useState(1);
+  const limit = 20;
+
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [orgFilter, setOrgFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [formModal, setFormModal] = useState(false);
@@ -34,6 +41,24 @@ export default function UsersPage() {
 
   const [internalPhoneEdit, setInternalPhoneEdit] = useState<string | null>(null);
   const [internalPhoneValue, setInternalPhoneValue] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, roleFilter, deptFilter, orgFilter]);
+
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationsApi.getAll(),
+    enabled: isGlobalViewer,
+  });
+
+  const rawOrgs: any = orgsData;
+  const organizations: any[] = Array.isArray(rawOrgs)
+    ? rawOrgs
+    : Array.isArray(rawOrgs?.data)
+    ? rawOrgs.data
+    : [];
 
   const { mutate: updateInternalPhone, isPending: internalPhoneLoading } = useMutation({
     mutationFn: ({ userId, internalPhone }: { userId: string; internalPhone: string }) =>
@@ -50,37 +75,42 @@ export default function UsersPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', debouncedSearch, roleFilter, deptFilter],
+    queryKey: ['users', page, limit, debouncedSearch, roleFilter, deptFilter, orgFilter],
     queryFn: () =>
       usersApi.getAll({
+        page,
+        limit,
         ...(debouncedSearch && { search: debouncedSearch }),
-        ...(roleFilter && { role: roleFilter }),
+        ...(!isRahbar && roleFilter && { role: roleFilter }),
         ...(deptFilter && { departmentId: deptFilter }),
-        limit: 50,
+        ...(orgFilter && { organizationId: orgFilter }),
       }),
   });
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
       await downloadExport(
         '/users/export',
         `xodimlar_${new Date().toISOString().split('T')[0]}.xlsx`,
         {
           ...(search && { search }),
-          ...(roleFilter && { role: roleFilter }),
+          ...(!isRahbar && roleFilter && { role: roleFilter }),
           ...(deptFilter && { departmentId: deptFilter }),
-          ...(user?.organizationId ? { organizationId: user.organizationId } : {}),
+          ...(orgFilter ? { organizationId: orgFilter } : user?.organizationId ? { organizationId: user.organizationId } : {}),
         }
       );
       toast.success(t('users.exportSuccess'));
     } catch {
       toast.error(t('users.exportError'));
+    } finally {
+      setExportLoading(false);
     }
   };
 
   const { data: depts } = useQuery({
-    queryKey: ['departments'],
-    queryFn: () => departmentsApi.getAll(),
+    queryKey: ['departments', orgFilter],
+    queryFn: () => departmentsApi.getAll(orgFilter ? { organizationId: orgFilter } : undefined),
   });
 
   const { mutate: toggleStatus } = useMutation({
@@ -125,10 +155,24 @@ export default function UsersPage() {
         </div>
       ),
     },
+    ...(isGlobalViewer
+      ? [
+          {
+            key: 'organization',
+            title: t('menu.organizations') || 'Tashkilot',
+            className: 'min-w-[150px] max-w-[220px]',
+            render: (_: any, row: any) => (
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300 line-clamp-2">
+                {row.organization?.name || 'Markaziy apparat'}
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'department',
       title: t('users.department'),
-      className: 'min-w-[200px] max-w-[280px]',
+      className: 'min-w-[180px] max-w-[260px]',
       render: (_: any, row: any) => {
         const isStaff = row.role === 'ORG_ADMIN' || row.role === 'SUPER_ADMIN' || row.role === 'VAZIRLIK_OMBORCHI' || row.role === 'ORG_OMBORCHI' || row.role === 'KADR';
         if (isStaff && !row.department?.name) {
@@ -205,7 +249,7 @@ export default function UsersPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (canManageUsers) {
+                    if (canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM')) {
                       setInternalPhoneEdit(row.id);
                       setInternalPhoneValue(row.internalPhone || '');
                     }
@@ -214,8 +258,8 @@ export default function UsersPage() {
                     row.internalPhone
                       ? 'text-blue-600 dark:text-blue-400 border-b border-dashed border-blue-300 dark:border-blue-700'
                       : 'text-gray-400 dark:text-gray-500 italic border-b border-dashed border-gray-300 dark:border-gray-700'
-                  } ${canManageUsers ? 'hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer' : ''}`}
-                  title={canManageUsers ? t('users.clickToEditInternalPhone') : ''}
+                  } ${canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM') ? 'hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer' : ''}`}
+                  title={canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM') ? t('users.clickToEditInternalPhone') : ''}
                 >
                   {row.internalPhone || t('users.unassigned')}
                 </button>
@@ -225,11 +269,35 @@ export default function UsersPage() {
         );
       },
     },
-    {
-      key: 'role',
-      title: t('users.role'),
-      render: (value: any) => <RoleBadge role={value} />,
-    },
+    ...(!isRahbar
+      ? [
+          {
+            key: 'role',
+            title: t('users.role'),
+            render: (value: any) => <RoleBadge role={value} />,
+          },
+        ]
+      : [
+          {
+            key: 'assignedAssetsCount',
+            title: t('menu.assignedAssets') || 'Biriktirilgan jihozlar',
+            render: (_: any, row: any) => {
+              const count = row._count?.assignments ?? 0;
+              return (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold ${
+                    count > 0
+                      ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                  }`}
+                >
+                  <span>📦</span>
+                  <span>{count > 0 ? `${count} ${t('common.pcs')}` : 'Jihoz yo\'q'}</span>
+                </span>
+              );
+            },
+          },
+        ]),
     {
       key: 'createdAt',
       title: t('users.registeredDate'),
@@ -243,7 +311,10 @@ export default function UsersPage() {
       key: 'isActive',
       title: t('common.status'),
       render: (value: any, row: any) => {
-        const canToggleStatus = user?.role !== 'XODIM';
+        const canToggleStatus =
+          user?.role !== 'XODIM' &&
+          user?.role !== 'RAHBAR' &&
+          (user?.role !== 'KADR' || row.role === 'XODIM');
 
         return (
           <div className="py-0.5" onClick={(e) => e.stopPropagation()}>
@@ -276,7 +347,10 @@ export default function UsersPage() {
       className: 'text-right whitespace-nowrap w-[140px]',
       headerClassName: 'text-right',
       render: (_: any, row: any) => {
-        const canToggleStatus = user?.role !== 'XODIM';
+        const canToggleStatus =
+          user?.role !== 'XODIM' &&
+          user?.role !== 'RAHBAR' &&
+          (user?.role !== 'KADR' || row.role === 'XODIM');
 
         return (
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -305,7 +379,7 @@ export default function UsersPage() {
             >
               <Eye className="w-4 h-4" />
             </button>
-            {canManageUsers && (
+            {canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
               <button
                 type="button"
                 onClick={() => {
@@ -348,6 +422,8 @@ export default function UsersPage() {
               variant="outline"
               className="border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20"
               onClick={handleExport}
+              loading={exportLoading}
+              disabled={exportLoading}
             >
               {t('common.excel')}
             </Button>
@@ -381,6 +457,22 @@ export default function UsersPage() {
         onSearchChange={setSearch}
         filters={
           <div className="flex flex-wrap items-center gap-2">
+            {isGlobalViewer && organizations.length > 0 && (
+              <div className="w-52">
+                <Select
+                  options={organizations.map((org: any) => ({
+                    value: org.id,
+                    label: org.name,
+                  }))}
+                  placeholder={t('menu.organizations') || "Barcha tashkilotlar"}
+                  value={orgFilter}
+                  onChange={(e) => {
+                    setOrgFilter(e.target.value);
+                    setDeptFilter('');
+                  }}
+                />
+              </div>
+            )}
             <div className="w-48">
               <Select
                 options={departments.map((d: any) => ({
@@ -392,22 +484,24 @@ export default function UsersPage() {
                 onChange={(e) => setDeptFilter(e.target.value)}
               />
             </div>
-            <div className="w-40">
-              <Select
-                options={[
-                  { value: 'SUPER_ADMIN', label: t('roles.SUPER_ADMIN') },
-                  { value: 'RAHBAR', label: t('roles.RAHBAR') },
-                  { value: 'VAZIRLIK_OMBORCHI', label: t('roles.VAZIRLIK_OMBORCHI') },
-                  { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
-                  { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },
-                  { value: 'KADR', label: t('roles.KADR') },
-                  { value: 'XODIM', label: t('roles.XODIM') },
-                ]}
-                placeholder={t('users.role')}
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-              />
-            </div>
+            {isAdmin && (
+              <div className="w-40">
+                <Select
+                  options={[
+                    { value: 'SUPER_ADMIN', label: t('roles.SUPER_ADMIN') },
+                    { value: 'RAHBAR', label: t('roles.RAHBAR') },
+                    { value: 'VAZIRLIK_OMBORCHI', label: t('roles.VAZIRLIK_OMBORCHI') },
+                    { value: 'ORG_ADMIN', label: t('roles.ORG_ADMIN') },
+                    { value: 'ORG_OMBORCHI', label: t('roles.ORG_OMBORCHI') },
+                    { value: 'KADR', label: t('roles.KADR') },
+                    { value: 'XODIM', label: t('roles.XODIM') },
+                  ]}
+                  placeholder={t('users.role')}
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         }
       />
@@ -442,7 +536,13 @@ export default function UsersPage() {
                       @{u.username} • {u.department?.name ?? t('userView.noDept')}
                     </p>
                   </div>
-                  <RoleBadge role={u.role} />
+                  {!isRahbar ? (
+                    <RoleBadge role={u.role} />
+                  ) : u._count?.assignments ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                      📦 {u._count.assignments} {t('common.pcs')}
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* Details & Status */}
@@ -484,6 +584,18 @@ export default function UsersPage() {
             onRowClick={(row) => navigate(`/users/${row.id}`)}
           />
         </div>
+
+        {data && (
+          <div className="px-4 pb-3">
+            <Pagination
+              page={page}
+              totalPages={data.totalPages || 1}
+              total={data.total || 0}
+              limit={limit}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </Card>
 
       <UserFormModal

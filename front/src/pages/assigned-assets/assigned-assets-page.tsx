@@ -39,6 +39,7 @@ export default function AssignedAssetsPage() {
   const debouncedSearch = useDebounce(search, 250);
   const [holderTypeFilter, setHolderTypeFilter] = useState<'ALL' | 'USER' | 'DEPARTMENT'>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Fetch all active assigned assets directly from backend
   const { data: assignedAssetsData, isLoading: assetsLoading } = useQuery({
@@ -127,41 +128,48 @@ export default function AssignedAssetsPage() {
     ];
   }, [departmentsData, t]);
 
-  const handleExport = () => {
-    const headers = [
-      '№',
-      t('assignedAssets.productName'),
-      'Inventar raqami',
-      'Seriya raqami',
-      t('assignedAssets.holder'),
-      t('assignedAssets.department'),
-      t('assignedAssets.assignedAt'),
-      t('assignedAssets.issuer'),
-      t('assignedAssets.docNo'),
-      t('assignedAssets.cost'),
-    ];
+  const handleExport = async () => {
+    try {
+      setExportLoading(true);
+      const headers = [
+        '№',
+        t('assignedAssets.productName'),
+        'Inventar raqami',
+        'Seriya raqami',
+        t('assignedAssets.holder'),
+        t('assignedAssets.department'),
+        t('assignedAssets.assignedAt'),
+        t('assignedAssets.issuer'),
+        t('assignedAssets.docNo'),
+        t('assignedAssets.cost'),
+      ];
 
-    const rows = filteredItems.map((item, index) => [
-      index + 1,
-      item.productName || '—',
-      item.inventoryNumber || '—',
-      item.serialNumber || '—',
-      `${item.holderType === 'USER' ? t('assignedAssets.user') : t('assignedAssets.dept')}: ${item.holderName || '—'}`,
-      item.departmentName || '—',
-      item.assignedAt ? formatDate(item.assignedAt) : '—',
-      item.performedBy || "Mas'ul",
-      item.documentNumber || '—',
-      formatCurrency(item.purchasePrice || 0),
-    ]);
+      const rows = filteredItems.map((item, index) => [
+        index + 1,
+        item.productName || '—',
+        item.inventoryNumber || '—',
+        item.serialNumber || '—',
+        `${item.holderType === 'USER' ? t('assignedAssets.user') : t('assignedAssets.dept')}: ${item.holderName || '—'}`,
+        item.departmentName || '—',
+        item.assignedAt ? formatDate(item.assignedAt) : '—',
+        item.performedBy || "Mas'ul",
+        item.documentNumber || '—',
+        formatCurrency(item.purchasePrice || 0),
+      ]);
 
-    exportToStyledExcel({
-      filename: `berilgan_jihozlar_${new Date().toISOString().split('T')[0]}`,
-      sheetName: t('assignedAssets.title'),
-      headers,
-      rows,
-      colWidths: [6, 35, 22, 22, 32, 26, 18, 22, 18, 20],
-      centerColIndexes: [0, 2, 3, 6, 8],
-    });
+      await exportToStyledExcel({
+        filename: `berilgan_jihozlar_${new Date().toISOString().split('T')[0]}`,
+        sheetName: t('assignedAssets.title'),
+        headers,
+        rows,
+        colWidths: [6, 35, 22, 22, 32, 26, 18, 22, 18, 20],
+        centerColIndexes: [0, 2, 3, 6, 8],
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   // Table columns definition
@@ -304,7 +312,8 @@ export default function AssignedAssetsPage() {
           <Button
             onClick={handleExport}
             variant="outline"
-            disabled={filteredItems.length === 0}
+            loading={exportLoading}
+            disabled={exportLoading || filteredItems.length === 0}
             className="flex items-center gap-2 font-bold"
           >
             <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
