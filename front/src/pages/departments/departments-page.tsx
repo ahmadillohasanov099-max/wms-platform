@@ -16,9 +16,8 @@ export default function DepartmentsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin =
+  const canManage =
     user?.role !== 'XODIM' &&
-    user?.role !== 'KADR' &&
     user?.role !== 'RAHBAR';
   const navigate = useNavigate();
   const { id, userId } = useParams();
@@ -104,7 +103,7 @@ export default function DepartmentsPage() {
             >
               {t('common.excel')}
             </Button>
-            {isAdmin && (
+            {canManage && (
               <Button
                 icon={<Plus className="w-4 h-4" />}
                 onClick={() => {
@@ -193,7 +192,7 @@ export default function DepartmentsPage() {
                     <span>{t('departments.stats')}</span>
                     <span className="inline-block group-hover:translate-x-1 transition-transform duration-300">→</span>
                   </Button>
-                  {isAdmin && (
+                  {canManage && (
                     <div className="flex items-center gap-1">
                       <button
                         onClick={(e: any) => {

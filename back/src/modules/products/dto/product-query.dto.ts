@@ -13,4 +13,9 @@ export class ProductQueryDto extends PaginationDto {
   @IsOptional()
   @IsEnum(ProductType)
   productType?: ProductType;
+
+  @ApiPropertyOptional({ example: 'IN_STOCK' })
+  @IsOptional()
+  @IsString()
+  stockStatus?: string;
 }

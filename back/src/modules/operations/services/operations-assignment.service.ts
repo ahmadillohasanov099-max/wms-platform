@@ -837,6 +837,22 @@ export class OperationsAssignmentService {
         });
       }
 
+      // Record RETURN operation on rejection
+      const op = await tx.operation.create({
+        data: {
+          type: assignment.userId ? OperationType.RETURN_FROM_USER : OperationType.RETURN_FROM_DEPT,
+          quantity: 1,
+          userId: assignment.userId || undefined,
+          departmentId: assignment.departmentId || undefined,
+          assetId: assignment.assetId,
+          productId: assignment.asset.productId,
+          performedById: currentUserId,
+          documentNumber: `RAD-${Date.now().toString().slice(-6)}`,
+          note: `Rad etildi: ${reason || 'Xodim tomonidan rad etildi'}`,
+          organizationId: assignment.user?.organizationId || assignment.department?.organizationId || null,
+        },
+      });
+
       // Asset is already returned to inventory and assignment marked as REJECTED
       const lastOp = await tx.operation.findFirst({
         where: {
@@ -857,6 +873,11 @@ export class OperationsAssignmentService {
         reason: reason || 'Sabab ko‘rsatilmadi',
         assignerId,
       });
+
+      this.eventsGateway.broadcastInventoryUpdated({
+        productId: assignment.asset.productId,
+      });
+      this.eventsGateway.broadcastOperationCreated(op);
 
       if (assignerId) {
         void this.telegramService.sendUserNotificationAlert(

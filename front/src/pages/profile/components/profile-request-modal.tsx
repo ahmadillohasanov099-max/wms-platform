@@ -39,11 +39,6 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
 
       onSubmitSuccess(assetItem.asset?.id, requestType, requestReason);
       setRequestReason('');
-      toast.success(
-        requestType === 'REPAIR'
-          ? "🛠️ Jihozni ta'mirlash so'rovi omborchiga yuborildi"
-          : "🔄 Jihozni qaytarish so'rovi omborchiga yuborildi"
-      );
       onClose();
     } catch (err: any) {
       const msg = err?.response?.data?.message;

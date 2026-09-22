@@ -241,6 +241,9 @@ export default function Topbar({}: TopbarProps) {
     mutationFn: (id: string) => operationsApi.acceptAssignment(id),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('topbar.assetAccepted'));
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['topbar-department-detail'] });
@@ -259,6 +262,9 @@ export default function Topbar({}: TopbarProps) {
       operationsApi.rejectAssignment(assignmentId, { reason }),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('topbar.assetRejected'));
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['topbar-department-detail'] });
@@ -541,7 +547,7 @@ export default function Topbar({}: TopbarProps) {
                       >
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-extrabold text-[10px] text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/60 px-1.5 py-0.5 rounded">
-                            👤 Shaxsiy jihoz
+                            {t('topbar.personalAsset')}
                           </span>
                           {asgn.asset?.inventoryNumber && (
                             <span className="font-mono text-[10px] text-gray-500">
@@ -551,7 +557,7 @@ export default function Topbar({}: TopbarProps) {
                         </div>
 
                         <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {asgn.asset?.product?.name || 'Jihoz'}
+                          {asgn.asset?.product?.name || t('profile.asset')}
                         </p>
 
                         <div className="flex items-center gap-1.5 pt-0.5">
@@ -561,7 +567,7 @@ export default function Topbar({}: TopbarProps) {
                             className="flex-1 py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>Qabul</span>
+                            <span>{t('topbar.accept')}</span>
                           </button>
                           <button
                             onClick={() => setRejectingAssignment(asgn)}
@@ -569,7 +575,7 @@ export default function Topbar({}: TopbarProps) {
                             className="flex-1 py-1 px-2 bg-white dark:bg-slate-900 hover:bg-rose-50 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>Rad</span>
+                            <span>{t('topbar.reject')}</span>
                           </button>
                         </div>
                       </div>
@@ -587,7 +593,7 @@ export default function Topbar({}: TopbarProps) {
                       >
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-extrabold text-[10px] text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded">
-                            🏢 Bo'lim jihozi ({departmentData?.name || "Bo'lim"})
+                            {t('topbar.deptAsset', { name: departmentData?.name || t('topbar.deptFallback') })}
                           </span>
                           {(asgn.asset?.inventoryNumber || asgn.inventoryNumber) && (
                             <span className="font-mono text-[10px] text-gray-500">
@@ -597,7 +603,7 @@ export default function Topbar({}: TopbarProps) {
                         </div>
 
                         <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {asgn.asset?.product?.name || asgn.product?.name || 'Jihoz'}
+                          {asgn.asset?.product?.name || asgn.product?.name || t('profile.asset')}
                         </p>
 
                         <div className="flex items-center gap-1.5 pt-0.5">
@@ -607,7 +613,7 @@ export default function Topbar({}: TopbarProps) {
                             className="flex-1 py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>Qabul</span>
+                            <span>{t('topbar.accept')}</span>
                           </button>
                           <button
                             onClick={() => setRejectingAssignment(asgn)}
@@ -615,7 +621,7 @@ export default function Topbar({}: TopbarProps) {
                             className="flex-1 py-1 px-2 bg-white dark:bg-slate-900 hover:bg-rose-50 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>Rad</span>
+                            <span>{t('topbar.reject')}</span>
                           </button>
                         </div>
                       </div>
@@ -628,24 +634,32 @@ export default function Topbar({}: TopbarProps) {
                   <div className="space-y-1.5">
                     {unreadReviewedRequests.slice(0, 6).map((req: any) => {
                       const isRejected = req.status === 'REJECTED';
-                      const reviewerName = req.reviewedBy?.fullName || 'Omborchi';
-                      const reasonText = req.reviewComment || req.rejectionReason || 'Sabab ko‘rsatilmadi';
-                      const isRepairedComplete = req.reason?.includes("[TA'MIRLANDI]");
+                      const reviewerName = req.reviewedBy?.fullName || t('roles.OMBORCHI');
+                      const reasonText = req.reviewComment || req.rejectionReason || t('profile.reasonNotSpecified');
                       const normReason = (req.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+                      const isRepairedComplete =
+                        req.reason?.includes("[TA'MIRLANDI]") ||
+                        normReason.includes('tamirlandi') ||
+                        normReason.includes('tuzatildi');
                       const isRepair =
                         req.requestType === 'REPAIR' ||
-                        normReason.includes('tamirlash') ||
+                        isRepairedComplete ||
+                        normReason.includes('tamir') ||
                         normReason.includes('servis') ||
                         normReason.includes('remont') ||
+                        normReason.includes('tuzat') ||
                         normReason.includes('nosoz');
+                      const isReturn = req.requestType === 'RETURN' || normReason.includes('qaytarish');
                       const actionLabel = isRepairedComplete
-                        ? "Jihoz ta'mirlandi"
+                        ? t('requests.typeRepaired')
                         : isRepair
-                        ? "Ta'mirlash so'rovi"
-                        : "Qaytarish so'rovi";
+                        ? t('requests.typeRepair')
+                        : isReturn
+                        ? t('requests.typeReturn')
+                        : t('requests.typeDeletion');
 
                       // Extract clean title and inventory number
-                      let title = (req.entityName || req.entityTitle || req.entityId || 'Jihoz').trim();
+                      let title = (req.entityName || req.entityTitle || req.entityId || t('profile.asset')).trim();
                       let invNumber: string | undefined;
                       const invMatch = title.match(/\(Inv:\s*([^\)]+)\)/i);
                       if (invMatch) {
@@ -677,10 +691,10 @@ export default function Topbar({}: TopbarProps) {
                               )}
                             >
                               {isRejected
-                                ? `❌ ${actionLabel} rad etildi`
+                                ? t('topbar.requestRejected', { action: actionLabel })
                                 : isRepairedComplete
-                                ? `🛠️ ${actionLabel} (Sozlandi)`
-                                : `✅ ${actionLabel} qabul qilindi`}
+                                ? t('topbar.repairDone', { action: actionLabel })
+                                : t('topbar.requestApproved', { action: actionLabel })}
                             </span>
                             <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
                               {reviewerName}
@@ -700,24 +714,24 @@ export default function Topbar({}: TopbarProps) {
 
                           {isRejected ? (
                             <p className="text-[11px] text-rose-700 dark:text-rose-300 italic bg-rose-100/60 dark:bg-rose-950/40 px-2 py-1 rounded">
-                              Rad sababi: "{reasonText}"
+                              {t('topbar.rejectReason', { reason: reasonText })}
                             </p>
                           ) : isRepairedComplete ? (
                             <div className="space-y-1">
                               {req.reviewComment && (
                                 <p className="text-[11px] text-teal-800 dark:text-teal-300 italic bg-white dark:bg-teal-950/60 px-2.5 py-1 rounded-lg border border-teal-200/60 dark:border-teal-800/60">
-                                  Usta izohi: "{req.reviewComment}"
+                                  {t('topbar.repairNote', { note: req.reviewComment })}
                                 </p>
                               )}
                               <p className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
-                                Jihoz soz holatga keltirildi. Ombordan olib ketishingiz mumkin.
+                                {t('topbar.assetRepairedMsg')}
                               </p>
                             </div>
                           ) : (
                             <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
                               {isRepair
-                                ? "Jihoz ta'mirlash uchun omborga qabul qilindi"
-                                : "Jihoz ombor hisobiga muvaffaqiyatli qabul qilindi"}
+                                ? t('topbar.assetAcceptedForRepair')
+                                : t('topbar.assetAcceptedToStock')}
                             </p>
                           )}
 
@@ -726,7 +740,7 @@ export default function Topbar({}: TopbarProps) {
                             className="w-full py-1 px-2 bg-white dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg border border-gray-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>O'qildi deb belgilash</span>
+                            <span>{t('topbar.markAsRead')}</span>
                           </button>
                         </div>
                       );
@@ -797,11 +811,17 @@ export default function Topbar({}: TopbarProps) {
                       // Extract clean reason
                       let cleanReason = (req.reason || '').trim();
                       const normReason = cleanReason.toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+                      const isRepairedComplete =
+                        cleanReason.includes("[TA'MIRLANDI]") ||
+                        normReason.includes('tamirlandi') ||
+                        normReason.includes('tuzatildi');
                       const isRepair =
                         req.requestType === 'REPAIR' ||
-                        normReason.includes('tamirlash') ||
+                        isRepairedComplete ||
+                        normReason.includes('tamir') ||
                         normReason.includes('servis') ||
                         normReason.includes('remont') ||
+                        normReason.includes('tuzat') ||
                         normReason.includes('nosoz');
                       const isReturn = req.requestType === 'RETURN' || normReason.includes('qaytarish');
 
@@ -812,6 +832,7 @@ export default function Topbar({}: TopbarProps) {
                       cleanReason = cleanReason
                         .replace(/^\[OMBORGA QAYTARISH\]\s*/i, '')
                         .replace(/^\[TA'MIRLASH\/SERVIS\]\s*/i, '')
+                        .replace(/^\[TA'MIRLANDI\]\s*/i, '')
                         .replace(/^Qaytarish:\s*/i, '')
                         .replace(/^Ta'mirlash:\s*/i, '')
                         .replace(/"?$/, '')
@@ -826,21 +847,25 @@ export default function Topbar({}: TopbarProps) {
                             <span
                               className={cn(
                                 "font-bold text-[10px] px-2 py-0.5 rounded-full border",
-                                isRepair
+                                isRepairedComplete
+                                  ? "text-teal-800 dark:text-teal-300 bg-teal-100/90 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800"
+                                  : isRepair
                                   ? "text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800"
                                   : isReturn
                                   ? "text-teal-800 dark:text-teal-300 bg-teal-100/80 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800"
                                   : "text-rose-800 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800"
                               )}
                             >
-                              {isRepair
-                                ? "🛠️ Ta'mirlash so'rovi"
+                              {isRepairedComplete
+                                ? `🛠️ ${t('requests.typeRepaired')}`
+                                : isRepair
+                                ? `🛠️ ${t('requests.typeRepair')}`
                                 : isReturn
-                                ? "📦 Qaytarish so'rovi"
-                                : "🗑️ O'chirish so'rovi"}
+                                ? `📦 ${t('requests.typeReturn')}`
+                                : `🗑️ ${t('requests.typeDeletion')}`}
                             </span>
                             <span className="text-[11px] font-medium text-neutral-500 truncate max-w-[120px]">
-                              {req.requestedBy?.fullName || req.requestedBy?.username || 'Xodim'}
+                              {req.requestedBy?.fullName || req.requestedBy?.username || t('roles.XODIM')}
                             </span>
                           </div>
 
@@ -868,7 +893,7 @@ export default function Topbar({}: TopbarProps) {
                               className="flex-1 py-1.5 px-3 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Qabul</span>
+                              <span>{t('topbar.accept')}</span>
                             </button>
                             <button
                               onClick={() => setRejectingRequest(req)}
@@ -876,7 +901,7 @@ export default function Topbar({}: TopbarProps) {
                               className="flex-1 py-1.5 px-3 bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-neutral-900 dark:hover:bg-rose-950/40 text-neutral-600 dark:text-neutral-300 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-rose-200 dark:hover:border-rose-900 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
                             >
                               <X className="w-3.5 h-3.5" />
-                              <span>Rad</span>
+                              <span>{t('topbar.reject')}</span>
                             </button>
                           </div>
                         </div>
@@ -890,7 +915,7 @@ export default function Topbar({}: TopbarProps) {
                   <div className="space-y-1.5">
                     {unreadLowStockList.slice(0, 5).map((item: any) => {
                       const itemKey = `low_stock_${item.productId || item.id}`;
-                      const productName = item.name || item.product?.name || 'Mahsulot';
+                      const productName = item.name || item.product?.name || t('profile.asset');
                       const currentQty = item.quantity ?? 0;
                       const minLvl = item.minLevel ?? item.minQuantity ?? 0;
                       const unitStr = item.unit || item.product?.unit || 'ta';
@@ -903,10 +928,10 @@ export default function Topbar({}: TopbarProps) {
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-semibold text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                              <span>⚠️ Kam qoldi</span>
+                              <span>{t('topbar.lowStock')}</span>
                             </span>
                             <span className="font-mono font-bold text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900 text-[11px]">
-                              Qoldiq: <b className="text-xs">{currentQty}</b> / min: {minLvl} {unitStr}
+                              {t('topbar.stockBalanceShort')} <b className="text-xs">{currentQty}</b> / min: {minLvl} {unitStr}
                             </span>
                           </div>
 
@@ -915,7 +940,7 @@ export default function Topbar({}: TopbarProps) {
                               {productName}
                             </p>
                             <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5">
-                              Minimal qoldiqdan kam qoldi
+                              {t('topbar.lowStockDesc')}
                             </p>
                           </div>
 
@@ -927,10 +952,10 @@ export default function Topbar({}: TopbarProps) {
                                 navigate('/inventory');
                               }}
                               className="py-1 px-2.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                              title="Omborni ko'rish"
+                              title={t('topbar.viewWarehouse')}
                             >
                               <Warehouse className="w-3.5 h-3.5 text-teal-600" />
-                              <span>Ombor</span>
+                              <span>{t('topbar.warehouse')}</span>
                             </button>
                             <button
                               onClick={() => {
@@ -940,7 +965,7 @@ export default function Topbar({}: TopbarProps) {
                               className="flex-1 py-1.5 px-3 bg-white hover:bg-neutral-100 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>O'qildi deb belgilash</span>
+                              <span>{t('topbar.markAsRead')}</span>
                             </button>
                           </div>
                         </div>
@@ -991,8 +1016,8 @@ export default function Topbar({}: TopbarProps) {
             reason,
           });
         }}
-        title="Jihozni qabul qilishni rad etish"
-        itemTitle={rejectingAssignment?.asset?.product?.name || rejectingAssignment?.product?.name || 'Jihoz'}
+        title={t('topbar.rejectionAssetModalTitle')}
+        itemTitle={rejectingAssignment?.asset?.product?.name || rejectingAssignment?.product?.name || t('profile.asset')}
         isLoading={rejectAssignmentMutation.isPending}
       />
 
@@ -1007,8 +1032,8 @@ export default function Topbar({}: TopbarProps) {
             reason,
           });
         }}
-        title="Qaytarish so'rovini rad etish"
-        itemTitle={rejectingRequest?.entityName || 'Qaytarish so‘rovi'}
+        title={t('topbar.rejectionModalTitle')}
+        itemTitle={rejectingRequest?.entityName || t('requests.typeReturn')}
         isLoading={rejectRequestMutation.isPending}
       />
     </header>

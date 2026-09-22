@@ -5,6 +5,7 @@ export interface ProductQuery {
   limit?: number;
   search?: string;
   productType?: string;
+  stockStatus?: string;
 }
 export interface PaginatedProducts {
   items: Product[];
@@ -25,8 +26,8 @@ export const productsApi = {
     api.get<PaginatedProducts>('/products', { params: query }).then((r) => r.data),
   getOne: (id: string) =>
     api.get<Product>(`/products/${id}`).then((r) => r.data),
-  getHistory: (id: string) =>
-    api.get(`/products/${id}/history`).then((r) => r.data),
+  getHistory: (id: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/products/${id}/history`, { params }).then((r) => r.data),
   getLowStock: () =>
     api.get('/products/low-stock').then((r) => r.data),
   update: (id: string, dto: UpdateProductDto) =>

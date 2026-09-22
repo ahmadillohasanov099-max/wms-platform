@@ -5,7 +5,7 @@ import Card, { CardHeader, CardContent } from '../../../components/ui/card';
 import Button from '../../../components/ui/button';
 import CopyableInventoryNumber from '../../../components/ui/copyable-inventory-number';
 import { PageLoader } from '../../../components/ui/spinner';
-import { formatCurrency, formatDate, cn } from '../../../lib/utils';
+import { formatCurrency, formatDate, cn, invalidateAppQueries } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 import ModdiyJavobgarlikModal from '../../../components/documents/moddiy-javobgarlik-modal';
 import RejectReasonModal from '../../../components/modals/reject-reason-modal';
@@ -50,8 +50,14 @@ export default function ProfileMyAssetsTable({
     mutationFn: (assignmentId: string) => operationsApi.acceptAssignment(assignmentId),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('profile.acceptSuccess'));
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['assigned-assets'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
@@ -66,8 +72,14 @@ export default function ProfileMyAssetsTable({
       operationsApi.rejectAssignment(assignmentId, { reason }),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('profile.rejectSuccess'));
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['assigned-assets'] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['user-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });

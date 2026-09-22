@@ -24,12 +24,12 @@ export class RequestsService {
     if (!reason) return false;
     const normalized = reason.toLowerCase().replace(/['ʼ’`ʻ]/g, '');
     return (
-      normalized.includes('tamirlash') ||
+      normalized.includes('tamir') ||
       normalized.includes('servis') ||
       normalized.includes('remont') ||
-      normalized.includes('tuzatish') ||
+      normalized.includes('tuzat') ||
       normalized.includes('nosoz') ||
-      reason.includes("[TA'MIRLASH") ||
+      reason.includes("[TA'MIR") ||
       reason.includes('[REPAIR')
     );
   }

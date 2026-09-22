@@ -134,8 +134,8 @@ export default function AssignedAssetsPage() {
       const headers = [
         '№',
         t('assignedAssets.productName'),
-        'Inventar raqami',
-        'Seriya raqami',
+        t('inventory.invNumber'),
+        t('inventory.serialNumber'),
         t('assignedAssets.holder'),
         t('assignedAssets.department'),
         t('assignedAssets.assignedAt'),
@@ -152,7 +152,7 @@ export default function AssignedAssetsPage() {
         `${item.holderType === 'USER' ? t('assignedAssets.user') : t('assignedAssets.dept')}: ${item.holderName || '—'}`,
         item.departmentName || '—',
         item.assignedAt ? formatDate(item.assignedAt) : '—',
-        item.performedBy || "Mas'ul",
+        item.performedBy || t('requests.responsible'),
         item.documentNumber || '—',
         formatCurrency(item.purchasePrice || 0),
       ]);
@@ -269,36 +269,51 @@ export default function AssignedAssetsPage() {
       ),
     },
     {
-      key: 'documentNumber',
-      title: t('assignedAssets.docNo'),
+      key: 'status',
+      title: t('common.status') || 'Holati',
       render: (_: any, row: any) => {
-        const isPending = row.status === 'PENDING';
-        const isRejected = row.status === 'REJECTED';
+        const isPending = row.status === 'PENDING' || row.isPendingAcceptance || row.assignmentStatus === 'PENDING';
+        const isRejected = row.status === 'REJECTED' || row.assignmentStatus === 'REJECTED';
         return (
-          <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap",
+              isPending
+                ? "bg-amber-50/70 text-amber-700 border-amber-200/70 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/40"
+                : isRejected
+                ? "bg-rose-50/70 text-rose-700 border-rose-200/70 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800/40"
+                : "bg-emerald-50/70 text-emerald-700 border-emerald-200/70 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40"
+            )}
+          >
             <span
               className={cn(
-                "w-2 h-2 rounded-full shrink-0",
+                "w-1.5 h-1.5 rounded-full shrink-0",
                 isPending
-                  ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
+                  ? "bg-amber-500 animate-pulse"
                   : isRejected
-                  ? "bg-rose-500 ring-2 ring-rose-400/40"
-                  : "bg-emerald-500 ring-2 ring-emerald-400/30"
+                  ? "bg-rose-500"
+                  : "bg-emerald-500"
               )}
-              title={
-                isPending
-                  ? "Xodim tasdiqlashi kutilmoqda (Sariq)"
-                  : isRejected
-                  ? "Xodim tomonidan rad etilgan (Qizil)"
-                  : "Xodim tomonidan qabul qilingan (Yashil)"
-              }
             />
-            <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300">
-              {row.documentNumber || '—'}
+            <span>
+              {isPending
+                ? (t('profile.waitingConfirm') || 'Kutilmoqda')
+                : isRejected
+                ? (t('requests.rejectedBadge') || 'Rad etilgan')
+                : (t('profile.accepted') || 'Qabul qilingan')}
             </span>
-          </div>
+          </span>
         );
       },
+    },
+    {
+      key: 'documentNumber',
+      title: t('assignedAssets.docNo'),
+      render: (_: any, row: any) => (
+        <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300">
+          {row.documentNumber || '—'}
+        </span>
+      ),
     },
   ];
 

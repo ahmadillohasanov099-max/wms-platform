@@ -6,7 +6,7 @@ import Table from '../../../components/ui/table';
 import CopyableInventoryNumber from '../../../components/ui/copyable-inventory-number';
 import RejectReasonModal from '../../../components/modals/reject-reason-modal';
 import { operationsApi } from '../../../api';
-import { formatDate } from '../../../lib/utils';
+import { formatDate, invalidateAppQueries } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
@@ -39,6 +39,11 @@ export default function DepartmentAssetsTab({
     mutationFn: (assignmentId: string) => operationsApi.acceptAssignment(assignmentId),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('profile.deptAcceptSuccess'));
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['assigned-assets'] });
       queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
@@ -54,6 +59,11 @@ export default function DepartmentAssetsTab({
       operationsApi.rejectAssignment(assignmentId, { reason }),
     onSuccess: (res: any) => {
       toast.success(res?.message || t('profile.rejectSuccess'));
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['assigned-assets'] });
       queryClient.invalidateQueries({ queryKey: ['department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['profile-department-detail'] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });

@@ -199,7 +199,9 @@ export class InventoryService {
         inventoryNumber: asset?.inventoryNumber,
         serialNumber: asset?.serialNumber,
         purchasePrice: Number(asset?.purchasePrice || 0),
-        status: asset?.status,
+        status: asgn.status,
+        assetStatus: asset?.status,
+        assignmentStatus: asgn.status,
         holderType: isUser ? 'USER' : 'DEPARTMENT',
         holderName: isUser ? asgn.user?.fullName : asgn.department?.name,
         departmentName: asgn.department?.name || asgn.user?.department?.name || '—',
@@ -211,6 +213,67 @@ export class InventoryService {
         isPendingAcceptance: asgn.status === 'PENDING',
         rejectedAt: asgn.rejectedAt,
         rejectionReason: asgn.rejectionReason,
+      };
+    });
+  }
+
+  async getInRepairAssets(targetOrgId?: string, currentUser?: any) {
+    const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
+    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+
+    const assets = await this.prisma.asset.findMany({
+      where: {
+        status: 'BROKEN',
+        deletedAt: null,
+        product: { deletedAt: null, ...orgFilter },
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            productType: true,
+            unit: true,
+            imageUrl: true,
+          },
+        },
+        assignments: {
+          where: { returnedAt: null },
+          take: 1,
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                username: true,
+                department: { select: { id: true, name: true } },
+              },
+            },
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return assets.map((asset) => {
+      const activeAssignment = asset.assignments?.[0];
+      const holderUser = activeAssignment?.user;
+      const holderDept = activeAssignment?.department || holderUser?.department;
+
+      return {
+        id: asset.id,
+        inventoryNumber: asset.inventoryNumber,
+        serialNumber: asset.serialNumber,
+        status: asset.status,
+        createdAt: asset.createdAt,
+        updatedAt: asset.updatedAt,
+        purchasePrice: asset.purchasePrice,
+        product: asset.product,
+        holderName: holderUser?.fullName || holderDept?.name || 'Ombor zaxirasida',
+        holderDepartment: holderDept?.name || '—',
+        holderUser,
+        assignments: asset.assignments,
       };
     });
   }

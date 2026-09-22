@@ -116,7 +116,7 @@ export default function RequestsPage() {
     try {
       if (isAssignment) {
         await operationsApi.acceptAssignment(id);
-        toast.success("Jihoz qabul qilindi");
+        toast.success(t('requests.toastAssetAccepted'));
       } else {
         const target = rawListAll.find((x) => x.id === id);
         const normReason = String(target?.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
@@ -131,9 +131,9 @@ export default function RequestsPage() {
         await requestsApi.approve(id);
 
         if (isRepair) {
-          toast.success("🛠️ Ta'mirlash so'rovi qabul qilindi. Jihoz ta'mirlashda holatiga o'tkazildi!");
+          toast.success(t('requests.toastRepairApproved'));
         } else if (isReturn) {
-          toast.success("📦 Qaytarish so'rovi qabul qilindi. Jihoz omborga qabul qilindi!");
+          toast.success(t('requests.toastReturnApproved'));
         } else {
           toast.success(t('requests.approveSuccess'));
         }
@@ -212,11 +212,17 @@ export default function RequestsPage() {
       title: t('requests.colEntity'),
       render: (_: any, row: RequestItem) => {
         const normReason = String(row.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+        const isRepairedComplete =
+          String(row.reason || '').includes("[TA'MIRLANDI]") ||
+          normReason.includes('tamirlandi') ||
+          normReason.includes('tuzatildi');
         const isRepair =
           row.requestType === 'REPAIR' ||
-          normReason.includes('tamirlash') ||
+          isRepairedComplete ||
+          normReason.includes('tamir') ||
           normReason.includes('servis') ||
           normReason.includes('remont') ||
+          normReason.includes('tuzat') ||
           normReason.includes('nosoz');
         const isReturn = row.requestType === 'RETURN' || normReason.includes('qaytarish');
 
@@ -228,17 +234,21 @@ export default function RequestsPage() {
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                   {t('requests.assignmentBadge')}
                 </span>
+              ) : isRepairedComplete ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                  🛠️ {t('requests.typeRepaired')}
+                </span>
               ) : isRepair ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                  🛠️ Ta'mirlash so'rovi
+                  🛠️ {t('requests.typeRepair')}
                 </span>
               ) : isReturn ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
-                  📦 Qaytarish so'rovi
+                  📦 {t('requests.typeReturn')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
-                  🗑️ O'chirish so'rovi
+                  🗑️ {t('requests.typeDeletion')}
                 </span>
               )}
             </div>

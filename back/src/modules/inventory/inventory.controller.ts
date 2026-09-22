@@ -70,6 +70,17 @@ export class InventoryController {
     return this.inventoryService.getAssignedAssets(targetOrgId, user);
   }
 
+  @ApiOperation({ summary: 'Ta\'mirlashdagi jihozlar ro\'yxati' })
+  @Roles(...INVENTORY_VIEWERS)
+  @Get('in-repair')
+  getInRepairAssets(
+    @Query('organizationId') organizationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const targetOrgId = organizationId ? organizationId : user?.organizationId;
+    return this.inventoryService.getInRepairAssets(targetOrgId, user);
+  }
+
   @ApiOperation({ summary: 'Ombor hisobotini Excel (.xlsx) formatda eksport qilish' })
   @Roles(...INVENTORY_VIEWERS)
   @Get('export')

@@ -506,7 +506,7 @@ export class OperationsStockService {
             entityType: 'ASSET',
             entityId: asset.id,
             entityName: `${asset.product.name} (Inv: ${asset.inventoryNumber || '—'})`,
-            reason: `[TA'MIRLANDI] Jihoz ta'mirlandi va soz holatga keltirildi`,
+            reason: `[TA'MIRLASH/SERVIS] [TA'MIRLANDI] Jihoz ta'mirlandi va soz holatga keltirildi`,
             status: 'APPROVED',
             reviewedById: performedById,
             reviewComment: noteComment,

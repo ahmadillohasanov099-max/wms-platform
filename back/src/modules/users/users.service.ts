@@ -182,8 +182,28 @@ export class UsersService {
         OR: [{ userId: id }, { fromUserId: id }, { performedById: id }],
       },
       include: {
-        product: { select: { id: true, name: true } },
-        asset: { select: { id: true, inventoryNumber: true } },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            productType: true,
+            unit: true,
+            inventory: {
+              select: {
+                unitPrice: true,
+              },
+            },
+          },
+        },
+        asset: {
+          select: {
+            id: true,
+            inventoryNumber: true,
+            serialNumber: true,
+            purchasePrice: true,
+            status: true,
+          },
+        },
         department: { select: { id: true, name: true } },
         performedBy: { select: { id: true, fullName: true, username: true } },
       },
@@ -209,6 +229,11 @@ export class UsersService {
             name: true,
             productType: true,
             unit: true,
+            inventory: {
+              select: {
+                unitPrice: true,
+              },
+            },
           },
         },
         department: { select: { id: true, name: true } },

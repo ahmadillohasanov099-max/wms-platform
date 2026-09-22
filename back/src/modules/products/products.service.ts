@@ -21,7 +21,7 @@ export class ProductsService {
   ) {}
 
   async findAll(query: ProductQueryDto, currentUser?: ActiveUser) {
-    const { page = 1, limit = 20, search, productType, organizationId } = query as any;
+    const { page = 1, limit = 20, search, productType, stockStatus, organizationId } = query as any;
     const skip = (page - 1) * limit;
 
     const targetOrgId = enforceTenantOrgId(currentUser, organizationId);
@@ -30,6 +30,12 @@ export class ProductsService {
       deletedAt: null,
       ...(targetOrgId && { organizationId: targetOrgId }),
       ...(productType && { productType }),
+      ...(stockStatus === 'IN_STOCK' && {
+        inventory: { quantity: { gt: 0 } },
+      }),
+      ...(stockStatus === 'OUT_OF_STOCK' && {
+        inventory: { quantity: { lte: 0 } },
+      }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -219,6 +225,16 @@ export class ProductsService {
       );
     }
 
+    // 5. Check if there are any operations in history
+    const operationsCount = await this.prisma.operation.count({
+      where: { productId: id },
+    });
+    if (operationsCount > 0) {
+      throw new BadRequestException(
+        "Ushbu mahsulot bo'yicha harakatlar tarixi (kirim/chiqim amallari) mavjud! Buxgalteriya va audit hisobotlari yo'qolmasligi uchun uni o'chirish taqiqlanadi. Mahsulot omborda qoldig'i 0 bo'lib saqlanishi kerak.",
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
@@ -246,8 +262,13 @@ export class ProductsService {
     });
   }
 
-  async getHistory(id: string, page = 1, limit = 20) {
-    await this.findOne(id);
+  async getHistory(id: string, page = 1, limit = 50) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+    });
+    if (!product) {
+      throw new NotFoundException('Mahsulot topilmadi');
+    }
 
     const skip = (page - 1) * limit;
 
@@ -257,9 +278,30 @@ export class ProductsService {
         skip,
         take: limit,
         include: {
-          user: { select: { id: true, fullName: true, username: true } },
-          fromUser: { select: { id: true, fullName: true, username: true } },
-          asset: { select: { id: true, inventoryNumber: true } },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          fromUser: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          asset: {
+            select: {
+              id: true,
+              inventoryNumber: true,
+              serialNumber: true,
+              status: true,
+            },
+          },
           department: { select: { id: true, name: true } },
           performedBy: { select: { id: true, fullName: true, username: true } },
         },

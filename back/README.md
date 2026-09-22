@@ -290,4 +290,7 @@ Loyiha to'liq Docker-ready holatiga keltirilgan.
      • Oqibati: Quyi tashkilot admini (ORG_ADMIN) bo'limlarni (DELETE /departments/:id), mahsulotlarni (DELETE /products/:id) va xodimlarni to'g'ridan-to'g'ri o'chirib yubora oladi, bu narsa keyinchalik loyihada qo'llanilishi mumkin, hozircha turishi kerak.
 
 yana bir narsa ombor xolatini yuklab olish ishlayabdi lekin filter da faqat asosiy vosita yoki tmz ni filterda belgilab turb yuklasa xam butun ombor asosiy vosita xamda tmz larni yuklanyabdi agar bu xam lolyhadagi nomuvofiqlik deb topilsa buni xam togirlash !
+
+ yana bir logika muamosi aslida tmz bor a4 qogoz 10 pachka xodimga 10 pachka berdim shunda ombor xolati 0 ga tushishi kerak kegin ana osha mahsulotni hisobdan chiqarish uchun ana osha jihzonni tanlasam yani a4 qogozni  hisobdan
+  chiqarish uchun miqdor sorayabdi miqdorni belgilab 5 ni bosib hisobdan chiqarsam succes deyabdi va yana qolgan 5 tasi ombortga qayta yozilib qolyabdi
                                 

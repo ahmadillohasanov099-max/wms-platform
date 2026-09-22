@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, AlertTriangle, History as HistoryIcon, Edit2, Trash2, Boxes, PackageCheck, TrendingUp, Sparkles } from 'lucide-react';
-import { inventoryApi, productsApi } from '../../api';
+import { Plus, AlertTriangle, History as HistoryIcon, Edit2, Trash2, Boxes, PackageCheck, TrendingUp, Sparkles, Wrench, CheckCircle2 } from 'lucide-react';
+import { inventoryApi, productsApi, operationsApi } from '../../api';
 import { Card, Button, Select, Table, Pagination, ConfirmDialog, ProductTypeBadge, PageHeader, SearchFilterCard, StatsCard } from '../../components/ui';
-import { formatCurrency, formatCompactCurrency, invalidateAppQueries } from '../../lib/utils';
+import { formatCurrency, formatCompactCurrency, formatDate, invalidateAppQueries } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import StockInModal from './stock-in-modal';
 import ExcelImportModal from './excel-import-modal';
@@ -11,6 +11,8 @@ import WriteOffModal from '../operations/write-off-modal';
 import ProductFormModal from '../products/product-form-modal';
 import ProductHistoryModal from '../products/product-history-modal';
 import ProductDetailModal from '../products/product-detail-modal';
+import RepairCompleteModal from '../../components/modals/repair-complete-modal';
+import CopyableInventoryNumber from '../../components/ui/copyable-inventory-number';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -33,6 +35,8 @@ export default function InventoryPage() {
   const debouncedSearch = useDebounce(search, 250);
   const [typeFilter, setTypeFilter] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [stockStatus, setStockStatus] = useState<'ALL' | 'IN_REPAIR'>('ALL');
+  const [selectedRepairAsset, setSelectedRepairAsset] = useState<any | null>(null);
 
   const [stockInModal, setStockInModal] = useState(false);
   const [excelModal, setExcelModal] = useState(false);
@@ -81,9 +85,50 @@ export default function InventoryPage() {
 
   const inventory = useMemo(() => data ?? [], [data]);
 
+  const { data: repairData, isLoading: repairLoading } = useQuery({
+    queryKey: ['in-repair-assets'],
+    queryFn: () => inventoryApi.getInRepairAssets(),
+    staleTime: 15000,
+  });
+  const repairAssets = useMemo(() => repairData ?? [], [repairData]);
+
+  const completeRepairMutation = useMutation({
+    mutationFn: ({ assetId, note }: { assetId: string; note?: string }) =>
+      operationsApi.completeRepair({ assetId, note }),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || 'Jihoz ta\'mirlanib, omborga/xodimga qaytarildi');
+      invalidateAppQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['in-repair-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      setSelectedRepairAsset(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || err?.response?.data?.message || t('common.error'));
+    },
+  });
+
+  const repairCount = useMemo(() => {
+    if (!typeFilter) return repairAssets.length;
+    return repairAssets.filter((a: any) => a.product?.productType === typeFilter).length;
+  }, [repairAssets, typeFilter]);
+
+  const { totalValue, lowStockCount, totalCount } = useMemo(() => {
+    let sum = 0;
+    let low = 0;
+    let total = 0;
+    for (let i = 0; i < inventory.length; i++) {
+      const item = inventory[i];
+      if (typeFilter && item.product?.productType !== typeFilter) continue;
+      total++;
+      sum += Number(item.totalValue ?? 0);
+      if (item.quantity <= item.minLevel) low++;
+    }
+    return { totalValue: sum, lowStockCount: low, totalCount: total };
+  }, [inventory, typeFilter]);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, typeFilter, lowStockOnly]);
+  }, [debouncedSearch, typeFilter, lowStockOnly, stockStatus]);
 
   const filtered = useMemo(() => {
     const s = debouncedSearch.toLowerCase().trim();
@@ -104,23 +149,31 @@ export default function InventoryPage() {
     });
   }, [inventory, debouncedSearch, typeFilter, lowStockOnly]);
 
-  const { totalValue, lowStockCount } = useMemo(() => {
-    let sum = 0;
-    let low = 0;
-    for (let i = 0; i < inventory.length; i++) {
-      const item = inventory[i];
-      sum += Number(item.totalValue ?? 0);
-      if (item.quantity <= item.minLevel) low++;
-    }
-    return { totalValue: sum, lowStockCount: low };
-  }, [inventory]);
+  const filteredRepairAssets = useMemo(() => {
+    const s = debouncedSearch.toLowerCase().trim();
+    return repairAssets.filter((a: any) => {
+      const matchType = !typeFilter || a.product?.productType === typeFilter;
+      const matchSearch =
+        !s ||
+        a.product?.name?.toLowerCase().includes(s) ||
+        a.product?.code?.toLowerCase().includes(s) ||
+        a.inventoryNumber?.toLowerCase().includes(s) ||
+        a.serialNumber?.toLowerCase().includes(s) ||
+        a.holderName?.toLowerCase().includes(s);
+      return matchType && matchSearch;
+    });
+  }, [repairAssets, debouncedSearch, typeFilter]);
 
-  const totalPages = Math.ceil(filtered.length / limit) || 1;
+  const totalItemsCount = stockStatus === 'IN_REPAIR' ? filteredRepairAssets.length : filtered.length;
+  const totalPages = Math.ceil(totalItemsCount / limit) || 1;
 
   const paginatedData = useMemo(() => {
     const start = (page - 1) * limit;
+    if (stockStatus === 'IN_REPAIR') {
+      return filteredRepairAssets.slice(start, start + limit);
+    }
     return filtered.slice(start, start + limit);
-  }, [filtered, page, limit]);
+  }, [filtered, filteredRepairAssets, stockStatus, page, limit]);
 
   const unitLabel = (unit: string) => {
     if (unit === 'DONA') return t('common.units.DONA');
@@ -224,7 +277,7 @@ export default function InventoryPage() {
                 0 {unitLabel(row.product?.unit)}
               </span>
               <span className="text-3xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900/40">
-                {hasUser ? "Xodimda" : hasDept ? "Bo'limda" : "Biriktirilgan"}
+                {hasUser ? t('inventory.onEmployeeShort') : hasDept ? t('inventory.onDeptShort') : t('inventory.assignedShort')}
               </span>
             </div>
           );
@@ -379,6 +432,89 @@ export default function InventoryPage() {
     },
   ];
 
+  const repairColumns = [
+    {
+      key: 'product',
+      title: t('inventory.productName'),
+      className: 'whitespace-normal break-words min-w-[200px]',
+      render: (_: any, row: any) => (
+        <div className="flex flex-col min-w-0 break-words">
+          <span className="font-bold text-gray-900 dark:text-white text-sm">
+            {row.product?.name}
+          </span>
+          {row.product?.code && (
+            <span className="text-2xs text-gray-400 font-mono">{row.product.code}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'inventoryNumber',
+      title: t('inventory.invNumber'),
+      render: (_: any, row: any) => (
+        <CopyableInventoryNumber value={row.inventoryNumber} />
+      ),
+    },
+    {
+      key: 'serialNumber',
+      title: t('inventory.serialNumber'),
+      render: (val: any) => (
+        <span className="text-xs text-gray-500 font-mono">{val || '—'}</span>
+      ),
+    },
+    {
+      key: 'holder',
+      title: t('inventory.repairHolder'),
+      render: (_: any, row: any) => (
+        <div className="flex flex-col text-xs">
+          <span className="font-bold text-gray-900 dark:text-gray-100">{row.holderName}</span>
+          {row.holderDepartment && row.holderDepartment !== '—' && (
+            <span className="text-gray-400 text-2xs">{row.holderDepartment}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      title: t('common.status'),
+      render: () => (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold text-xs border border-amber-200 dark:border-amber-800/60">
+          <Wrench className="w-3.5 h-3.5 text-amber-500" />
+          {t('inventory.inRepairDamaged')}
+        </span>
+      ),
+    },
+    {
+      key: 'date',
+      title: t('common.date'),
+      render: (_: any, row: any) => (
+        <span className="text-xs text-gray-500 font-mono">
+          {formatDate(row.updatedAt || row.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      title: t('common.actions'),
+      className: 'text-right',
+      headerClassName: 'text-right',
+      render: (_: any, row: any) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => setSelectedRepairAsset(row)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{t('inventory.btnRepaired')}</span>
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -425,13 +561,25 @@ export default function InventoryPage() {
       />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title={t('inventory.totalProducts')}
-          value={`${inventory.length} ${t('common.pcs')}`}
+          title={
+            typeFilter === 'BERILADIGAN'
+              ? t('inventory.totalFixedAssets')
+              : typeFilter === 'SARFLANADIGAN'
+              ? t('inventory.totalConsumables')
+              : t('inventory.totalProducts')
+          }
+          value={`${totalCount} ${t('common.pcs')}`}
           icon={<PackageCheck className="w-5 h-5" />}
           iconBgColor="bg-sky-500/10 dark:bg-sky-950/20"
           iconTextColor="text-sky-600 dark:text-sky-400"
+          onClick={() => {
+            setStockStatus('ALL');
+            setLowStockOnly(false);
+            setPage(1);
+          }}
+          className={stockStatus === 'ALL' && !lowStockOnly ? 'border-sky-500 dark:border-sky-500 ring-2 ring-sky-500/20' : ''}
         />
         <StatsCard
           title={t('inventory.totalValueStat')}
@@ -447,8 +595,25 @@ export default function InventoryPage() {
           icon={<AlertTriangle className="w-5 h-5" />}
           iconBgColor="bg-red-500/10 dark:bg-red-950/20"
           iconTextColor="text-red-600 dark:text-red-400"
-          onClick={() => setLowStockOnly(!lowStockOnly)}
-          className={lowStockOnly ? 'border-red-500 dark:border-red-500' : ''}
+          onClick={() => {
+            setStockStatus('ALL');
+            setLowStockOnly(!lowStockOnly);
+            setPage(1);
+          }}
+          className={lowStockOnly && stockStatus !== 'IN_REPAIR' ? 'border-red-500 dark:border-red-500 ring-2 ring-red-500/20' : ''}
+        />
+        <StatsCard
+          title={t('inventory.statInRepairDamaged')}
+          value={`${repairCount} ${t('common.pcs')}`}
+          icon={<Wrench className="w-5 h-5" />}
+          iconBgColor="bg-amber-500/10 dark:bg-amber-950/20"
+          iconTextColor="text-amber-600 dark:text-amber-400"
+          onClick={() => {
+            setLowStockOnly(false);
+            setStockStatus(stockStatus === 'IN_REPAIR' ? 'ALL' : 'IN_REPAIR');
+            setPage(1);
+          }}
+          className={stockStatus === 'IN_REPAIR' ? 'border-amber-500 dark:border-amber-500 ring-2 ring-amber-500/20' : ''}
         />
       </div>
 
@@ -474,12 +639,54 @@ export default function InventoryPage() {
       <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden min-h-[480px]">
         {/* Mobile Inventory Cards View (screens < 768px) */}
         <div className="md:hidden p-3.5 space-y-3">
-          {isLoading ? (
+          {(isLoading || (stockStatus === 'IN_REPAIR' && repairLoading)) ? (
             <div className="p-6 text-center text-sm text-gray-500">{t('common.loading')}</div>
           ) : paginatedData.length === 0 ? (
             <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('inventory.emptyTitle')}
+              {stockStatus === 'IN_REPAIR' ? t('inventory.emptyInRepair') : t('inventory.emptyTitle')}
             </div>
+          ) : stockStatus === 'IN_REPAIR' ? (
+            paginatedData.map((row: any) => (
+              <div
+                key={row.id}
+                className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/50 shadow-2xs space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                      {row.product?.name}
+                    </h4>
+                    <span className="text-xs font-mono text-gray-500">#{row.inventoryNumber}</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-2xs font-bold border border-amber-200 dark:border-amber-800/60">
+                    <Wrench className="w-3 h-3 text-amber-500" />
+                    {t('inventory.inRepair')}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 pt-2 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
+                  <div>
+                    <span className="text-gray-400 block text-2xs">{t('inventory.submittedByShort')}:</span>
+                    <span className="font-semibold">{row.holderName}</span>
+                  </div>
+                  {row.serialNumber && (
+                    <div className="text-right">
+                      <span className="text-gray-400 block text-2xs">{t('inventory.serialShort')}:</span>
+                      <span className="font-mono text-gray-500">{row.serialNumber}</span>
+                    </div>
+                  )}
+                </div>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedRepairAsset(row)}
+                    className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{t('inventory.btnRepaired')}</span>
+                  </Button>
+                )}
+              </div>
+            ))
           ) : (
             paginatedData.map((row: any) => (
               <div
@@ -498,13 +705,13 @@ export default function InventoryPage() {
                 {/* Details Grid */}
                 <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100 dark:border-slate-800">
                   <div>
-                    <span className="text-gray-400 block">Miqdori:</span>
+                    <span className="text-gray-400 block">{t('inventory.quantity')}:</span>
                     <span className="font-extrabold text-gray-900 dark:text-white">
                       {row.quantity} {unitLabel(row.product?.unit)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block">Jami qiymati:</span>
+                    <span className="text-gray-400 block">{t('inventory.totalValue')}:</span>
                     <span className="font-extrabold text-teal-600 dark:text-teal-400">
                       {row.totalValue ? formatCurrency(row.totalValue) : '—'}
                     </span>
@@ -546,21 +753,32 @@ export default function InventoryPage() {
 
         {/* Desktop Table View (screens >= 768px) */}
         <div className="hidden md:block">
-          <Table
-            columns={columns}
-            data={paginatedData}
-            loading={isLoading}
-            rowKey={(row) => row.productId}
-            emptyTitle={t('inventory.emptyTitle')}
-            emptyDescription={t('inventory.emptyDescription')}
-          />
+          {stockStatus === 'IN_REPAIR' ? (
+            <Table
+              columns={repairColumns}
+              data={paginatedData}
+              loading={repairLoading}
+              rowKey={(row) => row.id}
+              emptyTitle={t('inventory.emptyInRepair')}
+              emptyDescription={t('inventory.emptyInRepairDesc')}
+            />
+          ) : (
+            <Table
+              columns={columns}
+              data={paginatedData}
+              loading={isLoading}
+              rowKey={(row) => row.productId}
+              emptyTitle={t('inventory.emptyTitle')}
+              emptyDescription={t('inventory.emptyDescription')}
+            />
+          )}
         </div>
 
         <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800">
           <Pagination
             page={page}
             totalPages={totalPages}
-            total={filtered.length}
+            total={totalItemsCount}
             limit={limit}
             onPageChange={setPage}
           />
@@ -618,6 +836,20 @@ export default function InventoryPage() {
         description={t('inventory.deleteConfirmDesc', { name: deleteProduct?.name })}
         confirmText={t('common.delete')}
         loading={deleteLoading}
+      />
+
+      <RepairCompleteModal
+        open={!!selectedRepairAsset}
+        onClose={() => setSelectedRepairAsset(null)}
+        assetItem={selectedRepairAsset}
+        isLoading={completeRepairMutation.isPending}
+        onConfirm={async (note) => {
+          if (!selectedRepairAsset) return;
+          await completeRepairMutation.mutateAsync({
+            assetId: selectedRepairAsset.id,
+            note,
+          });
+        }}
       />
     </div>
   );

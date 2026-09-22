@@ -1,15 +1,11 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-hot-toast";
-import { productsApi, operationsApi } from "../../api";
-import { useAuthStore } from "../../store/auth.store";
+import { productsApi } from "../../api";
 import { useTranslation } from "../../hooks/useTranslation";
 import Modal from "../../components/ui/modal";
-import RepairCompleteModal from "../../components/modals/repair-complete-modal";
 import { TableSkeleton } from "../../components/ui/spinner";
 import { ProductTypeBadge } from "../../components/ui/badge";
-import { formatCurrency, invalidateAppQueries } from "../../lib/utils";
+import { formatCurrency } from "../../lib/utils";
 import CopyableInventoryNumber from "../../components/ui/copyable-inventory-number";
 
 import { ShieldCheck, User, Building2, History, Edit2, PackageCheck, Wrench } from "lucide-react";
@@ -25,37 +21,7 @@ interface Props {
 
 export default function ProductDetailModal({ open, onClose, productId, onOpenHistory, onOpenEdit, disableLinks }: Props) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
   const { t } = useTranslation();
-  const [selectedRepairAsset, setSelectedRepairAsset] = useState<any | null>(null);
-
-  const canManageRepair = [
-    'SUPER_ADMIN',
-    'VAZIRLIK_OMBORCHI',
-    'ORG_ADMIN',
-    'ORG_OMBORCHI',
-  ].includes(user?.role || '');
-
-  const completeRepairMutation = useMutation({
-    mutationFn: ({ assetId, note }: { assetId: string; note?: string }) =>
-      operationsApi.completeRepair({ assetId, note }),
-    onSuccess: (res: any) => {
-      toast.success(res?.message || t('productDetail.repairSuccess'));
-      invalidateAppQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["product-detail", productId] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["assigned-assets"] });
-      queryClient.invalidateQueries({ queryKey: ["profile-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["my-deletion-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["deletion-requests"] });
-      setSelectedRepairAsset(null);
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
-    },
-  });
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
     queryFn: () => (productId ? productsApi.getOne(productId) : null),
@@ -183,30 +149,22 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
                                 🔴 {t('productDetail.statusWrittenOff')}
                               </span>
                             ) : isBroken ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/50">
-                                  ⚠️ {t('productDetail.statusBroken')}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60 shrink-0">
+                                  <Wrench className="w-3 h-3 text-amber-500 shrink-0" />
+                                  <span>{t('productDetail.statusBroken')}</span>
                                 </span>
                                 {activeAssignment?.user && (
-                                  <span className="text-2xs text-slate-500 font-medium">
-                                    ({t('productDetail.userPrefix', { name: activeAssignment.user.fullName })})
+                                  <span className="inline-flex items-center gap-1 text-2xs text-slate-600 dark:text-slate-300 font-medium truncate">
+                                    <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="truncate">{activeAssignment.user.fullName}</span>
                                   </span>
                                 )}
                                 {activeAssignment?.department && (
-                                  <span className="text-2xs text-slate-500 font-medium">
-                                    ({t('productDetail.deptPrefix', { name: activeAssignment.department.name })})
+                                  <span className="inline-flex items-center gap-1 text-2xs text-slate-600 dark:text-slate-300 font-medium truncate">
+                                    <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="truncate">{activeAssignment.department.name}</span>
                                   </span>
-                                )}
-                                {canManageRepair && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedRepairAsset({ ...asset, product })}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all shadow-2xs cursor-pointer ml-1"
-                                    title={t('productDetail.btnRepairedTitle')}
-                                  >
-                                    <Wrench className="w-3 h-3" />
-                                    <span>{t('productDetail.btnRepaired')}</span>
-                                  </button>
                                 )}
                               </div>
                             ) : isLost ? (
@@ -214,7 +172,17 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
                                 ❓ {t('productDetail.statusLost')}
                               </span>
                             ) : activeAssignment ? (
-                              activeAssignment.user ? (
+                              activeAssignment.status === 'PENDING' ? (
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50/70 text-amber-700 border border-amber-200/70 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/40"
+                                  title="Xodim qabul qilishi kutilmoqda"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                                  <span className="truncate max-w-[180px]">
+                                    Kutilmoqda: {activeAssignment.user?.fullName || activeAssignment.department?.name || '—'}
+                                  </span>
+                                </span>
+                              ) : activeAssignment.user ? (
                                 disableLinks ? (
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold bg-blue-50 text-blue-700 border border-blue-200/70 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900/50">
                                     <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -313,20 +281,6 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
           </div>
         </div>
       )}
-
-      <RepairCompleteModal
-        open={!!selectedRepairAsset}
-        onClose={() => setSelectedRepairAsset(null)}
-        assetItem={selectedRepairAsset}
-        isLoading={completeRepairMutation.isPending}
-        onConfirm={async (note) => {
-          if (!selectedRepairAsset) return;
-          await completeRepairMutation.mutateAsync({
-            assetId: selectedRepairAsset.id,
-            note,
-          });
-        }}
-      />
     </Modal>
   );
 }

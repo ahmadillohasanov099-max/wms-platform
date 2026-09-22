@@ -32,6 +32,7 @@ const MANAGERS = [
 const DEPT_MANAGE_ROLES = [
   UserRole.SUPER_ADMIN,
   UserRole.ORG_ADMIN,
+  UserRole.KADR,
 ];
 
 @ApiTags('Departments')

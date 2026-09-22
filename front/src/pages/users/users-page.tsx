@@ -616,10 +616,30 @@ export default function UsersPage() {
       <ConfirmDialog
         open={deleteDialog}
         onClose={() => setDeleteDialog(false)}
-        onConfirm={() => remove(deleteUser?.id)}
+        onConfirm={() => {
+          if ((deleteUser?._count?.assignments ?? 0) > 0) {
+            toast.error(
+              t('users.deleteBlockedWithAssets', {
+                name: deleteUser?.fullName,
+                count: deleteUser?._count?.assignments,
+              })
+            );
+            setDeleteDialog(false);
+            return;
+          }
+          remove(deleteUser?.id);
+        }}
         title={t('users.deleteTitle')}
-        description={t('users.deleteConfirmDesc', { name: deleteUser?.fullName })}
-        confirmText={t('common.delete')}
+        description={
+          (deleteUser?._count?.assignments ?? 0) > 0
+            ? t('users.deleteBlockedWithAssets', {
+                name: deleteUser?.fullName,
+                count: deleteUser?._count?.assignments,
+              })
+            : t('users.deleteConfirmDesc', { name: deleteUser?.fullName })
+        }
+        confirmText={(deleteUser?._count?.assignments ?? 0) > 0 ? t('common.understood') : t('common.delete')}
+        variant={(deleteUser?._count?.assignments ?? 0) > 0 ? 'warning' : 'danger'}
         loading={deleteLoading}
       />
     </div>

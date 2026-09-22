@@ -1,9 +1,9 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { operationsApi } from '../../api';
+import { operationsApi, productsApi } from '../../api';
 import Modal from '../../components/ui/modal';
 import Input from '../../components/ui/input';
 import Select from '../../components/ui/select';
@@ -63,7 +63,7 @@ export default function StockInModal({ open, onClose }: Props) {
 
   type FormData = z.infer<typeof schema>;
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<any>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<any>({
     resolver: zodResolver(schema),
     defaultValues: {
       quantity: 1,
@@ -73,6 +73,13 @@ export default function StockInModal({ open, onClose }: Props) {
       inventoryNumbers: [],
     },
   });
+
+  const { data: existingProductsData } = useQuery({
+    queryKey: ['products-for-stock-in'],
+    queryFn: () => productsApi.getAll({ limit: 200 }),
+    enabled: open,
+  });
+  const existingProducts: any[] = existingProductsData?.items || [];
 
   const productType = watch('productType');
   const quantity = watch('quantity') || 0;
@@ -129,13 +136,36 @@ export default function StockInModal({ open, onClose }: Props) {
       }
     >
       <div className="space-y-4">
-        <Input
-          label={t('inventory.productName')}
-          placeholder={t('inventory.productNamePlaceholder')}
-          error={errors.name?.message?.toString()}
-          required
-          {...register('name')}
-        />
+        <div>
+          <Input
+            label={t('inventory.productName')}
+            placeholder={t('inventory.productNamePlaceholder')}
+            error={errors.name?.message?.toString()}
+            list="existing-products-datalist"
+            required
+            {...register('name', {
+              onChange: (e) => {
+                const val = e.target.value?.trim()?.toLowerCase();
+                const found = existingProducts.find(
+                  (p: any) => p.name?.trim()?.toLowerCase() === val
+                );
+                if (found) {
+                  setValue('productType', found.productType);
+                  if (found.unit) setValue('unit', found.unit);
+                  if (found.inventory?.unitPrice) setValue('unitPrice', found.inventory.unitPrice);
+                  if (found.inventory?.minLevel) setValue('minLevel', found.inventory.minLevel);
+                }
+              },
+            })}
+          />
+          <datalist id="existing-products-datalist">
+            {existingProducts.map((p: any) => (
+              <option key={p.id} value={p.name}>
+                {p.productType === 'SARFLANADIGAN' ? 'TMZ' : 'Asosiy vosita'} | {p.unit || 'dona'} | Omborda: {p.inventory?.quantity ?? 0}
+              </option>
+            ))}
+          </datalist>
+        </div>
 
         <Select
           label={t('inventory.productType')}

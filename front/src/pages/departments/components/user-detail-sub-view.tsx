@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, invalidateAppQueries, cn } from '../../../l
 import VerifyIdentityModal from '../../../components/shared/verify-identity-modal';
 import toast from 'react-hot-toast';
 import ModdiyJavobgarlikModal from '../../../components/documents/moddiy-javobgarlik-modal';
+import TalabnomaModal, { type TalabnomaData } from '../../../components/documents/talabnoma-modal';
 import RepairCompleteModal from '../../../components/modals/repair-complete-modal';
 import {
   Package,
@@ -52,13 +53,15 @@ export default function UserDetailSubView({
   const [bulkReturnModalOpen, setBulkReturnModalOpen] = useState(false);
   const [moddiyModalOpen, setModdiyModalOpen] = useState(false);
   const [moddiyContractData, setModdiyContractData] = useState<any>(null);
+  const [talabnomaModalOpen, setTalabnomaModalOpen] = useState(false);
+  const [talabnomaData, setTalabnomaData] = useState<TalabnomaData | null>(null);
   const [selectedRepairAsset, setSelectedRepairAsset] = useState<any | null>(null);
 
   const completeRepairMutation = useMutation({
     mutationFn: ({ assetId, note }: { assetId: string; note?: string }) =>
       operationsApi.completeRepair({ assetId, note }),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Jihoz ta'mirlandi va soz holatga keltirildi!");
+      toast.success(res?.message || t('inventory.repairSuccess'));
       invalidateAppQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ['user-assignments', selectedUserId] });
       queryClient.invalidateQueries({ queryKey: ['profile-assignments'] });
@@ -67,7 +70,7 @@ export default function UserDetailSubView({
       setSelectedRepairAsset(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || "Xatolik yuz berdi");
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
@@ -183,6 +186,31 @@ export default function UserDetailSubView({
       : 0;
     return sum + price;
   }, 0);
+
+  const totalTmzValue = tmzOperations.reduce((sum: number, op: any) => {
+    const unitPrice = op.product?.inventory?.unitPrice ? Number(op.product.inventory.unitPrice) : 0;
+    return sum + (unitPrice * Number(op.quantity || 0));
+  }, 0);
+
+  const handleOpenTalabnoma = (row: any) => {
+    const items = row.groupItems || [row];
+    const numericPart = row.documentNumber ? parseInt(row.documentNumber.replace(/\D/g, ''), 10) : undefined;
+
+    setTalabnomaData({
+      seqNumber: numericPart || undefined,
+      documentNumber: row.documentNumber || undefined,
+      date: row.createdAt,
+      fromUser: row.performedBy?.fullName || "Xo'jalik mudiri",
+      toRecipient: `${selectedUser.fullName}${selectedUser.department?.name ? ` (${selectedUser.department.name})` : ''}`,
+      items: items.map((gi: any) => ({
+        name: gi.product?.name || 'Mahsulot',
+        unit: gi.product?.unit || 'dona',
+        quantity: gi.quantity || 1,
+      })),
+      note: row.note,
+    });
+    setTalabnomaModalOpen(true);
+  };
 
   const handleConfirmBulkReturn = async () => {
     try {
@@ -548,7 +576,7 @@ export default function UserDetailSubView({
                                         ? "bg-amber-500 animate-pulse ring-2 ring-amber-400/40"
                                         : "bg-emerald-500 ring-2 ring-emerald-400/40"
                                     )}
-                                    title={isPending ? "Kutilmoqda (Sariq)" : isRejected ? "Rad etilgan (Qizil)" : isBroken ? "Ta'mirlashda (Sariq)" : "Tasdiqlangan / Qabul qilingan (Yashil)"}
+                                    title={isPending ? t('profile.statusDotPending') : isRejected ? t('profile.statusDotRejected') : isBroken ? t('profile.statusDotBroken') : t('profile.statusDotAccepted')}
                                   />
                                   <span className="font-semibold text-slate-900 dark:text-slate-100">
                                     {batch.items.length > 1 ? `${idx + 1}. ` : ''}{item.asset?.product?.name || '—'}
@@ -562,7 +590,7 @@ export default function UserDetailSubView({
 
                                   {isBroken && (
                                     <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300/80">
-                                      🛠️ Ta'mirlashda
+                                      🛠️ {t('inventory.inRepair')}
                                     </span>
                                   )}
 
@@ -571,10 +599,10 @@ export default function UserDetailSubView({
                                       type="button"
                                       onClick={() => setSelectedRepairAsset({ ...item.asset, product: item.asset?.product, assignments: [{ ...item, user: selectedUser }] })}
                                       className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded cursor-pointer transition-colors shadow-2xs ml-0.5"
-                                      title="Jihozni ta'mirlashdan chiqarish va soz holatga keltirish"
+                                      title={t('inventory.btnRepairedTitle')}
                                     >
                                       <Wrench className="w-3 h-3" />
-                                      <span>Tuzatildi</span>
+                                      <span>{t('inventory.btnRepaired')}</span>
                                     </button>
                                   )}
 
@@ -645,44 +673,60 @@ export default function UserDetailSubView({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-800 text-left bg-gray-50/50 dark:bg-gray-800/10">
-                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t('common.date')}
                       </th>
-                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t('userView.materialName')}
                       </th>
-                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t('userView.issuedQty')}
                       </th>
-                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Birlik narxi
+                      </th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Jami qiymati
+                      </th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t('userView.givenBy')}
                       </th>
-                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t('userView.docNo')}
+                      </th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                        Hujjat
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
                     {groupedTmzOperations.map((row: any) => {
                       const items = row.groupItems || [row];
                       return (
                         <tr
                           key={row.id}
-                          className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
+                          className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors"
                         >
-                          <td className="px-5 py-3.5 text-xs text-gray-500 font-medium whitespace-nowrap">
+                          <td className="px-4 py-3 text-xs text-gray-500 font-medium whitespace-nowrap">
                             {formatDate(row.createdAt)}
                           </td>
-                          <td className="px-5 py-3.5 min-w-[200px]">
+                          <td className="px-4 py-3 min-w-[180px]">
                             <div className="space-y-1">
                               {items.map((gi: any, idx: number) => (
-                                <p key={gi.id || idx} className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                                  {items.length > 1 ? `${idx + 1}. ` : ''}{gi.product?.name ?? '—'}
-                                </p>
+                                <div key={gi.id || idx}>
+                                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100">
+                                    {items.length > 1 ? `${idx + 1}. ` : ''}{gi.product?.name ?? '—'}
+                                  </p>
+                                  {gi.note && (
+                                    <p className="text-3xs text-slate-400 italic">
+                                      Izoh: {gi.note}
+                                    </p>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           </td>
-                          <td className="px-5 py-3.5">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="space-y-1">
                               {items.map((gi: any, idx: number) => (
                                 <p key={gi.id || idx} className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
@@ -691,15 +735,59 @@ export default function UserDetailSubView({
                               ))}
                             </div>
                           </td>
-                          <td className="px-5 py-3.5 text-xs text-gray-700 dark:text-gray-300 font-medium">
+                          <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-slate-600 dark:text-slate-300">
+                            <div className="space-y-1">
+                              {items.map((gi: any, idx: number) => {
+                                const unitPrice = gi.product?.inventory?.unitPrice;
+                                return (
+                                  <p key={gi.id || idx}>
+                                    {unitPrice ? formatCurrency(unitPrice) : '—'}
+                                  </p>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
+                            <div className="space-y-1">
+                              {items.map((gi: any, idx: number) => {
+                                const unitPrice = gi.product?.inventory?.unitPrice;
+                                const lineTotal = unitPrice ? Number(unitPrice) * (gi.quantity || 1) : 0;
+                                return (
+                                  <p key={gi.id || idx}>
+                                    {lineTotal > 0 ? formatCurrency(lineTotal) : '—'}
+                                  </p>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
                             {row.performedBy?.fullName || '—'}
                           </td>
-                          <td className="px-5 py-3.5 text-xs font-mono font-bold text-gray-500">
+                          <td className="px-4 py-3 text-xs font-mono font-bold text-gray-500 whitespace-nowrap">
                             {row.documentNumber || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenTalabnoma(row)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 rounded-lg border border-teal-200 dark:border-teal-800 transition-all cursor-pointer shadow-2xs"
+                              title="Talabnomani ko'rish va chop etish"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Talabnoma</span>
+                            </button>
                           </td>
                         </tr>
                       );
                     })}
+                    <tr className="bg-amber-50/40 dark:bg-amber-950/20 font-bold border-t border-amber-200/60 dark:border-amber-900/50">
+                      <td colSpan={4} className="px-4 py-3 text-right text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">
+                        Jami sarflangan TMZ qiymati:
+                      </td>
+                      <td colSpan={4} className="px-4 py-3 text-amber-600 dark:text-amber-400 text-sm font-extrabold font-mono">
+                        {formatCurrency(totalTmzValue)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -803,6 +891,14 @@ export default function UserDetailSubView({
           open={moddiyModalOpen}
           onClose={() => setModdiyModalOpen(false)}
           data={moddiyContractData}
+        />
+      )}
+
+      {talabnomaData && (
+        <TalabnomaModal
+          open={talabnomaModalOpen}
+          onClose={() => setTalabnomaModalOpen(false)}
+          data={talabnomaData}
         />
       )}
 

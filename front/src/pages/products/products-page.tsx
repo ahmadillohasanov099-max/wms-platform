@@ -17,6 +17,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [productType, setProductType] = useState('');
+  const [stockStatus, setStockStatus] = useState<'IN_STOCK' | 'OUT_OF_STOCK' | 'ALL'>('IN_STOCK');
 
   const [formModal, setFormModal] = useState(false);
   const [editProduct, setEditProduct] = useState<any>(null);
@@ -26,13 +27,14 @@ export default function ProductsPage() {
   const [deleteProduct, setDeleteProduct] = useState<any>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', page, search, productType],
+    queryKey: ['products', page, search, productType, stockStatus],
     queryFn: () =>
       productsApi.getAll({
         page,
         limit: 20,
         search: search || undefined,
         productType: (productType as ProductType) || undefined,
+        stockStatus: stockStatus === 'ALL' ? undefined : stockStatus,
       }),
     staleTime: 30000,
   });
@@ -194,6 +196,54 @@ export default function ProductsPage() {
           </div>
         }
       />
+
+      {/* Stock Status Filter Tabs */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/60 rounded-2xl w-fit border border-slate-200/80 dark:border-white/10 flex-wrap">
+        <button
+          type="button"
+          onClick={() => {
+            setStockStatus('IN_STOCK');
+            setPage(1);
+          }}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            stockStatus === 'IN_STOCK'
+              ? 'bg-white dark:bg-teal-600 text-teal-700 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span>Omborda mavjud</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStockStatus('OUT_OF_STOCK');
+            setPage(1);
+          }}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            stockStatus === 'OUT_OF_STOCK'
+              ? 'bg-white dark:bg-rose-600 text-rose-700 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span>Tugaganlar (Qoldiq 0)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStockStatus('ALL');
+            setPage(1);
+          }}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            stockStatus === 'ALL'
+              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span>Barchasi</span>
+        </button>
+      </div>
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs overflow-hidden">
         <Table
