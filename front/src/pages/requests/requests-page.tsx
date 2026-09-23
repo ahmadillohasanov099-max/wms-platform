@@ -178,10 +178,10 @@ export default function RequestsPage() {
 
       const getRequestTypeLabel = (item: RequestItem) => {
         const normReason = String(item.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
-        if (item.requestType === 'ASSIGNMENT') return 'Jihoz biriktirish';
+        if (item.requestType === 'ASSIGNMENT') return 'Biriktirish';
         if (item.requestType === 'REPAIR' || normReason.includes('tamirlash') || normReason.includes('servis')) return "Ta'mirlash";
         if (item.requestType === 'RETURN' || normReason.includes('qaytarish')) return 'Qaytarish';
-        return "O'chirish so'rovi";
+        return "Hisobdan chiqarish";
       };
 
       const getStatusText = (status: string) => {
@@ -192,6 +192,7 @@ export default function RequestsPage() {
 
       const headers = [
         '№',
+        'Tashkilot',
         "So'rov turi",
         'Obyekt / Jihoz',
         'Yuboruvchi (Tashabbuskor)',
@@ -204,6 +205,7 @@ export default function RequestsPage() {
       ];
 
       const rows = exportData.map((row, idx) => {
+        const org = row.organization?.name || user?.organization?.name || "Qurilish vazirligi";
         const entity =
           row.entityTitle ||
           row.entityName ||
@@ -214,6 +216,7 @@ export default function RequestsPage() {
 
         return [
           idx + 1,
+          org,
           getRequestTypeLabel(row),
           entity,
           row.requestedBy?.fullName || row.requestedBy?.username || '—',
@@ -226,12 +229,43 @@ export default function RequestsPage() {
         ];
       });
 
+      const todayStr = new Date().toLocaleDateString('uz-UZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+      const todayFullStr = new Date().toLocaleString('uz-UZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const orgName =
+        user?.organization?.name ||
+        "O'ZBEKISTON RESPUBLIKASI QURILISH VA UY-JOY KOMMUNAL XO'JALIGI VAZIRLIGI";
+
       await exportToStyledExcel({
         filename: `sorovlar_tarixi_${new Date().toISOString().slice(0, 10)}`,
         sheetName: "So'rovlar Tarixi",
+        titleBlock: {
+          organizationName: orgName,
+          title: "MODDIY AKTIVLAR HARAKATI VA SO'ROVLAR JURNALI (HISOBOTI)",
+          dateText: `Shakllantirildi: ${todayFullStr}`,
+          responsibleText: `Mas'ul: ${user?.fullName || user?.username || 'Mas\'ul xodim'}`,
+        },
         headers,
         rows,
-        centerColIndexes: [0, 1, 5, 6, 8],
+        colWidths: [7, 34, 22, 34, 28, 28, 18, 18, 26, 18, 52],
+        centerColIndexes: [0, 2, 6, 7, 9],
+        statusColIndex: 7,
+        minRowHeight: 28,
+        signatures: {
+          creatorName: user?.fullName || user?.username || 'Mas\'ul xodim',
+          approverTitle: "Mas'ul rahbar",
+          dateStr: todayStr,
+        },
       });
 
       toast.success("Excel hisoboti muvaffaqiyatli yuklab olindi!");
