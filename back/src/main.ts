@@ -13,7 +13,6 @@ import {
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  // Prevent uncaught exceptions from killing the Node process
   process.on('uncaughtException', (err) => {
     logger.error('CRITICAL: Uncaught Exception intercepted:', err.stack || err);
   });
@@ -29,10 +28,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // HTTP Response Compression (Gzip / Brotli - 70-80% payload size reduction)
   app.use(compression());
 
-  // HTTP Security Headers (Hide X-Powered-By, Clickjacking protection, XSS protection)
   app.use(helmet({ crossOriginResourcePolicy: false }));
 
   app.enableShutdownHooks();

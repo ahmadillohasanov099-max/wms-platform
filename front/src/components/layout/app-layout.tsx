@@ -51,7 +51,7 @@ export default function AppLayout() {
       {theme === 'dark' && (
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none z-0"
-          style={{ backgroundImage: "url('/back-img.png')" }}
+          style={{ backgroundImage: "url('/back-img.jpg')" }}
         />
       )}
       {}
