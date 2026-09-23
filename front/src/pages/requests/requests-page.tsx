@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { Check, X, Search, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Check, X, Search, Clock, CheckCircle2, XCircle, FileSpreadsheet, FileText } from 'lucide-react';
 import { Card, Button, Table, PageHeader, Pagination, type Column } from '../../components/ui';
 import RejectReasonModal from '../../components/modals/reject-reason-modal';
+import RequestsReportModal from '../../components/documents/requests-report-modal';
 import { requestsApi, operationsApi, departmentsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
 import { formatDate } from '../../lib/utils';
+import { exportToStyledExcel } from '../../lib/export';
 import type { RequestItem, RequestStatus } from '../../types';
 
 export default function RequestsPage() {
@@ -21,6 +23,8 @@ export default function RequestsPage() {
   const debouncedSearch = useDebounce(search, 250);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
@@ -160,6 +164,82 @@ export default function RequestsPage() {
       refetch();
     } catch (error: any) {
       toast.error(error?.message || t('common.error'));
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportLoading(true);
+      const exportData = filteredList.length > 0 ? filteredList : rawListAll;
+      if (exportData.length === 0) {
+        toast.error(t('requests.emptyTitle') || "Eksport qilish uchun so'rovlar mavjud emas");
+        return;
+      }
+
+      const getRequestTypeLabel = (item: RequestItem) => {
+        const normReason = String(item.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+        if (item.requestType === 'ASSIGNMENT') return 'Jihoz biriktirish';
+        if (item.requestType === 'REPAIR' || normReason.includes('tamirlash') || normReason.includes('servis')) return "Ta'mirlash";
+        if (item.requestType === 'RETURN' || normReason.includes('qaytarish')) return 'Qaytarish';
+        return "O'chirish so'rovi";
+      };
+
+      const getStatusText = (status: string) => {
+        if (status === 'APPROVED') return 'Tasdiqlangan';
+        if (status === 'REJECTED') return 'Rad etilgan';
+        return 'Kutilmoqda';
+      };
+
+      const headers = [
+        '№',
+        "So'rov turi",
+        'Obyekt / Jihoz',
+        'Yuboruvchi (Tashabbuskor)',
+        'Qabul qiluvchi / Bo\'lim',
+        'Yuborilgan sana',
+        'Holati',
+        'Ko\'rib chiquvchi',
+        'Ko\'rib chiqilgan sana',
+        'Sabab / Izoh',
+      ];
+
+      const rows = exportData.map((row, idx) => {
+        const entity =
+          row.entityTitle ||
+          row.entityName ||
+          (row.requestType === 'ASSIGNMENT' ? row.recipientName || 'Jihoz' : row.entityType);
+        const reason = row.reason || '—';
+        const comment = row.reviewComment || row.rejectionReason;
+        const fullReason = comment ? `${reason} (Izoh: ${comment})` : reason;
+
+        return [
+          idx + 1,
+          getRequestTypeLabel(row),
+          entity,
+          row.requestedBy?.fullName || row.requestedBy?.username || '—',
+          row.recipientName || '—',
+          formatDate(row.createdAt),
+          getStatusText(row.status),
+          row.reviewedBy?.fullName || '—',
+          row.reviewedAt ? formatDate(row.reviewedAt) : '—',
+          fullReason,
+        ];
+      });
+
+      await exportToStyledExcel({
+        filename: `sorovlar_tarixi_${new Date().toISOString().slice(0, 10)}`,
+        sheetName: "So'rovlar Tarixi",
+        headers,
+        rows,
+        centerColIndexes: [0, 1, 5, 6, 8],
+      });
+
+      toast.success("Excel hisoboti muvaffaqiyatli yuklab olindi!");
+    } catch (err: any) {
+      console.error("Excel eksport xatoligi:", err);
+      toast.error(t('common.error') || "Eksportda xatolik yuz berdi");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -426,6 +506,30 @@ export default function RequestsPage() {
       <PageHeader
         title={t('requests.title')}
         subtitle={t('requests.subtitle')}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 cursor-pointer"
+              onClick={handleExportExcel}
+              loading={exportLoading}
+              disabled={exportLoading}
+              icon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+            >
+              Excel (.xlsx)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 cursor-pointer"
+              onClick={() => setPdfModalOpen(true)}
+              icon={<FileText className="w-4 h-4 text-blue-600" />}
+            >
+              PDF / Chop etish
+            </Button>
+          </div>
+        }
       />
 
       {/* Stats Cards */}
@@ -546,6 +650,15 @@ export default function RequestsPage() {
           onConfirm={handleConfirmReject}
         />
       )}
+
+      {/* Requests History PDF & Print Report Modal */}
+      <RequestsReportModal
+        open={pdfModalOpen}
+        onClose={() => setPdfModalOpen(false)}
+        items={filteredList.length > 0 ? filteredList : rawListAll}
+        currentUserName={user?.fullName || user?.username}
+        organizationName={user?.organization?.name}
+      />
     </div>
   );
 }
