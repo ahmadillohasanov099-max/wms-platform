@@ -17,8 +17,9 @@ export default function DepartmentsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const canManage =
-    user?.role !== 'XODIM' &&
-    user?.role !== 'RAHBAR';
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ORG_ADMIN' ||
+    user?.role === 'KADR';
   const navigate = useNavigate();
   const { id, userId } = useParams();
 

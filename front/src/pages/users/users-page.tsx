@@ -1,12 +1,28 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Eye, Upload, Edit2, Trash2, Lock, Unlock, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  Eye,
+  Upload,
+  Edit2,
+  Trash2,
+  Lock,
+  Unlock,
+  ChevronRight,
+  UserMinus,
+  Clock,
+  Users as UsersIcon,
+  FileText,
+} from 'lucide-react';
 import { usersApi, departmentsApi, organizationsApi } from '../../api';
 import { Card, Button, Select, Table, ConfirmDialog, RoleBadge, PageHeader, SearchFilterCard, Pagination } from '../../components/ui';
 import toast from 'react-hot-toast';
 import UserFormModal from './user-form-modal';
 import UserExcelImportModal from './user-excel-import-modal';
+import OffboardingConfirmModal from './offboarding-confirm-modal';
+import OffboardingAktModal from './offboarding-akt-modal';
+import PendingOffboardingsView from './pending-offboardings-view';
 import { useAuthStore } from '../../store/auth.store';
 import { downloadExport } from '../../lib/export';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -16,6 +32,7 @@ import { formatDate, invalidateAppQueries } from '../../lib/utils';
 export default function UsersPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isRahbar = user?.role === 'RAHBAR';
@@ -23,6 +40,27 @@ export default function UsersPage() {
   const isGlobalViewer = user?.role === 'SUPER_ADMIN' || user?.role === 'RAHBAR';
   const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
   const canDeleteUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN' || user?.role === 'KADR';
+
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'active' | 'offboarding' | 'offboarded'>(
+    tabParam === 'offboarding' || tabParam === 'offboarded' ? tabParam : 'active'
+  );
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'offboarding' || tab === 'offboarded' || tab === 'active') {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: 'active' | 'offboarding' | 'offboarded') => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'active' ? {} : { tab });
+    setPage(1);
+  };
+
+  const [offboardConfirmUser, setOffboardConfirmUser] = useState<any | null>(null);
+  const [aktModalUserId, setAktModalUserId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -43,9 +81,16 @@ export default function UsersPage() {
   const [internalPhoneValue, setInternalPhoneValue] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
+  // Pending offboardings badge count
+  const { data: pendingList } = useQuery({
+    queryKey: ['pending-offboardings'],
+    queryFn: () => usersApi.getPendingOffboardings(),
+  });
+  const pendingCount = Array.isArray(pendingList) ? pendingList.length : 0;
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, roleFilter, deptFilter, orgFilter]);
+  }, [debouncedSearch, roleFilter, deptFilter, orgFilter, activeTab]);
 
   const { data: orgsData } = useQuery({
     queryKey: ['organizations'],
@@ -75,7 +120,7 @@ export default function UsersPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', page, limit, debouncedSearch, roleFilter, deptFilter, orgFilter],
+    queryKey: ['users', page, limit, debouncedSearch, roleFilter, deptFilter, orgFilter, activeTab],
     queryFn: () =>
       usersApi.getAll({
         page,
@@ -84,7 +129,9 @@ export default function UsersPage() {
         ...(!isRahbar && roleFilter && { role: roleFilter }),
         ...(deptFilter && { departmentId: deptFilter }),
         ...(orgFilter && { organizationId: orgFilter }),
+        employmentStatus: activeTab === 'offboarded' ? 'OFFBOARDED' : 'ACTIVE',
       }),
+    enabled: activeTab !== 'offboarding',
   });
 
   const handleExport = async () => {
@@ -146,9 +193,21 @@ export default function UsersPage() {
       className: 'min-w-[170px]',
       render: (_: any, row: any) => (
         <div className="space-y-0.5">
-          <p className="font-semibold text-gray-900 dark:text-gray-100 text-xs sm:text-sm">
-            {row.fullName}
-          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="font-semibold text-gray-900 dark:text-gray-100 text-xs sm:text-sm">
+              {row.fullName}
+            </p>
+            {row.employmentStatus === 'OFFBOARDING_PENDING' && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                {t('offboarding.statusPending')}
+              </span>
+            )}
+            {row.employmentStatus === 'OFFBOARDED' && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">
+                {t('offboarding.statusOffboarded')}
+              </span>
+            )}
+          </div>
           <span className="text-2xs font-mono text-gray-500 dark:text-gray-400">
             @{row.username}
           </span>
@@ -354,56 +413,84 @@ export default function UsersPage() {
 
         return (
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            {canToggleStatus && (
+            {activeTab === 'offboarded' ? (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleStatus(row.id);
-                }}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                  row.isActive
-                    ? 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
-                    : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-                }`}
-                title={row.isActive ? t('users.blockUser') : t('users.activateUser')}
+                onClick={() => setAktModalUserId(row.id)}
+                className="p-1.5 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-colors cursor-pointer"
+                title={t('offboarding.actionViewAkt')}
               >
-                {row.isActive ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                <FileText className="w-4 h-4" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => navigate(`/users/${row.id}`)}
-              className="p-1.5 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/40 rounded-lg transition-colors cursor-pointer"
-              title={t('common.details')}
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-            {canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditUser(row);
-                  setFormModal(true);
-                }}
-                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer"
-                title={t('common.edit')}
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-            )}
-            {canDeleteUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDeleteUser(row);
-                  setDeleteDialog(true);
-                }}
-                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
-                title={t('common.delete')}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            ) : (
+              <>
+                {canToggleStatus && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleStatus(row.id);
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      row.isActive
+                        ? 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                        : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                    }`}
+                    title={row.isActive ? t('users.blockUser') : t('users.activateUser')}
+                  >
+                    {row.isActive ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/users/${row.id}`)}
+                  className="p-1.5 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/40 rounded-lg transition-colors cursor-pointer"
+                  title={t('common.details')}
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                {canManageUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditUser(row);
+                      setFormModal(true);
+                    }}
+                    className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer"
+                    title={t('common.edit')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+                {/* Offboarding button */}
+                {canManageUsers &&
+                  row.employmentStatus === 'ACTIVE' &&
+                  (user?.role !== 'KADR' || row.role === 'XODIM') &&
+                  row.role !== 'SUPER_ADMIN' &&
+                  row.role !== 'RAHBAR' && (
+                    <button
+                      type="button"
+                      onClick={() => setOffboardConfirmUser(row)}
+                      className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer"
+                      title={t('offboarding.actionOffboard')}
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </button>
+                  )}
+                {canDeleteUsers && (user?.role !== 'KADR' || row.role === 'XODIM') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteUser(row);
+                      setDeleteDialog(true);
+                    }}
+                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
+                    title={t('common.delete')}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </>
             )}
           </div>
         );
@@ -451,7 +538,62 @@ export default function UsersPage() {
         }
       />
 
-      <SearchFilterCard
+      {/* Offboarding / Employee Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-200 dark:border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange('active')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'active'
+              ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/30 shadow-2xs'
+              : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <UsersIcon className="w-4 h-4" />
+          <span>{t('offboarding.tabAll')}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('offboarding')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+            activeTab === 'offboarding'
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs'
+              : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>{t('offboarding.tabPending')}</span>
+          {pendingCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-2xs font-extrabold bg-amber-500 text-white animate-pulse">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('offboarded')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'offboarded'
+              ? 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/30 shadow-2xs'
+              : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <UserMinus className="w-4 h-4" />
+          <span>{t('offboarding.tabArchived')}</span>
+        </button>
+      </div>
+
+      {activeTab === 'offboarding' ? (
+        <PendingOffboardingsView
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+          }}
+        />
+      ) : (
+        <>
+          <SearchFilterCard
         searchPlaceholder={t('users.searchPlaceholder')}
         searchValue={search}
         onSearchChange={setSearch}
@@ -597,6 +739,8 @@ export default function UsersPage() {
           </div>
         )}
       </Card>
+      </>
+      )}
 
       <UserFormModal
         open={formModal}
@@ -611,6 +755,21 @@ export default function UsersPage() {
       <UserExcelImportModal
         open={excelModal}
         onClose={() => setExcelModal(false)}
+      />
+
+      <OffboardingConfirmModal
+        open={!!offboardConfirmUser}
+        onClose={() => setOffboardConfirmUser(null)}
+        user={offboardConfirmUser}
+        onSuccess={() => {
+          handleTabChange('offboarding');
+        }}
+      />
+
+      <OffboardingAktModal
+        open={!!aktModalUserId}
+        onClose={() => setAktModalUserId(null)}
+        userId={aktModalUserId}
       />
 
       <ConfirmDialog

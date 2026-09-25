@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../ui/modal';
 import Button from '../ui/button';
 import { AlertCircle } from 'lucide-react';
@@ -10,6 +10,8 @@ interface RejectReasonModalProps {
   onConfirm: (reason: string) => Promise<void> | void;
   title?: string;
   itemTitle?: string;
+  initialReason?: string;
+  quickOptions?: string[];
   isLoading?: boolean;
 }
 
@@ -19,11 +21,20 @@ export default function RejectReasonModal({
   onConfirm,
   title,
   itemTitle,
+  initialReason,
+  quickOptions,
   isLoading = false,
 }: RejectReasonModalProps) {
   const { t } = useTranslation();
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(initialReason || '');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setReason(initialReason || '');
+      setError('');
+    }
+  }, [open, initialReason]);
 
   const modalTitle = title || t('rejectModal.title');
 
@@ -98,6 +109,25 @@ export default function RejectReasonModal({
             autoFocus
           />
           {error && <p className="text-xs text-rose-500 font-medium">{error}</p>}
+
+          {quickOptions && quickOptions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className="text-2xs text-gray-400 self-center">Tezkor sabablar:</span>
+              {quickOptions.map((opt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setReason(opt);
+                    if (error) setError('');
+                  }}
+                  className="text-2xs px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </form>
     </Modal>

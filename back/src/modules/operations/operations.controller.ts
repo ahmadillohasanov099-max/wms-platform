@@ -138,12 +138,14 @@ export class OperationsController {
   }
 
   @ApiOperation({ summary: 'Jihozni qabul qilishni tasdiqlash' })
+  @Roles(...ALL_ROLES)
   @Post('assignments/:id/accept')
   acceptAssignment(@Param('id') id: string, @CurrentUser() user: any) {
     return this.operationsService.acceptAssignment(id, user.id, user.role);
   }
 
   @ApiOperation({ summary: 'Jihozni qabul qilishni rad etish' })
+  @Roles(...ALL_ROLES)
   @Post('assignments/:id/reject')
   rejectAssignment(
     @Param('id') id: string,

@@ -788,8 +788,12 @@ export class UsersService {
     return this.offboardingService.startOffboarding(userId, performedById);
   }
 
-  async getPendingOffboardings() {
-    return this.offboardingService.getPendingOffboardings();
+  async cancelOffboarding(userId: string, performedById: string) {
+    return this.offboardingService.cancelOffboarding(userId, performedById);
+  }
+
+  async getPendingOffboardings(currentUser?: any) {
+    return this.offboardingService.getPendingOffboardings(currentUser);
   }
 
   async warehouseApproveOffboarding(userId: string, performedById: string) {

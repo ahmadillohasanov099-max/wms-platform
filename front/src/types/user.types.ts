@@ -24,7 +24,9 @@ export interface User {
   employmentStatus?: EmploymentStatus;
   isActive: boolean;
   departmentId?: string;
-  department?: { id: string; name: string; code?: string };
+  department?: { id: string; name: string; code?: string; leaderId?: string };
+  isDepartmentLeader?: boolean;
+  ledDepartments?: any[];
   organizationId?: string;
   organization?: Organization;
   offboardingStartedAt?: string;

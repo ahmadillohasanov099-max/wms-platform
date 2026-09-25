@@ -25,9 +25,9 @@ enum OrganizationType {
 }
 
 enum RequestStatus {
-  PENDING   // Kutilmoqda
-  APPROVED  // Vazirlik tasdiqladi (O'chirildi)
-  REJECTED  // Rad etildi
+  PENDING  
+  APPROVED 
+  REJECTED 
 }
 
 enum EntityType {

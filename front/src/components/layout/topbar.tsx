@@ -13,6 +13,7 @@ import {
   X,
   AlertTriangle,
   Warehouse,
+  Clock,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -153,6 +154,8 @@ export default function Topbar({}: TopbarProps) {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       queryClient.invalidateQueries({ queryKey: ['operations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-offboardings-topbar'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-offboardings'] });
     };
 
     socket.on('request:created', handleRefetch);
@@ -164,6 +167,9 @@ export default function Topbar({}: TopbarProps) {
     socket.on('assignment:updated', handleRefetch);
     socket.on('inventory:updated', handleRefetch);
     socket.on('operation:created', handleRefetch);
+    socket.on('user:offboarding-started', handleRefetch);
+    socket.on('user:warehouse-approved', handleRefetch);
+    socket.on('user:offboarded', handleRefetch);
 
     return () => {
       socket.off('request:created', handleRefetch);
@@ -175,6 +181,9 @@ export default function Topbar({}: TopbarProps) {
       socket.off('assignment:updated', handleRefetch);
       socket.off('inventory:updated', handleRefetch);
       socket.off('operation:created', handleRefetch);
+      socket.off('user:offboarding-started', handleRefetch);
+      socket.off('user:warehouse-approved', handleRefetch);
+      socket.off('user:offboarded', handleRefetch);
     };
   }, [queryClient]);
 
@@ -236,6 +245,26 @@ export default function Topbar({}: TopbarProps) {
     enabled: !isRahbar && !!user?.id,
     refetchInterval: 15000,
   });
+
+  // Pending offboardings for Omborchi and Kadr
+  const isKadr = user?.role === 'KADR';
+  const { data: pendingOffboardingsData } = useQuery({
+    queryKey: ['pending-offboardings-topbar'],
+    queryFn: () => usersApi.getPendingOffboardings(),
+    enabled: canManageRequests || isKadr,
+    refetchInterval: 15000,
+  });
+
+  const pendingOffboardingsList: any[] = Array.isArray(pendingOffboardingsData)
+    ? pendingOffboardingsData
+    : [];
+
+  const pendingOffboardingsForUser = pendingOffboardingsList.filter((item: any) => {
+    if (canManageRequests && !item.warehouseApprovedAt) return true;
+    if (isKadr && item.warehouseApprovedAt) return true;
+    return false;
+  });
+  const pendingOffboardingCount = pendingOffboardingsForUser.length;
 
   const acceptAssignmentMutation = useMutation({
     mutationFn: (id: string) => operationsApi.acceptAssignment(id),
@@ -390,6 +419,7 @@ export default function Topbar({}: TopbarProps) {
     myPendingCount +
     deptPendingCount +
     unreadReviewedRequests.length +
+    pendingOffboardingCount +
     (canManageRequests ? pendingReqCount + lowStockCount + unreadRejectedAssignments.length : 0);
 
   return (
@@ -623,6 +653,54 @@ export default function Topbar({}: TopbarProps) {
                             <X className="w-3.5 h-3.5" />
                             <span>{t('topbar.reject')}</span>
                           </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2b. 🚪 Ishdan bo'shatish jarayoni (Offboarding) */}
+                {pendingOffboardingsForUser.length > 0 && (
+                  <div className="space-y-1.5">
+                    {pendingOffboardingsForUser.slice(0, 4).map((offboard: any) => (
+                      <div
+                        key={offboard.id}
+                        onClick={() => {
+                          navigate('/users?tab=offboarding');
+                          setBellOpen(false);
+                        }}
+                        className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl space-y-1.5 transition-all shadow-2xs cursor-pointer hover:border-amber-400 dark:hover:border-amber-700"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-[10px] text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            <Clock className="w-3 h-3 animate-pulse" />
+                            {canManageRequests && !offboard.warehouseApprovedAt
+                              ? "Xodim bo'shatilmoqda: Jihoz qabuli"
+                              : "Jihozlar qabul qilindi: Yakunlang"}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-500">
+                            {offboard.unreturnedAssetsCount || 0} ta jihoz
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                            {offboard.fullName}
+                          </p>
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            @{offboard.username}
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-amber-900 dark:text-amber-200">
+                          {canManageRequests && !offboard.warehouseApprovedAt
+                            ? `Kadr (${offboard.offboardingStartedBy?.fullName || "Kadrlar bo'limi"}) ishdan bo'shatishni boshladi. Xodim jihozlarini qabul qiling.`
+                            : `Omborchi (${offboard.warehouseApprovedBy?.fullName || 'Omborchi'}) barcha jihozlarni qabul qildi. Buyruqni yakunlashingiz mumkin.`}
+                        </p>
+
+                        <div className="flex items-center justify-end text-2xs font-bold text-amber-700 dark:text-amber-400 gap-1 pt-0.5">
+                          <span>O'tish</span>
+                          <ArrowRight className="w-3 h-3" />
                         </div>
                       </div>
                     ))}

@@ -9,7 +9,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { TelegramService } from '../nodemailer/telegram.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ReviewRequestDto } from './dto/review-request.dto';
-import { AssetStatus, EntityType, OperationType, RequestStatus } from '@prisma/client';
+import { AssetStatus, EntityType, OperationType, RequestStatus, UserRole } from '@prisma/client';
 import { enforceTenantOrgId } from 'src/common/helper/tenant.helper';
 
 @Injectable()
@@ -46,9 +46,29 @@ export class RequestsService {
     );
   }
 
+  checkIsSupply(reason?: string | null): boolean {
+    if (!reason) return false;
+    const normalized = reason.toLowerCase();
+    return (
+      normalized.includes('talabnoma') ||
+      normalized.includes('sozragan') ||
+      normalized.includes('soragan') ||
+      normalized.includes('sorov') ||
+      normalized.includes("so'rov") ||
+      normalized.includes('[mahsulot so\'rovi]') ||
+      normalized.includes('[mahsulot') ||
+      normalized.includes('[supply') ||
+      normalized.includes('[talabnoma]') ||
+      normalized.includes('kerak')
+    );
+  }
+
   async create(userId: any, organizationId: string, dto: CreateRequestDto) {
     const actualUserId = typeof userId === 'object' && userId?.id ? userId.id : String(userId || '');
-    const user = await this.prisma.user.findUnique({ where: { id: actualUserId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: actualUserId },
+      include: { department: { select: { id: true, name: true } } },
+    });
     if (!user) throw new NotFoundException("Foydalanuvchi topilmadi");
 
     let targetOrgId: string = organizationId || user.organizationId || '';
@@ -61,7 +81,54 @@ export class RequestsService {
       throw new BadRequestException("Tashkilot ma'lumoti topilmadi");
     }
 
-    // Verify entity existence
+    const isRepair =
+      dto.requestType === 'REPAIR' ||
+      this.checkIsRepair(dto.reason);
+
+    const isSupply =
+      dto.requestType === 'SUPPLY' ||
+      this.checkIsSupply(dto.reason);
+
+    let targetEntityId = dto.entityId;
+    if (isSupply) {
+      if (!targetEntityId || targetEntityId === 'SUPPLY' || targetEntityId.startsWith('SUPPLY_')) {
+        targetEntityId = `supply-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      }
+    }
+
+    // 1. Duplicate check: If a PENDING request already exists for this entity, reject
+    if (!isSupply) {
+      const existingPending = await this.prisma.deletionRequest.findFirst({
+        where: {
+          entityType: dto.entityType,
+          entityId: dto.entityId,
+          status: RequestStatus.PENDING,
+        },
+      });
+      if (existingPending) {
+        throw new BadRequestException(
+          "Ushbu jihoz/resurs bo'yicha ko'rib chiqilishi kutilayotgan so'rov allaqachon mavjud!",
+        );
+      }
+    } else {
+      const cleanReason = (dto.reason || '').trim();
+      if (cleanReason.length > 5) {
+        const existingPending = await this.prisma.deletionRequest.findFirst({
+          where: {
+            requestedById: actualUserId,
+            reason: { contains: cleanReason },
+            status: RequestStatus.PENDING,
+          },
+        });
+        if (existingPending) {
+          throw new BadRequestException(
+            "Aynan shu mazmundagi ko'rib chiqilishi kutilayotgan talabnomangiz allaqachon mavjud!",
+          );
+        }
+      }
+    }
+
+    // 2. Verify entity existence and permissions
     let entityName = dto.entityName;
     if (dto.entityType === EntityType.ASSET) {
       const asset = await this.prisma.asset.findUnique({
@@ -70,10 +137,52 @@ export class RequestsService {
       });
       if (!asset) throw new NotFoundException("So'ralayotgan jihoz (Asset) topilmadi");
       entityName = entityName || `${asset.product?.name || 'Jihoz'} (Inv: ${asset.inventoryNumber})`;
+
+      // Find active assignment
+      const activeAssignment = await this.prisma.assignment.findFirst({
+        where: { assetId: dto.entityId, returnedAt: null },
+        include: {
+          department: { select: { id: true, name: true, leaderId: true } },
+          user: { select: { id: true, fullName: true } },
+        },
+      });
+
+      const isStaff =
+        user.role === 'SUPER_ADMIN' ||
+        user.role === 'ORG_ADMIN' ||
+        user.role === 'VAZIRLIK_OMBORCHI' ||
+        user.role === 'ORG_OMBORCHI';
+
+      if (activeAssignment && !isStaff) {
+        if (activeAssignment.departmentId) {
+          // If asset is assigned to a department, ONLY department leader can request return/repair!
+          const isDeptLeader = activeAssignment.department?.leaderId === actualUserId;
+          if (!isDeptLeader) {
+            throw new ForbiddenException(
+              "Bo'lim jihozlarini omborga qaytarish yoki ta'mirlash so'rovini faqat bo'lim boshlig'i yuborishi mumkin!",
+            );
+          }
+        } else if (activeAssignment.userId) {
+          // If asset is assigned to an individual user, only that user can request return/repair
+          if (activeAssignment.userId !== actualUserId) {
+            throw new ForbiddenException(
+              "Siz faqat o'zingizga biriktirilgan jihozlar bo'yicha so'rov yubora olasiz!",
+            );
+          }
+        }
+      }
     } else if (dto.entityType === EntityType.PRODUCT) {
-      const product = await this.prisma.product.findUnique({ where: { id: dto.entityId } });
-      if (!product) throw new NotFoundException("So'ralayotgan mahsulot (Product) topilmadi");
-      entityName = entityName || product.name;
+      if (isSupply) {
+        if (dto.entityId && !dto.entityId.startsWith('supply-') && !dto.entityId.startsWith('SUPPLY_')) {
+          const product = await this.prisma.product.findUnique({ where: { id: dto.entityId } }).catch(() => null);
+          if (product) entityName = entityName || product.name;
+        }
+        entityName = entityName || dto.entityName || "Moddiy ta'minot talabnomasi";
+      } else {
+        const product = await this.prisma.product.findUnique({ where: { id: dto.entityId } });
+        if (!product) throw new NotFoundException("So'ralayotgan mahsulot (Product) topilmadi");
+        entityName = entityName || product.name;
+      }
     } else if (dto.entityType === EntityType.USER) {
       const u = await this.prisma.user.findUnique({ where: { id: dto.entityId } });
       if (!u) throw new NotFoundException("So'ralayotgan xodim topilmadi");
@@ -83,10 +192,6 @@ export class RequestsService {
       if (!dept) throw new NotFoundException("So'ralayotgan bo'lim topilmadi");
       entityName = entityName || dept.name;
     }
-
-    const isRepair =
-      dto.requestType === 'REPAIR' ||
-      this.checkIsRepair(dto.reason);
 
     let finalReason = (dto.reason || '').trim();
     if (dto.entityType === EntityType.ASSET) {
@@ -99,6 +204,10 @@ export class RequestsService {
           finalReason = `[OMBORGA QAYTARISH] ${finalReason.replace(/^Qaytarish:\s*/i, '').replace(/^\[OMBORGA QAYTARISH[^\]]*\]\s*/i, '')}`.trim();
         }
       }
+    } else if (dto.entityType === EntityType.PRODUCT && isSupply) {
+      if (!finalReason.startsWith("[TALABNOMA]") && !finalReason.startsWith("[MAHSULOT SO'ROVI]")) {
+        finalReason = `[TALABNOMA] ${finalReason}`.trim();
+      }
     }
 
     const newRequest = await this.prisma.deletionRequest.create({
@@ -106,7 +215,7 @@ export class RequestsService {
         organizationId: targetOrgId,
         requestedById: actualUserId,
         entityType: dto.entityType,
-        entityId: dto.entityId,
+        entityId: targetEntityId,
         entityName,
         reason: finalReason,
         status: RequestStatus.PENDING,
@@ -118,6 +227,20 @@ export class RequestsService {
     });
 
     this.eventsGateway.broadcastRequestCreated(newRequest);
+
+    if (isSupply) {
+      try {
+        const deptLabel = user.department?.name ? ` (${user.department.name})` : '';
+        await this.telegramService.sendMessage(
+          `📋 <b>Yangi talabnoma (Mahsulot so'rovi) kelib tushdi:</b>\n\n` +
+          `👤 <b>Yuboruvchi:</b> ${user.fullName}${deptLabel}\n` +
+          `📦 <b>So'ralayotgan mahsulot:</b> ${entityName}\n` +
+          `📝 <b>Izoh / Ehtiyoj:</b> ${dto.reason}\n\n` +
+          `ℹ️ <i>Ombor boshqaruv tizimidan so'rovni ko'rib chiqib tasdiqlashingiz yoki rad etishingiz mumkin.</i>`
+        );
+      } catch {}
+    }
+
     return newRequest;
   }
 
@@ -135,7 +258,15 @@ export class RequestsService {
         where,
         include: {
           organization: { select: { id: true, name: true, code: true } },
-          requestedBy: { select: { id: true, fullName: true, username: true } },
+          requestedBy: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              departmentId: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
           reviewedBy: { select: { id: true, fullName: true, username: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -144,12 +275,14 @@ export class RequestsService {
       formattedDeletions = deletionRequests.map((d) => {
         const isRepair = this.checkIsRepair(d.reason);
         const isReturn = this.checkIsReturn(d.reason);
-        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : 'DELETION';
+        const isSupply = this.checkIsSupply(d.reason);
+        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : isSupply ? 'SUPPLY' : 'DELETION';
         return {
           ...d,
           requestType: subType,
           isRepair,
           isReturn,
+          isSupply,
         };
       });
     }
@@ -267,7 +400,14 @@ export class RequestsService {
     if (!type || type === 'DELETION') {
       const where: any = {};
       if (actualUserId) {
-        where.requestedById = actualUserId;
+        if (user?.departmentId) {
+          where.OR = [
+            { requestedById: actualUserId },
+            { requestedBy: { departmentId: user.departmentId } },
+          ];
+        } else {
+          where.requestedById = actualUserId;
+        }
       } else if (actualOrgId) {
         where.organizationId = actualOrgId;
       }
@@ -276,7 +416,15 @@ export class RequestsService {
         where,
         include: {
           organization: { select: { id: true, name: true, code: true } },
-          requestedBy: { select: { id: true, fullName: true, username: true } },
+          requestedBy: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              departmentId: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
           reviewedBy: { select: { id: true, fullName: true, username: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -285,12 +433,14 @@ export class RequestsService {
       formattedDeletions = myDeletions.map((d) => {
         const isRepair = this.checkIsRepair(d.reason);
         const isReturn = this.checkIsReturn(d.reason);
-        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : 'DELETION';
+        const isSupply = this.checkIsSupply(d.reason);
+        const subType = isRepair ? 'REPAIR' : isReturn ? 'RETURN' : isSupply ? 'SUPPLY' : 'DELETION';
         return {
           ...d,
           requestType: subType,
           isRepair,
           isReturn,
+          isSupply,
         };
       });
     }
@@ -570,6 +720,19 @@ export class RequestsService {
       reviewer.role === 'SUPER_ADMIN' ||
       reviewer.role === 'VAZIRLIK_OMBORCHI';
 
+    const MODERATOR_ROLES: UserRole[] = [
+      UserRole.SUPER_ADMIN,
+      UserRole.VAZIRLIK_OMBORCHI,
+      UserRole.ORG_ADMIN,
+      UserRole.ORG_OMBORCHI,
+    ];
+
+    if (!MODERATOR_ROLES.includes(reviewer.role as UserRole)) {
+      throw new ForbiddenException(
+        "Ushbu so'rovni faqat ombor ma'muri yoki tizim boshqaruvchisi tasdiqlashi mumkin!",
+      );
+    }
+
     // 1. Anti-fraud check: Nobody can approve their own request
     if (request.requestedById === reviewerId) {
       throw new BadRequestException(
@@ -588,10 +751,18 @@ export class RequestsService {
         );
       }
     } else if (request.entityType === EntityType.PRODUCT) {
-      if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
-        throw new ForbiddenException(
-          "Mahsulotni o'chirish faqat Vazirlik boshqaruvi tomonidan tasdiqlanishi mumkin!",
-        );
+      const isSupply = this.checkIsSupply(request.reason);
+      if (!isSupply) {
+        if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
+          throw new ForbiddenException(
+            "Mahsulotni o'chirish faqat Vazirlik boshqaruvi tomonidan tasdiqlanishi mumkin!",
+          );
+        }
+      } else {
+        const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
+        if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+          throw new ForbiddenException("Siz faqat o'z tashkilotingiz talabnomalarini tasdiqlay olasiz!");
+        }
       }
     } else if (request.entityType === EntityType.ASSET) {
       // Internal employee return/repair: Must belong to the reviewer's organization unless ministry
@@ -672,75 +843,80 @@ export class RequestsService {
           });
         }
       } else if (request.entityType === EntityType.PRODUCT) {
-        const product = await tx.product.findFirst({
-          where: { id: request.entityId, deletedAt: null },
-          include: { inventory: true },
-        });
+        const isSupply = this.checkIsSupply(request.reason);
+        if (isSupply) {
+          // Supply request (Talabnoma): We do NOT delete the product!
+        } else {
+          const product = await tx.product.findFirst({
+            where: { id: request.entityId, deletedAt: null },
+            include: { inventory: true },
+          });
 
-        if (!product) {
-          throw new NotFoundException("O'chirilishi so'ralayotgan mahsulot topilmadi yoki allaqachon o'chirilgan");
+          if (!product) {
+            throw new NotFoundException("O'chirilishi so'ralayotgan mahsulot topilmadi yoki allaqachon o'chirilgan");
+          }
+
+          // 1. Strict Integrity: Check active assignments with employees
+          const activeAssignments = await tx.assignment.count({
+            where: {
+              asset: { productId: product.id },
+              returnedAt: null,
+            },
+          });
+
+          if (activeAssignments > 0) {
+            throw new BadRequestException(
+              `Ushbu mahsulot (${activeAssignments} ta) xodimlar zimmasida biriktirilgan! Uni o'chirish yoki hisobdan chiqarish uchun avval barcha xodimlardan omborga qaytarib olinishi shart.`,
+            );
+          }
+
+          // 2. Strict Integrity: Check department allocations
+          const deptAssets = await tx.departmentAsset.aggregate({
+            where: { productId: product.id },
+            _sum: { quantity: true },
+          });
+
+          if (deptAssets._sum.quantity && deptAssets._sum.quantity > 0) {
+            throw new BadRequestException(
+              `Ushbu mahsulot (${deptAssets._sum.quantity} ta) bo'limlar hisobida mavjud! Avval bo'limlardan omborga qaytarib olinishi shart.`,
+            );
+          }
+
+          // 3. Strict Integrity: Check warehouse balance
+          if (product.inventory && product.inventory.quantity > 0) {
+            throw new BadRequestException(
+              `Ushbu mahsulot omborda mavjud (qoldiq: ${product.inventory.quantity} ta)! Omborda bor tovar o'chirilmaydi.`,
+            );
+          }
+
+          // Soft delete product
+          await tx.product.update({
+            where: { id: request.entityId },
+            data: { deletedAt: now },
+          });
+
+          // Soft delete asset records
+          await tx.asset.updateMany({
+            where: { productId: product.id, deletedAt: null },
+            data: { deletedAt: now },
+          });
+
+          // Record WRITE_OFF Operation in History
+          await tx.operation.create({
+            data: {
+              type: OperationType.WRITE_OFF,
+              quantity: 1,
+              organizationId: request.organizationId,
+              productId: product.id,
+              userId: request.requestedById,
+              performedById: reviewerId,
+              documentNumber: `DEL-${request.id.slice(-6).toUpperCase()}`,
+              note: dto.reviewComment
+                ? `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason} (Izoh: ${dto.reviewComment})`
+                : `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason}`,
+            },
+          });
         }
-
-        // 1. Strict Integrity: Check active assignments with employees
-        const activeAssignments = await tx.assignment.count({
-          where: {
-            asset: { productId: product.id },
-            returnedAt: null,
-          },
-        });
-
-        if (activeAssignments > 0) {
-          throw new BadRequestException(
-            `Ushbu mahsulot (${activeAssignments} ta) xodimlar zimmasida biriktirilgan! Uni o'chirish yoki hisobdan chiqarish uchun avval barcha xodimlardan omborga qaytarib olinishi shart.`,
-          );
-        }
-
-        // 2. Strict Integrity: Check department allocations
-        const deptAssets = await tx.departmentAsset.aggregate({
-          where: { productId: product.id },
-          _sum: { quantity: true },
-        });
-
-        if (deptAssets._sum.quantity && deptAssets._sum.quantity > 0) {
-          throw new BadRequestException(
-            `Ushbu mahsulot (${deptAssets._sum.quantity} ta) bo'limlar hisobida mavjud! Avval bo'limlardan omborga qaytarib olinishi shart.`,
-          );
-        }
-
-        // 3. Strict Integrity: Check warehouse balance
-        if (product.inventory && product.inventory.quantity > 0) {
-          throw new BadRequestException(
-            `Ushbu mahsulot omborda mavjud (qoldiq: ${product.inventory.quantity} ta)! Omborda bor tovar o'chirilmaydi.`,
-          );
-        }
-
-        // Soft delete product
-        await tx.product.update({
-          where: { id: request.entityId },
-          data: { deletedAt: now },
-        });
-
-        // Soft delete asset records
-        await tx.asset.updateMany({
-          where: { productId: product.id, deletedAt: null },
-          data: { deletedAt: now },
-        });
-
-        // Record WRITE_OFF Operation in History
-        await tx.operation.create({
-          data: {
-            type: OperationType.WRITE_OFF,
-            quantity: 1,
-            organizationId: request.organizationId,
-            productId: product.id,
-            userId: request.requestedById,
-            performedById: reviewerId,
-            documentNumber: `DEL-${request.id.slice(-6).toUpperCase()}`,
-            note: dto.reviewComment
-              ? `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason} (Izoh: ${dto.reviewComment})`
-              : `[Vazirlik tasdig'i bilan o'chirildi]: ${request.reason}`,
-          },
-        });
       } else if (request.entityType === EntityType.USER) {
         const userAssignments = await tx.assignment.count({
           where: { userId: request.entityId, returnedAt: null },
@@ -804,16 +980,28 @@ export class RequestsService {
       });
     }
     if (result.requestedById) {
-      const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
-      const detailMsg = isRepair
-        ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga/ta'mirlashga olindi. Jihoz ta'mirlangach yana bildirishnoma olasiz."
-        : "Siz yuborgan qaytarish so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz ombor hisobiga o'tkazildi.";
+      const isSupply = this.checkIsSupply(request.reason);
+      if (isSupply) {
+        const commentMsg = dto.reviewComment
+          ? `\n\n💬 <b>Omborchi izohi:</b> ${dto.reviewComment}`
+          : '\n\nOmborda bor, kelib olib ketishingiz mumkin.';
+        void this.telegramService.sendUserNotificationAlert(
+          result.requestedById,
+          `✅ Talabnomangiz tasdiqlandi`,
+          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) omborchi tomonidan tasdiqlandi.${commentMsg}`,
+        );
+      } else {
+        const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
+        const detailMsg = isRepair
+          ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga/ta'mirlashga olindi. Jihoz ta'mirlangach yana bildirishnoma olasiz."
+          : "Siz yuborgan qaytarish so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz ombor hisobiga o'tkazildi.";
 
-      void this.telegramService.sendUserNotificationAlert(
-        result.requestedById,
-        `✅ ${reqTitle}`,
-        `${detailMsg}${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
-      );
+        void this.telegramService.sendUserNotificationAlert(
+          result.requestedById,
+          `✅ ${reqTitle}`,
+          `${detailMsg}${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
+        );
+      }
     }
     return result;
   }
@@ -946,6 +1134,19 @@ export class RequestsService {
       reviewer.role === 'SUPER_ADMIN' ||
       reviewer.role === 'VAZIRLIK_OMBORCHI';
 
+    const MODERATOR_ROLES: UserRole[] = [
+      UserRole.SUPER_ADMIN,
+      UserRole.VAZIRLIK_OMBORCHI,
+      UserRole.ORG_ADMIN,
+      UserRole.ORG_OMBORCHI,
+    ];
+
+    if (!MODERATOR_ROLES.includes(reviewer.role as UserRole)) {
+      throw new ForbiddenException(
+        "Ushbu so'rovni faqat ombor ma'muri yoki tizim boshqaruvchisi rad etishi mumkin!",
+      );
+    }
+
     // 1. Anti-fraud check: Nobody can reject their own request
     if (request.requestedById === reviewerId) {
       throw new BadRequestException(
@@ -964,10 +1165,18 @@ export class RequestsService {
         );
       }
     } else if (request.entityType === EntityType.PRODUCT) {
-      if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
-        throw new ForbiddenException(
-          "Mahsulot so'rovini rad etish faqat Vazirlik boshqaruvi tomonidan amalga oshirilishi mumkin!",
-        );
+      const isSupply = this.checkIsSupply(request.reason);
+      if (!isSupply) {
+        if (reviewer.role !== 'SUPER_ADMIN' && reviewer.role !== 'VAZIRLIK_OMBORCHI') {
+          throw new ForbiddenException(
+            "Mahsulot so'rovini rad etish faqat Vazirlik boshqaruvi tomonidan amalga oshirilishi mumkin!",
+          );
+        }
+      } else {
+        const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
+        if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
+          throw new ForbiddenException("Siz faqat o'z tashkilotingiz talabnomalarini rad eta olasiz!");
+        }
       }
     } else if (request.entityType === EntityType.ASSET) {
       const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
@@ -994,14 +1203,23 @@ export class RequestsService {
 
     this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
-      const isRepair = this.checkIsRepair(request.reason);
-      const reqTitle = isRepair ? "Ta'mirlash so'rovi rad etildi" : "Qaytarish so'rovi rad etildi";
+      const isSupply = this.checkIsSupply(request.reason);
+      if (isSupply) {
+        void this.telegramService.sendUserNotificationAlert(
+          result.requestedById,
+          `❌ Talabnomangiz rad etildi`,
+          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) omborchi tomonidan rad etildi.${comment ? `\n\n💬 Sabab: ${comment}` : ''}`,
+        );
+      } else {
+        const isRepair = this.checkIsRepair(request.reason);
+        const reqTitle = isRepair ? "Ta'mirlash so'rovi rad etildi" : "Qaytarish so'rovi rad etildi";
 
-      void this.telegramService.sendUserNotificationAlert(
-        result.requestedById,
-        `❌ ${reqTitle}`,
-        `Siz yuborgan ${isRepair ? "ta'mirlash" : "qaytarish"} so'rovingiz omborchi tomonidan rad etildi.${comment ? `\n\nSababi: ${comment}` : ''}`,
-      );
+        void this.telegramService.sendUserNotificationAlert(
+          result.requestedById,
+          `❌ ${reqTitle}`,
+          `Siz yuborgan ${isRepair ? "ta'mirlash" : "qaytarish"} so'rovingiz omborchi tomonidan rad etildi.${comment ? `\n\nSababi: ${comment}` : ''}`,
+        );
+      }
     }
     return result;
   }

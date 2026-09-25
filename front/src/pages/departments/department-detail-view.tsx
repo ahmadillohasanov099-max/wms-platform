@@ -13,6 +13,7 @@ import DepartmentStatsCards from './components/department-stats-cards';
 import EmployeesTab from './components/employees-tab';
 import DepartmentAssetsTab from './components/department-assets-tab';
 import DepartmentTmzTab from './components/department-tmz-tab';
+import DepartmentRequestsTab from './components/department-requests-tab';
 import UserDetailSubView from './components/user-detail-sub-view';
 
 interface Props {
@@ -31,7 +32,7 @@ export default function DepartmentDetailView({
   onBackToDept,
 }: Props) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'employees' | 'assets' | 'tmz'>('employees');
+  const [activeTab, setActiveTab] = useState<'employees' | 'assets' | 'tmz' | 'requests'>('employees');
   const queryClient = useQueryClient();
   const { user: loggedInUser } = useAuthStore();
   const isAdmin = loggedInUser?.role !== 'XODIM' && loggedInUser?.role !== 'KADR' && loggedInUser?.role !== 'RAHBAR';
@@ -223,6 +224,16 @@ export default function DepartmentDetailView({
             >
               {t('departments.tmzTab', { count: displayTmzCount })}
             </button>
+            <button
+              className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
+                activeTab === 'requests'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+              onClick={() => setActiveTab('requests')}
+            >
+              Talabnomalar
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -242,10 +253,16 @@ export default function DepartmentDetailView({
               isDeptMember={loggedInUser?.departmentId === departmentId}
               onReturnClick={handleReturnClick}
             />
-          ) : (
+          ) : activeTab === 'tmz' ? (
             <DepartmentTmzTab
               tmzData={tmzHistoryData}
               isLoading={tmzHistoryLoading}
+            />
+          ) : (
+            <DepartmentRequestsTab
+              departmentId={departmentId}
+              departmentName={department?.name}
+              isLeader={isAdmin || !!(loggedInUser?.id && (department?.leaderId === loggedInUser?.id || department?.leader?.id === loggedInUser?.id))}
             />
           )}
         </div>

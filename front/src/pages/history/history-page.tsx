@@ -13,6 +13,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import TalabnomaModal, { type TalabnomaData } from '../../components/documents/talabnoma-modal';
 import DalolatnomaModal, { type DalolatnomaData } from '../../components/documents/dalolatnoma-modal';
 import ModdiyJavobgarlikModal, { type ModdiyJavobgarlikData } from '../../components/documents/moddiy-javobgarlik-modal';
+import OffboardingAktModal from '../users/offboarding-akt-modal';
 
 export default function HistoryPage() {
   const { t } = useTranslation();
@@ -27,6 +28,7 @@ export default function HistoryPage() {
   const [talabnomaData, setTalabnomaData] = useState<TalabnomaData | null>(null);
   const [dalolatnomaData, setDalolatnomaData] = useState<DalolatnomaData | null>(null);
   const [moddiyData, setModdiyData] = useState<ModdiyJavobgarlikData | null>(null);
+  const [offboardingAktUserId, setOffboardingAktUserId] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
 
   const operationTypes = [
@@ -54,7 +56,14 @@ export default function HistoryPage() {
     staleTime: 30000,
   });
 
-  const getOpLabel = (type: string) => {
+  const getOpLabel = (type: string, item?: any) => {
+    const isOffboarding =
+      String(item?.documentNumber || '').startsWith('AKT-') ||
+      String(item?.note || '').includes("Ishdan bo'shatish") ||
+      String(item?.note || '').includes('Offboarding');
+
+    if (isOffboarding) return "Ishdan bo'shatish (Jihozlar topshirildi)";
+
     switch (type) {
       case 'STOCK_IN': return 'Kirim (Ombor)';
       case 'GIVE_TO_USER': return 'Xodimga berish';
@@ -131,7 +140,7 @@ export default function HistoryPage() {
         return [
           idx + 1,
           formatDate(item.createdAt),
-          getOpLabel(item.type),
+          getOpLabel(item.type, item),
           item.product?.name ?? '—',
           invNo,
           `${item.quantity ?? 1} ${item.product?.unit || 'dona'}`,
@@ -183,10 +192,35 @@ export default function HistoryPage() {
       const targetRow = groupedHistory.find((r: any) => r.id === operationId || r.groupItems?.some((gi: any) => gi.id === operationId));
       if (targetRow) {
         const docNum = String(targetRow.documentNumber || '');
-        const isModdiy = docNum.startsWith('MJSH-') || targetRow.type === 'GIVE_TO_USER' || targetRow.type === 'ASSIGN_TO_DEPT' || targetRow.product?.productType === 'BERILADIGAN';
+        const isOffboarding =
+          docNum.startsWith('AKT-') ||
+          String(targetRow.note || '').includes("Ishdan bo'shatish") ||
+          String(targetRow.note || '').includes('Offboarding');
+
+        if (isOffboarding) {
+          const targetUserId = targetRow.userId || targetRow.user?.id;
+          if (targetUserId) {
+            setOffboardingAktUserId(targetUserId);
+            return;
+          }
+        }
+
+        const isReturn =
+          targetRow.type === 'RETURN_FROM_USER' ||
+          targetRow.type === 'RETURN_FROM_DEPT' ||
+          docNum.startsWith('DAL-');
+        if (isReturn) {
+          handleOpenDalolatnoma(targetRow);
+          return;
+        }
+
+        const isModdiy =
+          docNum.startsWith('MJSH-') ||
+          targetRow.type === 'GIVE_TO_USER' ||
+          targetRow.type === 'ASSIGN_TO_DEPT';
         if (isModdiy) {
           handleOpenModdiyJavobgarlik(targetRow);
-        } else if (docNum.startsWith('DAL-')) {
+        } else if (docNum.startsWith('DAL-') || docNum.startsWith('KRM-') || targetRow.type === 'STOCK_IN') {
           handleOpenDalolatnoma(targetRow);
         } else {
           handleOpenTalabnoma(targetRow);
@@ -337,13 +371,39 @@ export default function HistoryPage() {
       key: 'type',
       title: t('history.operation'),
       className: 'text-center',
-      render: (value: any) => <OperationTypeBadge type={value} />,
+      render: (value: any, row: any) => {
+        const isOffboarding =
+          String(row.documentNumber || '').startsWith('AKT-') ||
+          String(row.note || '').includes("Ishdan bo'shatish") ||
+          String(row.note || '').includes('Offboarding');
+
+        if (isOffboarding) {
+          return (
+            <span className="inline-flex items-center justify-center text-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 whitespace-nowrap">
+              {t('history.offboardingOp')}
+            </span>
+          );
+        }
+        return <OperationTypeBadge type={value} />;
+      },
     },
     {
       key: 'product',
       title: t('history.product'),
       className: 'whitespace-normal break-words min-w-[220px] max-w-md',
       render: (_: any, row: any) => {
+        const isOffboarding =
+          String(row.documentNumber || '').startsWith('AKT-') ||
+          String(row.note || '').includes("Ishdan bo'shatish");
+
+        if (isOffboarding && row.quantity === 0) {
+          return (
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 italic">
+              {t('history.noAssetsOffboarding')}
+            </p>
+          );
+        }
+
         const items = row.groupItems || [row];
         return (
           <div className="space-y-1 py-0.5">
@@ -361,7 +421,6 @@ export default function HistoryPage() {
                     />
                   </div>
                 )}
-
               </div>
             ))}
           </div>
@@ -418,30 +477,38 @@ export default function HistoryPage() {
         const docNum = String(row.documentNumber || '');
         const pType = row.product?.productType;
 
-        // 1. TMZ / Sarflanadigan -> Talabnoma
+        const isOffboarding =
+          docNum.startsWith('AKT-') ||
+          String(row.note || '').includes("Ishdan bo'shatish") ||
+          String(row.note || '').includes('Offboarding');
+
+        // 1. Ishdan bo'shatish -> Rasmiy Topshirish Akti (Davlat gerbli rasmiy hujjat)
+        if (isOffboarding) {
+          const targetUserId = row.userId || row.user?.id;
+          return (
+            <button
+              onClick={() => targetUserId && setOffboardingAktUserId(targetUserId)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200 font-bold text-xs transition-colors border border-teal-200/80 dark:border-teal-800 shadow-2xs cursor-pointer"
+              title="Ishdan bo'shatishda jihozlarni topshirish-qabul qilish dalolatnomasi"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              {t('history.offboardingAct')}
+            </button>
+          );
+        }
+
+        // 2. TMZ / Sarflanadigan -> Talabnoma
         const isTalabnoma =
           docNum.startsWith('TLB-') ||
           row.type === 'GIVE_TMZ_USER' ||
           row.type === 'GIVE_TO_DEPT' ||
           pType === 'SARFLANADIGAN';
 
-        // 2. Omborga Kirim -> Kirim Dalolatnomasi
-        const isKirim = docNum.startsWith('KRM-') || row.type === 'STOCK_IN';
-
-        // 3. Asosiy vosita / Beriladigan -> Shartnoma (MJSh)
-        const isModdiy =
-          docNum.startsWith('MJSH-') ||
-          (!isKirim && !isTalabnoma && (
-            row.type === 'GIVE_TO_USER' ||
-            row.type === 'ASSIGN_TO_DEPT' ||
-            pType === 'BERILADIGAN'
-          ));
-
         if (isTalabnoma) {
           return (
             <button
               onClick={() => handleOpenTalabnoma(row)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-bold text-xs transition-colors border border-blue-200/80 dark:border-blue-800 shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-bold text-xs transition-colors border border-blue-200/80 dark:border-blue-800 shadow-2xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               {t('history.talabnoma')}
@@ -449,26 +516,53 @@ export default function HistoryPage() {
           );
         }
 
-        if (isModdiy) {
+        // 3. Omborga Kirim -> Kirim Dalolatnomasi
+        const isKirim = docNum.startsWith('KRM-') || row.type === 'STOCK_IN';
+        if (isKirim) {
           return (
             <button
-              onClick={() => handleOpenModdiyJavobgarlik(row)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-bold text-xs transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-2xs"
+              onClick={() => handleOpenDalolatnoma(row)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-bold text-xs transition-colors border border-purple-200/80 dark:border-purple-800 shadow-2xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              {t('history.contract')}
+              {t('history.stockInAct')}
             </button>
           );
         }
 
-        if (isKirim || docNum.startsWith('DAL-')) {
+        // 4. Oddiy jihozni omborga qaytarish -> Qaytarish Dalolatnomasi (Shartnoma EMAS!)
+        const isReturn =
+          row.type === 'RETURN_FROM_USER' ||
+          row.type === 'RETURN_FROM_DEPT' ||
+          docNum.startsWith('DAL-');
+
+        if (isReturn) {
           return (
             <button
               onClick={() => handleOpenDalolatnoma(row)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-bold text-xs transition-colors border border-purple-200/80 dark:border-purple-800 shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 font-bold text-xs transition-colors border border-amber-200/80 dark:border-amber-800 shadow-2xs cursor-pointer"
+              title="Jihozni omborga qaytarish dalolatnomasi"
             >
               <Printer className="w-3.5 h-3.5" />
-              {isKirim ? t('history.stockInAct') : t('history.act')}
+              {t('history.returnAct')}
+            </button>
+          );
+        }
+
+        // 5. Asosiy vosita xodimga yoki bo'limga BERILGANDA (biriktirilganda) -> Moddiy javobgarlik shartnomasi
+        const isModdiy =
+          docNum.startsWith('MJSH-') ||
+          row.type === 'GIVE_TO_USER' ||
+          row.type === 'ASSIGN_TO_DEPT';
+
+        if (isModdiy) {
+          return (
+            <button
+              onClick={() => handleOpenModdiyJavobgarlik(row)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-bold text-xs transition-colors border border-emerald-200/80 dark:border-emerald-800 shadow-2xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              {t('history.contract')}
             </button>
           );
         }
@@ -592,6 +686,12 @@ export default function HistoryPage() {
         open={!!moddiyData}
         onClose={() => setModdiyData(null)}
         data={moddiyData}
+      />
+
+      <OffboardingAktModal
+        open={Boolean(offboardingAktUserId)}
+        onClose={() => setOffboardingAktUserId(null)}
+        userId={offboardingAktUserId}
       />
     </div>
   );

@@ -113,8 +113,8 @@ export class UsersController {
   @ApiOperation({ summary: "Ishdan bo'shash jarayonidagi xodimlar ro'yxati" })
   @Roles(...MANAGERS)
   @Get('offboarding/pending')
-  getPendingOffboardings() {
-    return this.usersService.getPendingOffboardings();
+  getPendingOffboardings(@CurrentUser() user: any) {
+    return this.usersService.getPendingOffboardings(user);
   }
 
   @ApiOperation({ summary: "Bitta xodim ma'lumoti" })
@@ -220,6 +220,13 @@ export class UsersController {
   @Post(':id/offboarding/start')
   startOffboarding(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.startOffboarding(id, user.id);
+  }
+
+  @ApiOperation({ summary: "Ishdan bo'shatish jarayonini bekor qilish (orqaga qaytarish)" })
+  @Roles(...USER_MANAGE_ROLES)
+  @Post(':id/offboarding/cancel')
+  cancelOffboarding(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.usersService.cancelOffboarding(id, user.id);
   }
 
   @ApiOperation({ summary: "Omborchi tomonidan jihozlar qaytarilganini tasdiqlash" })

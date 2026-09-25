@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Check, X, Search, Clock, CheckCircle2, XCircle, FileSpreadsheet, FileText } from 'lucide-react';
 import { Card, Button, Table, PageHeader, Pagination, type Column } from '../../components/ui';
 import RejectReasonModal from '../../components/modals/reject-reason-modal';
+import ApproveSupplyModal from '../../components/modals/approve-supply-modal';
 import RequestsReportModal from '../../components/documents/requests-report-modal';
 import { requestsApi, operationsApi, departmentsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
@@ -22,6 +23,7 @@ export default function RequestsPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [approvingSupplyItem, setApprovingSupplyItem] = useState<RequestItem | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -32,7 +34,7 @@ export default function RequestsPage() {
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'ORG_OMBORCHI';
 
-  const canViewAll = canManage;
+  const canViewAll = canManage || user?.role === 'KADR';
 
   const isMinistry =
     user?.role === 'SUPER_ADMIN' ||
@@ -116,31 +118,50 @@ export default function RequestsPage() {
   }, [filteredList, page, limit]);
 
   const handleApprove = async (id: string, isAssignment?: boolean) => {
-    setActionLoading(id);
-    try {
-      if (isAssignment) {
+    if (isAssignment) {
+      setActionLoading(id);
+      try {
         await operationsApi.acceptAssignment(id);
         toast.success(t('requests.toastAssetAccepted'));
+        refetch();
+      } catch (error: any) {
+        toast.error(error?.message || t('common.error'));
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    const target = rawListAll.find((x) => x.id === id);
+    const isSupply =
+      target?.requestType === 'SUPPLY' ||
+      (target as any)?.isSupply ||
+      String(target?.reason || '').includes('[TALABNOMA]');
+
+    if (isSupply) {
+      setApprovingSupplyItem(target || null);
+      return;
+    }
+
+    setActionLoading(id);
+    try {
+      const normReason = String(target?.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+      const isRepair =
+        target?.requestType === 'REPAIR' ||
+        normReason.includes('tamirlash') ||
+        normReason.includes('servis') ||
+        normReason.includes('remont') ||
+        normReason.includes('nosoz');
+      const isReturn = target?.requestType === 'RETURN' || normReason.includes('qaytarish');
+
+      await requestsApi.approve(id);
+
+      if (isRepair) {
+        toast.success(t('requests.toastRepairApproved'));
+      } else if (isReturn) {
+        toast.success(t('requests.toastReturnApproved'));
       } else {
-        const target = rawListAll.find((x) => x.id === id);
-        const normReason = String(target?.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
-        const isRepair =
-          target?.requestType === 'REPAIR' ||
-          normReason.includes('tamirlash') ||
-          normReason.includes('servis') ||
-          normReason.includes('remont') ||
-          normReason.includes('nosoz');
-        const isReturn = target?.requestType === 'RETURN' || normReason.includes('qaytarish');
-
-        await requestsApi.approve(id);
-
-        if (isRepair) {
-          toast.success(t('requests.toastRepairApproved'));
-        } else if (isReturn) {
-          toast.success(t('requests.toastReturnApproved'));
-        } else {
-          toast.success(t('requests.approveSuccess'));
-        }
+        toast.success(t('requests.approveSuccess'));
       }
       refetch();
     } catch (error: any) {
@@ -149,6 +170,32 @@ export default function RequestsPage() {
       setActionLoading(null);
     }
   };
+
+  const handleConfirmApproveSupply = async (comment: string) => {
+    if (!approvingSupplyItem) return;
+    setActionLoading(approvingSupplyItem.id);
+    try {
+      await requestsApi.approve(approvingSupplyItem.id, { reviewComment: comment });
+      toast.success("Talabnoma tasdiqlandi va bo'lim boshlig'iga xabar yuborildi!");
+      setApprovingSupplyItem(null);
+      refetch();
+    } catch (error: any) {
+      toast.error(error?.message || t('common.error'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const rejectingItem = useMemo(() => {
+    return rawListAll.find((x) => x.id === rejectingId) || null;
+  }, [rawListAll, rejectingId]);
+
+  const isRejectingSupply = Boolean(
+    rejectingItem &&
+      (rejectingItem.requestType === 'SUPPLY' ||
+        (rejectingItem as any).isSupply ||
+        String(rejectingItem.reason || '').includes('[TALABNOMA]'))
+  );
 
   const handleConfirmReject = async (rejectionReason: string) => {
     if (!rejectingId) return;
@@ -179,6 +226,13 @@ export default function RequestsPage() {
       const getRequestTypeLabel = (item: RequestItem) => {
         const normReason = String(item.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
         if (item.requestType === 'ASSIGNMENT') return 'Biriktirish';
+        if (
+          item.requestType === 'SUPPLY' ||
+          (item as any).isSupply ||
+          String(item.reason || '').includes('[TALABNOMA]')
+        ) {
+          return "Moddiy ta'minot (Talabnoma)";
+        }
         if (item.requestType === 'REPAIR' || normReason.includes('tamirlash') || normReason.includes('servis')) return "Ta'mirlash";
         if (item.requestType === 'RETURN' || normReason.includes('qaytarish')) return 'Qaytarish';
         return "Hisobdan chiqarish";
@@ -326,6 +380,10 @@ export default function RequestsPage() {
       title: t('requests.colEntity'),
       render: (_: any, row: RequestItem) => {
         const normReason = String(row.reason || '').toLowerCase().replace(/['ʼ’`ʻ]/g, '');
+        const isSupply =
+          row.requestType === 'SUPPLY' ||
+          (row as any).isSupply ||
+          String(row.reason || '').includes('[TALABNOMA]');
         const isRepairedComplete =
           String(row.reason || '').includes("[TA'MIRLANDI]") ||
           normReason.includes('tamirlandi') ||
@@ -348,6 +406,10 @@ export default function RequestsPage() {
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                   {t('requests.assignmentBadge')}
                 </span>
+              ) : isSupply ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                  📋 Talabnoma (Moddiy ta'minot)
+                </span>
               ) : isRepairedComplete ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
                   🛠️ {t('requests.typeRepaired')}
@@ -369,6 +431,8 @@ export default function RequestsPage() {
             <div className="text-xs text-slate-500 dark:text-slate-400">
               {row.requestType === 'ASSIGNMENT'
                 ? row.recipientName || t('requests.assignmentDefault')
+                : isSupply
+                ? 'Mahsulot talabnomasi'
                 : getEntityTypeLabel(row.entityType)}
             </div>
           </div>
@@ -485,9 +549,16 @@ export default function RequestsPage() {
           );
         }
 
+        const isSupply =
+          row.requestType === 'SUPPLY' ||
+          (row as any).isSupply ||
+          String(row.reason || '').includes('[TALABNOMA]');
+
         const canUserApproveThis =
           canManage &&
-          (isMinistry || (row.entityType === 'ASSET' && (!row.organizationId || row.organizationId === user?.organizationId)));
+          (isMinistry ||
+            (row.entityType === 'ASSET' && (!row.organizationId || row.organizationId === user?.organizationId)) ||
+            (isSupply && (!row.organizationId || row.organizationId === user?.organizationId)));
 
         if (canUserApproveThis) {
           return (
@@ -682,6 +753,34 @@ export default function RequestsPage() {
           open={Boolean(rejectingId)}
           onClose={() => setRejectingId(null)}
           onConfirm={handleConfirmReject}
+          title={isRejectingSupply ? t('supplyRequests.rejectSupplyTitle') : undefined}
+          itemTitle={rejectingItem?.entityTitle || rejectingItem?.entityName}
+          initialReason={
+            isRejectingSupply
+              ? t('supplyRequests.rejectReason1')
+              : undefined
+          }
+          quickOptions={
+            isRejectingSupply
+              ? [
+                  t('supplyRequests.rejectReason1'),
+                  t('supplyRequests.rejectReason2'),
+                  t('supplyRequests.rejectReason3'),
+                ]
+              : undefined
+          }
+        />
+      )}
+
+      {/* Approve Supply Modal */}
+      {approvingSupplyItem && (
+        <ApproveSupplyModal
+          open={Boolean(approvingSupplyItem)}
+          onClose={() => setApprovingSupplyItem(null)}
+          onConfirm={handleConfirmApproveSupply}
+          productName={approvingSupplyItem.entityTitle || approvingSupplyItem.entityName || "Mahsulot"}
+          requesterName={approvingSupplyItem.requestedBy?.fullName || approvingSupplyItem.requestedBy?.username}
+          isLoading={Boolean(actionLoading)}
         />
       )}
 

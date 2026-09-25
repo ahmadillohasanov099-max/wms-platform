@@ -14,7 +14,10 @@ import {
   Lock,
   ShieldCheck,
   Bell,
+  PackagePlus,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { departmentsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -28,6 +31,7 @@ interface NavItem {
   icon: React.ReactNode;
   roles: UserRole[];
   showBadge?: boolean;
+  isLeaderOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -67,7 +71,7 @@ const navItems: NavItem[] = [
     path: '/assigned-assets',
     labelKey: 'assignedAssets',
     icon: <PackageCheck className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'RAHBAR', 'ORG_ADMIN', 'KADR'],
+    roles: ['SUPER_ADMIN', 'RAHBAR', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR'],
   },
   {
     path: '/history',
@@ -112,6 +116,13 @@ const navItems: NavItem[] = [
     roles: ['XODIM'],
   },
   {
+    path: '/supply-requests',
+    labelKey: 'supplyRequests',
+    icon: <PackagePlus className="w-4 h-4" />,
+    roles: ['XODIM', 'SUPER_ADMIN', 'ORG_ADMIN'],
+    isLeaderOnly: true,
+  },
+  {
     path: '/profile/assets',
     labelKey: 'profileAssets',
     icon: <Package className="w-4 h-4" />,
@@ -135,9 +146,27 @@ export default function Sidebar() {
     return location.pathname === itemPath;
   };
 
-  const filteredNavItems = navItems.filter(
-    (item) => user && item.roles.includes(user.role),
+  // Check if current user is department leader
+  const { data: userDept } = useQuery({
+    queryKey: ['sidebar-user-dept', user?.departmentId],
+    queryFn: () => departmentsApi.getOne(user!.departmentId!),
+    enabled: !!user?.departmentId && !user?.isDepartmentLeader,
+    staleTime: 60000,
+  });
+
+  const isDepartmentLeader = Boolean(
+    user?.isDepartmentLeader ||
+    (user as any)?.ledDepartments?.length > 0 ||
+    (userDept?.leaderId && user?.id && userDept.leaderId === user.id) ||
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ORG_ADMIN'
   );
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (!user || !item.roles.includes(user.role)) return false;
+    if (item.isLeaderOnly && !isDepartmentLeader) return false;
+    return true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -220,11 +249,13 @@ export default function Sidebar() {
       {}
       <div className="px-2 py-3 border-t border-gray-200 dark:border-gray-800 space-y-0.5">
         {}
-        <div
+        <NavLink
+          to="/profile/info"
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg',
+            'flex items-center gap-3 px-3 py-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-slate-800/80 cursor-pointer select-none',
             sidebarOpen ? '' : 'justify-center',
           )}
+          title={t('menu.profileInfo') || 'Profil'}
         >
           <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-semibold text-teal-600 dark:text-teal-400">
@@ -241,7 +272,7 @@ export default function Sidebar() {
               </p>
             </div>
           )}
-        </div>
+        </NavLink>
 
         {}
         <button

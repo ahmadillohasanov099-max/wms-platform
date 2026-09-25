@@ -25,6 +25,7 @@ import AuditLogsPage from "./pages/audit/audit-logs-page";
 import AuditLogDetailPage from "./pages/audit/audit-log-detail-page";
 import OrganizationsPage from "./pages/organizations/organizations-page";
 import OrganizationDetailPage from "./pages/organizations/organization-detail-page";
+import SupplyRequestsPage from "./pages/departments/supply-requests-page";
 import { getDefaultRouteForRole } from "./lib/utils";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -74,6 +75,16 @@ export default function App() {
     "VAZIRLIK_OMBORCHI",
     "ORG_ADMIN",
     "ORG_OMBORCHI",
+  ];
+
+  const ALL_ROLES: UserRole[] = [
+    "SUPER_ADMIN",
+    "RAHBAR",
+    "VAZIRLIK_OMBORCHI",
+    "ORG_ADMIN",
+    "ORG_OMBORCHI",
+    "KADR",
+    "XODIM",
   ];
 
   return (
@@ -244,7 +255,7 @@ export default function App() {
           <Route
             path="/assigned-assets"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "RAHBAR", "ORG_ADMIN", "KADR"]}>
+              <RequireRole roles={[...ALL_MANAGERS, "KADR"]}>
                 <AssignedAssetsPage />
               </RequireRole>
             }
@@ -266,7 +277,7 @@ export default function App() {
           <Route
             path="/profile/info"
             element={
-              <RequireRole roles={["XODIM"]}>
+              <RequireRole roles={ALL_ROLES}>
                 <ProfileInfoPage />
               </RequireRole>
             }
@@ -274,15 +285,23 @@ export default function App() {
           <Route
             path="/profile/department"
             element={
-              <RequireRole roles={["XODIM"]}>
+              <RequireRole roles={ALL_ROLES}>
                 <ProfileDepartmentPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/supply-requests"
+            element={
+              <RequireRole roles={ALL_ROLES}>
+                <SupplyRequestsPage />
               </RequireRole>
             }
           />
           <Route
             path="/profile/assets"
             element={
-              <RequireRole roles={["XODIM"]}>
+              <RequireRole roles={ALL_ROLES}>
                 <ProfileAssetsPage />
               </RequireRole>
             }
@@ -294,7 +313,7 @@ export default function App() {
           <Route
             path="/profile/security"
             element={
-              <RequireRole roles={["XODIM"]}>
+              <RequireRole roles={ALL_ROLES}>
                 <ProfileSecurityPage />
               </RequireRole>
             }

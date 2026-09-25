@@ -9,6 +9,7 @@ import Card, { CardHeader, CardContent } from '../../components/ui/card';
 import { RoleBadge } from '../../components/ui/badge';
 import DepartmentAssetsTab from '../departments/components/department-assets-tab';
 import DepartmentTmzTab from '../departments/components/department-tmz-tab';
+import DepartmentRequestsTab from '../departments/components/department-requests-tab';
 import { cn } from '../../lib/utils';
 import {
   Building2,
@@ -20,12 +21,13 @@ import {
   Package,
   ShieldCheck,
   Boxes,
+  Send,
 } from 'lucide-react';
 
 export default function ProfileDepartmentPage() {
   const { user } = useAuthStore();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'employees' | 'assets' | 'tmz'>('employees');
+  const [activeTab, setActiveTab] = useState<'employees' | 'assets' | 'tmz' | 'requests'>('employees');
 
   // Fetch logged-in user detail
   const { data: userDetailData } = useQuery({
@@ -269,6 +271,19 @@ export default function ProfileDepartmentPage() {
                 {displayTmzCount}
               </span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={cn(
+                'px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'requests'
+                  ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm border border-gray-200/60 dark:border-slate-700/60'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
+            >
+              <Send className="w-4 h-4" />
+              <span>Talabnomalar</span>
+            </button>
           </div>
 
           {activeTab === 'assets' ? (
@@ -282,6 +297,12 @@ export default function ProfileDepartmentPage() {
             <DepartmentTmzTab
               tmzData={tmzItems}
               isLoading={tmzHistoryLoading && isDeptLoading}
+            />
+          ) : activeTab === 'requests' ? (
+            <DepartmentRequestsTab
+              departmentId={departmentId}
+              departmentName={deptName}
+              isLeader={isLeader}
             />
           ) : (
             <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">

@@ -30,14 +30,15 @@ export default function ProfileRequestModal({ assetItem, onClose, onSubmitSucces
     try {
       const typePrefix = requestType === 'RETURN' ? '[OMBORGA QAYTARISH] ' : "[TA'MIRLASH/SERVIS] ";
       
+      const targetAssetId = assetItem.asset?.id || assetItem.assetId || assetItem.id;
       await requestsApi.create({
         entityType: 'ASSET',
-        entityId: assetItem.asset.id,
+        entityId: targetAssetId,
         reason: `${typePrefix}${requestReason.trim()}`,
         requestType,
       } as any);
 
-      onSubmitSuccess(assetItem.asset?.id, requestType, requestReason);
+      onSubmitSuccess(targetAssetId, requestType, requestReason);
       setRequestReason('');
       onClose();
     } catch (err: any) {

@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   X,
@@ -10,21 +10,23 @@ import {
   ArrowRight,
   AlertCircle,
   Hash,
-} from 'lucide-react';
-import { inventoryApi } from '../../api';
-import { useAuthStore } from '../../store/auth.store';
-import { useTranslation } from '../../hooks/useTranslation';
-import { useDebounce } from '../../hooks/useDebounce';
-import ProductDetailModal from '../../pages/products/product-detail-modal';
-import type { Inventory } from '../../types/inventory.types';
+} from "lucide-react";
+import { inventoryApi } from "../../api";
+import { useAuthStore } from "../../store/auth.store";
+import { useTranslation } from "../../hooks/useTranslation";
+import { useDebounce } from "../../hooks/useDebounce";
+import ProductDetailModal from "../../pages/products/product-detail-modal";
+import type { Inventory } from "../../types/inventory.types";
 
 export default function TopbarSearch() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { t } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   const debouncedQuery = useDebounce(searchQuery, 250);
@@ -32,28 +34,31 @@ export default function TopbarSearch() {
   // Close dropdown on click outside or escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
   // Fetch search results strictly within user's organization context
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['topbar-search', user?.organizationId, debouncedQuery],
+    queryKey: ["topbar-search", user?.organizationId, debouncedQuery],
     queryFn: () =>
       inventoryApi.getAll({
         organizationId: user?.organizationId || undefined,
@@ -87,7 +92,7 @@ export default function TopbarSearch() {
     return item.product.assets.find(
       (a) =>
         a.inventoryNumber?.toLowerCase().includes(q) ||
-        a.serialNumber?.toLowerCase().includes(q)
+        a.serialNumber?.toLowerCase().includes(q),
     );
   };
 
@@ -107,7 +112,7 @@ export default function TopbarSearch() {
             onFocus={() => {
               if (searchQuery.trim().length >= 1) setIsOpen(true);
             }}
-            placeholder={t('topbar.searchPlaceholderFull') || 'Qidiruv (nomi yoki INV)...'}
+            placeholder={t("topbar.searchPlaceholderFull") || "Qidiruv"}
             className="w-40 sm:w-56 lg:w-72 pl-8 pr-7 py-1.5 text-xs rounded-xl border border-gray-200/80 dark:border-slate-800 bg-gray-50/80 dark:bg-slate-900/80 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all duration-150"
           />
 
@@ -117,7 +122,7 @@ export default function TopbarSearch() {
           ) : searchQuery ? (
             <button
               onClick={() => {
-                setSearchQuery('');
+                setSearchQuery("");
                 setIsOpen(false);
               }}
               className="p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 absolute right-2 transition-colors cursor-pointer"
@@ -133,10 +138,10 @@ export default function TopbarSearch() {
             {/* Header */}
             <div className="px-3.5 py-2.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/50">
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                {t('topbar.foundProducts')}
+                {t("topbar.foundProducts")}
               </span>
               <span className="text-xs font-bold text-teal-600 dark:text-teal-400 font-mono">
-                {results.length} {t('common.pcs')}
+                {results.length} {t("common.pcs")}
               </span>
             </div>
 
@@ -145,7 +150,9 @@ export default function TopbarSearch() {
               {isSearching && results.length === 0 ? (
                 <div className="py-8 text-center space-y-2">
                   <Loader2 className="w-5 h-5 animate-spin text-teal-600 mx-auto" />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t("common.loading")}
+                  </p>
                 </div>
               ) : results.length === 0 ? (
                 <div className="py-8 px-4 text-center space-y-2">
@@ -153,16 +160,17 @@ export default function TopbarSearch() {
                     <AlertCircle className="w-4 h-4" />
                   </div>
                   <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-                    {t('topbar.noProductsFound', { query: debouncedQuery })}
+                    {t("topbar.noProductsFound", { query: debouncedQuery })}
                   </p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                    {t('topbar.checkSearchQuery')}
+                    {t("topbar.checkSearchQuery")}
                   </p>
                 </div>
               ) : (
                 results.slice(0, 15).map((item) => {
                   const matchedAsset = getMatchedAsset(item);
-                  const isEquipment = item.product?.productType === 'BERILADIGAN';
+                  const isEquipment =
+                    item.product?.productType === "BERILADIGAN";
 
                   return (
                     <div
@@ -181,22 +189,30 @@ export default function TopbarSearch() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                            {item.product?.name || t('topbar.unnamedProduct') || 'Nomsiz mahsulot'}
+                            {item.product?.name ||
+                              t("topbar.unnamedProduct") ||
+                              "Nomsiz mahsulot"}
                           </p>
                           <span
                             className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${
                               isEquipment
-                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/80 dark:border-blue-900/60'
-                                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-900/60'
+                                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/80 dark:border-blue-900/60"
+                                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-900/60"
                             }`}
                           >
-                            {isEquipment ? (t('topbar.equipmentBadge') || 'Jihoz') : (t('topbar.tmzBadge') || 'TMZ')}
+                            {isEquipment
+                              ? t("topbar.equipmentBadge") || "Jihoz"
+                              : t("topbar.tmzBadge") || "TMZ"}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                            {t('topbar.stockBalanceShort') || 'Qoldiq:'} <strong className="text-gray-800 dark:text-gray-200">{item.quantity}</strong> {item.product?.unit || 'dona'}
+                            {t("topbar.stockBalanceShort") || "Qoldiq:"}{" "}
+                            <strong className="text-gray-800 dark:text-gray-200">
+                              {item.quantity}
+                            </strong>{" "}
+                            {item.product?.unit || "dona"}
                           </span>
 
                           {matchedAsset && (
@@ -220,7 +236,7 @@ export default function TopbarSearch() {
                   onClick={handleNavigateToInventory}
                   className="w-full py-1.5 px-3 text-xs font-bold text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>{t('topbar.viewAllInWarehouse')}</span>
+                  <span>{t("topbar.viewAllInWarehouse")}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

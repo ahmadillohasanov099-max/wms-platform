@@ -23,7 +23,7 @@ export interface RequestItem {
   organization?: Organization;
   createdAt: string;
   updatedAt: string;
-  requestType?: 'DELETION' | 'ASSIGNMENT' | 'REPAIR' | 'RETURN';
+  requestType?: 'DELETION' | 'ASSIGNMENT' | 'REPAIR' | 'RETURN' | 'SUPPLY';
   assignmentId?: string;
   recipientUserId?: string | null;
   recipientDeptId?: string | null;

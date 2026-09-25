@@ -46,4 +46,25 @@ export const usersApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
   },
+  // Offboarding methods
+  getPendingOffboardings: () =>
+    api.get<any[]>('/users/offboarding/pending').then((r) => r.data),
+  startOffboarding: (id: string) =>
+    api.post<{ success: boolean; message: string; user: any; unreturnedAssetsCount?: number }>(
+      `/users/${id}/offboarding/start`
+    ).then((r) => r.data),
+  cancelOffboarding: (id: string) =>
+    api.post<{ success: boolean; message: string; user: any }>(
+      `/users/${id}/offboarding/cancel`
+    ).then((r) => r.data),
+  warehouseApproveOffboarding: (id: string) =>
+    api.post<{ success: boolean; message: string; user: any }>(
+      `/users/${id}/offboarding/warehouse-approve`
+    ).then((r) => r.data),
+  completeOffboarding: (id: string) =>
+    api.post<{ success: boolean; message: string; user: any }>(
+      `/users/${id}/offboarding/complete`
+    ).then((r) => r.data),
+  getOffboardingAkt: (id: string) =>
+    api.get<any>(`/users/${id}/offboarding/akt`).then((r) => r.data),
 };
