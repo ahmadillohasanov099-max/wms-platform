@@ -325,15 +325,22 @@ export class InventoryExcelService {
       let unit: UnitType = UnitType.DONA;
       if (unitCol !== -1 && row[unitCol]) {
         const uVal = String(row[unitCol]).toLowerCase();
-        if (uVal.includes('pachka') || uVal.includes('quti') || uVal.includes('korobka') || uVal.includes('kg') || uVal.includes('litr')) {
+        if (uVal.includes('pachka') || uVal.includes('quti') || uVal.includes('korobka')) {
           unit = UnitType.PACHKA;
+        } else if (uVal.includes('litr') || uVal.includes('литр') || uVal.includes('л')) {
+          unit = UnitType.LITR;
+        } else if (uVal.includes('kg') || uVal.includes('кг')) {
+          unit = UnitType.KG;
+        } else if (uVal.includes('metr') || uVal.includes('метр') || uVal.includes('м')) {
+          unit = UnitType.METR;
         } else if (uVal.includes('komplekt') || uVal.includes('juft') || uVal.includes('nabor')) {
           unit = UnitType.KOMPLEKT;
         }
       }
 
-      const qty = Math.max(1, parseInt(String(row[qtyCol] || '1'), 10) || 1);
-      const minLevel = minCol !== -1 && row[minCol] ? parseInt(String(row[minCol]), 10) || 5 : 5;
+      const rawQtyNum = parseFloat(String(row[qtyCol] || '1').replace(',', '.')) || 1;
+      const qty = Math.max(0.0001, Math.round(rawQtyNum * 10000) / 10000);
+      const minLevel = minCol !== -1 && row[minCol] ? parseFloat(String(row[minCol]).replace(',', '.')) || 5 : 5;
       const unitPrice = priceCol !== -1 && row[priceCol] ? parseFloat(String(row[priceCol]).replace(/[\s\u00a0]+/g, '').replace(',', '.')) || 0 : 0;
       const invNumber = invCol !== -1 && row[invCol] ? String(row[invCol]).trim() : undefined;
       const serialNumber = serialCol !== -1 && row[serialCol] ? String(row[serialCol]).trim() : undefined;

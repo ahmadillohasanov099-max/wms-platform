@@ -10,6 +10,7 @@ import {
   Menu,
   Globe,
   Check,
+  CheckCheck,
   X,
   AlertTriangle,
   Warehouse,
@@ -30,6 +31,7 @@ import {
 import { socketService } from '../../lib/socket';
 import { cn } from '../../lib/utils';
 import RejectReasonModal from '../modals/reject-reason-modal';
+import ApproveSupplyModal from '../modals/approve-supply-modal';
 import TopbarSearch from './topbar-search';
 import type { DeletionRequest } from '../../types';
 
@@ -47,22 +49,89 @@ export default function Topbar({}: TopbarProps) {
   const [bellOpen, setBellOpen] = useState(false);
   const [rejectingAssignment, setRejectingAssignment] = useState<any | null>(null);
   const [rejectingRequest, setRejectingRequest] = useState<DeletionRequest | null>(null);
+  const [approvingSupplyRequest, setApprovingSupplyRequest] = useState<DeletionRequest | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
-  // Read notifications state stored in localStorage
+  // Key names scoped by user ID so different users/sessions don't collide
+  const storageKey = user?.id ? `read_notif_ids_${user.id}` : 'read_request_notif_ids';
+  const timeKey = user?.id ? `last_read_notif_time_${user.id}` : 'last_read_notif_time';
+
+  // Read notifications state stored in localStorage (user-scoped with fallback)
   const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('read_request_notif_ids') || '[]');
+      const scoped = user?.id ? localStorage.getItem(`read_notif_ids_${user.id}`) : null;
+      const legacy = localStorage.getItem('read_request_notif_ids');
+      return JSON.parse(scoped || legacy || '[]');
     } catch {
       return [];
     }
   });
 
+  // Last read timestamp (epoch ms) to automatically mark all historical notifications as read
+  const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
+    try {
+      const saved = user?.id
+        ? localStorage.getItem(`last_read_notif_time_${user.id}`)
+        : localStorage.getItem('last_read_notif_time');
+      return saved ? Number(saved) : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Keep state in sync whenever user?.id changes (login, switch account, re-auth)
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const userKey = `read_notif_ids_${user.id}`;
+      const userTimeKey = `last_read_notif_time_${user.id}`;
+      const savedIds = localStorage.getItem(userKey);
+      const legacyIds = localStorage.getItem('read_request_notif_ids');
+      if (savedIds) {
+        setReadNotifIds(JSON.parse(savedIds));
+      } else if (legacyIds) {
+        setReadNotifIds(JSON.parse(legacyIds));
+      } else {
+        setReadNotifIds([]);
+      }
+
+      const savedTime = localStorage.getItem(userTimeKey);
+      if (savedTime) {
+        setLastReadTimestamp(Number(savedTime));
+      } else {
+        setLastReadTimestamp(0);
+      }
+    } catch {}
+  }, [user?.id]);
+
+  // Cutoff threshold: notifications older than 7 days are archived, never shown in active bell
+  const CUTOFF_DAYS = 7;
+
+  const isRecentNotification = (dateValue?: string | Date | null) => {
+    if (!dateValue) return false;
+    const time = new Date(dateValue).getTime();
+    if (isNaN(time)) return false;
+    return Date.now() - time <= CUTOFF_DAYS * 24 * 60 * 60 * 1000;
+  };
+
+  const isNotificationRead = (id: string, dateValue?: string | Date | null) => {
+    if (readNotifIds.includes(id)) return true;
+    if (lastReadTimestamp && dateValue) {
+      const time = new Date(dateValue).getTime();
+      if (!isNaN(time) && time <= lastReadTimestamp) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const markAsRead = (id: string) => {
     setReadNotifIds((prev) => {
       const updated = [...new Set([...prev, id])];
-      localStorage.setItem('read_request_notif_ids', JSON.stringify(updated));
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
       return updated;
     });
   };
@@ -208,13 +277,15 @@ export default function Topbar({}: TopbarProps) {
           return true;
         });
         if (filtered.length !== prev.length) {
-          localStorage.setItem('read_request_notif_ids', JSON.stringify(filtered));
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(filtered));
+          } catch {}
           return filtered;
         }
         return prev;
       });
     }
-  }, [lowStock]);
+  }, [lowStock, storageKey]);
 
   const { data: deletionReqsData } = useQuery({
     queryKey: ['deletion-requests', 'PENDING'],
@@ -342,34 +413,29 @@ export default function Topbar({}: TopbarProps) {
   const myPendingCount = pendingMyAssignments.length;
 
   const lowStockList: any[] = Array.isArray(lowStock) ? lowStock : [];
-  const unreadLowStockList = lowStockList.filter(
-    (item: any) => !readNotifIds.includes(`low_stock_${item.productId || item.id}`)
-  );
+  const unreadLowStockList = lowStockList.filter((item: any) => {
+    const itemKey = `low_stock_${item.productId || item.id}`;
+    return !isNotificationRead(itemKey);
+  });
   const lowStockCount = unreadLowStockList.length;
 
-  const markAllLowStockAsRead = () => {
-    const idsToMark = unreadLowStockList.map(
-      (item: any) => `low_stock_${item.productId || item.id}`
-    );
-    setReadNotifIds((prev) => {
-      const updated = [...new Set([...prev, ...idsToMark])];
-      localStorage.setItem('read_request_notif_ids', JSON.stringify(updated));
-      return updated;
-    });
-    toast.success(t('topbar.allLowStockMarkedRead'));
-  };
 
-  // Unread rejected assignments for Admin / Omborchi (strictly in their organization)
+  // Unread rejected assignments for Admin / Omborchi (strictly in their organization, recent & unread)
   const rawRejectedAssignments: any[] = Array.isArray(rejectedAssignmentsData)
     ? rejectedAssignmentsData
     : (rejectedAssignmentsData as any)?.data || [];
-  const unreadRejectedAssignments = rawRejectedAssignments.filter(
-    (req: any) =>
-      req.requestType === 'ASSIGNMENT' &&
-      req.status === 'REJECTED' &&
-      !readNotifIds.includes(req.id) &&
-      (!req.organizationId || !user?.organizationId || req.organizationId === user?.organizationId)
-  );
+  const unreadRejectedAssignments = rawRejectedAssignments.filter((req: any) => {
+    if (req.requestType !== 'ASSIGNMENT' || req.status !== 'REJECTED') return false;
+    const isMatchOrg = !req.organizationId || !user?.organizationId || req.organizationId === user?.organizationId;
+    if (!isMatchOrg) return false;
+
+    // Strict 7-day cutoff for alerts
+    const actionDate = req.reviewedAt || req.updatedAt || req.createdAt;
+    if (!isRecentNotification(actionDate)) return false;
+    if (isNotificationRead(req.id, actionDate)) return false;
+
+    return true;
+  });
 
   // For Ministry: reviews all pending structural and regional requests
   // For Regional orgs: ONLY reviews internal employee ASSET requests; NEVER reviews self-requests or structural requests awaiting Ministry!
@@ -388,32 +454,85 @@ export default function Topbar({}: TopbarProps) {
       return false;
     }
 
+    const isSupply =
+      req.requestType === 'SUPPLY' ||
+      (req as any).isSupply ||
+      String(req.reason || '').includes('[TALABNOMA]') ||
+      String(req.reason || '').includes("[MAHSULOT SO'ROVI]");
+
     if (isMinistry) {
       return true;
     }
 
-    // Regional admins / omborchis only approve employee internal ASSET requests in their org
-    return req.entityType === 'ASSET' && (!req.organizationId || req.organizationId === user?.organizationId);
+    // Regional admins / omborchis approve employee internal ASSET requests and SUPPLY requests in their org
+    const isMatchOrg = !req.organizationId || !user?.organizationId || req.organizationId === user?.organizationId;
+    return (req.entityType === 'ASSET' || isSupply) && isMatchOrg;
   });
 
   const pendingReqCount = canManageRequests ? pendingRequestsList.length : 0;
 
-  // Filter employee's recent reviewed requests that are unread (strictly ignore assignments)
+  // Filter employee's recent reviewed requests that are unread (strictly ignore assignments & enforce strict ownership)
   const myRequestsList: DeletionRequest[] = Array.isArray(myRequestsData)
     ? myRequestsData
     : (myRequestsData as any)?.data || [];
   const unreadReviewedRequests = myRequestsList
-    .filter(
-      (r: any) =>
-        r.requestType !== 'ASSIGNMENT' &&
-        (r.status === 'APPROVED' || r.status === 'REJECTED') &&
-        !readNotifIds.includes(r.id)
-    )
+    .filter((r: any) => {
+      if (r.requestType === 'ASSIGNMENT') return false;
+      if (r.status !== 'APPROVED' && r.status !== 'REJECTED') return false;
+
+      // Reviewer should not get notified about their own review
+      if (r.reviewedById === user?.id || r.reviewedBy?.id === user?.id) return false;
+
+      // Must be requested by the current user
+      const isMyRequest = r.requestedById === user?.id || r.requestedBy?.id === user?.id;
+      if (!isMyRequest) return false;
+
+      // Strict 7-day cutoff for alerts
+      const actionDate = r.reviewedAt || r.updatedAt || r.createdAt;
+      if (!isRecentNotification(actionDate)) return false;
+
+      if (isNotificationRead(r.id, actionDate)) return false;
+
+      return true;
+    })
     .sort(
       (a: any, b: any) =>
         new Date(b.updatedAt || b.createdAt).getTime() -
         new Date(a.updatedAt || a.createdAt).getTime()
     );
+
+  // Informational unread notifications count (reviewed requests, rejections, low stock)
+  const unreadInformationalCount =
+    unreadReviewedRequests.length +
+    (canManageRequests ? unreadRejectedAssignments.length + lowStockCount : 0);
+
+  // Mark all informational notifications as read in 1 click
+  const markAllNotificationsAsRead = () => {
+    const now = Date.now();
+    setLastReadTimestamp(now);
+    try {
+      localStorage.setItem(timeKey, String(now));
+    } catch {}
+
+    const idsToMark: string[] = [];
+    unreadReviewedRequests.forEach((r) => idsToMark.push(r.id));
+    unreadRejectedAssignments.forEach((a) => idsToMark.push(a.id));
+    unreadLowStockList.forEach((item) =>
+      idsToMark.push(`low_stock_${item.productId || item.id}`)
+    );
+
+    if (idsToMark.length > 0) {
+      setReadNotifIds((prev) => {
+        const updated = [...new Set([...prev, ...idsToMark])];
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
+    toast.success(t('topbar.allNotificationsMarkedRead') || "Barcha bildirishnomalar o'qildi deb belgilandi");
+  };
 
   const totalNotificationBadge =
     myPendingCount +
@@ -552,13 +671,14 @@ export default function Topbar({}: TopbarProps) {
                   ) : (
                     <span className="text-[10px] text-gray-400">{t('topbar.noNewMessages')}</span>
                   )}
-                  {canManageRequests && unreadLowStockList.length > 0 && (
+                  {unreadInformationalCount > 0 && (
                     <button
-                      onClick={markAllLowStockAsRead}
-                      className="text-[10px] font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer"
-                      title="Barcha kam qolgan tovarlar bildirishnomasini o'qildi deb belgilash"
+                      onClick={markAllNotificationsAsRead}
+                      className="text-[10px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer flex items-center gap-1 transition-colors"
+                      title={t('topbar.allNotificationsMarkedRead') || "Barcha bildirishnomalarni o'qildi deb belgilash"}
                     >
-                      Barchasini o'qildi qilish
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      <span>{t('topbar.markAllReadBtn') || "Barchasini o'qildi qilish"}</span>
                     </button>
                   )}
                 </div>
@@ -728,7 +848,15 @@ export default function Topbar({}: TopbarProps) {
                         normReason.includes('tuzat') ||
                         normReason.includes('nosoz');
                       const isReturn = req.requestType === 'RETURN' || normReason.includes('qaytarish');
-                      const actionLabel = isRepairedComplete
+                      const isSupply =
+                        req.requestType === 'SUPPLY' ||
+                        (req as any).isSupply ||
+                        String(req.reason || '').includes('[TALABNOMA]') ||
+                        String(req.reason || '').includes("[MAHSULOT SO'ROVI]");
+
+                      const actionLabel = isSupply
+                        ? "Mahsulot talabnomasi"
+                        : isRepairedComplete
                         ? t('requests.typeRepaired')
                         : isRepair
                         ? t('requests.typeRepair')
@@ -763,13 +891,15 @@ export default function Topbar({}: TopbarProps) {
                                 'font-extrabold text-[10px] px-1.5 py-0.5 rounded',
                                 isRejected
                                   ? 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/60'
-                                  : isRepairedComplete
+                                  : isRepairedComplete || isSupply
                                   ? 'text-teal-800 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60'
                                   : 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60'
                               )}
                             >
                               {isRejected
-                                ? t('topbar.requestRejected', { action: actionLabel })
+                                ? (isSupply ? "❌ Talabnoma rad etildi" : t('topbar.requestRejected', { action: actionLabel }))
+                                : isSupply
+                                ? "✅ Talabnoma tasdiqlandi"
                                 : isRepairedComplete
                                 ? t('topbar.repairDone', { action: actionLabel })
                                 : t('topbar.requestApproved', { action: actionLabel })}
@@ -794,6 +924,17 @@ export default function Topbar({}: TopbarProps) {
                             <p className="text-[11px] text-rose-700 dark:text-rose-300 italic bg-rose-100/60 dark:bg-rose-950/40 px-2 py-1 rounded">
                               {t('topbar.rejectReason', { reason: reasonText })}
                             </p>
+                          ) : isSupply ? (
+                            <div className="space-y-1">
+                              {req.reviewComment && (
+                                <p className="text-[11px] text-teal-800 dark:text-teal-300 italic bg-white dark:bg-teal-950/60 px-2.5 py-1 rounded-lg border border-teal-200/60 dark:border-teal-800/60">
+                                  💬 <b>Omborchi izohi:</b> "{req.reviewComment}"
+                                </p>
+                              )}
+                              <p className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
+                                Ombordan so'ragan mahsulotingiz tasdiqlandi.
+                              </p>
+                            </div>
                           ) : isRepairedComplete ? (
                             <div className="space-y-1">
                               {req.reviewComment && (
@@ -902,12 +1043,19 @@ export default function Topbar({}: TopbarProps) {
                         normReason.includes('tuzat') ||
                         normReason.includes('nosoz');
                       const isReturn = req.requestType === 'RETURN' || normReason.includes('qaytarish');
+                      const isSupply =
+                        req.requestType === 'SUPPLY' ||
+                        (req as any).isSupply ||
+                        cleanReason.includes('[TALABNOMA]') ||
+                        cleanReason.includes("[MAHSULOT SO'ROVI]");
 
                       const dotIndex = cleanReason.lastIndexOf('. ');
                       if (dotIndex !== -1 && (cleanReason.startsWith('[') || cleanReason.includes('Jihoz:'))) {
                         cleanReason = cleanReason.substring(dotIndex + 2).trim();
                       }
                       cleanReason = cleanReason
+                        .replace(/^\[TALABNOMA\]\s*/i, '')
+                        .replace(/^\[MAHSULOT SO'ROVI\]\s*/i, '')
                         .replace(/^\[OMBORGA QAYTARISH\]\s*/i, '')
                         .replace(/^\[TA'MIRLASH\/SERVIS\]\s*/i, '')
                         .replace(/^\[TA'MIRLANDI\]\s*/i, '')
@@ -925,7 +1073,9 @@ export default function Topbar({}: TopbarProps) {
                             <span
                               className={cn(
                                 "font-bold text-[10px] px-2 py-0.5 rounded-full border",
-                                isRepairedComplete
+                                isSupply
+                                  ? "text-teal-800 dark:text-teal-300 bg-teal-100/90 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800"
+                                  : isRepairedComplete
                                   ? "text-teal-800 dark:text-teal-300 bg-teal-100/90 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800"
                                   : isRepair
                                   ? "text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800"
@@ -934,7 +1084,9 @@ export default function Topbar({}: TopbarProps) {
                                   : "text-rose-800 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800"
                               )}
                             >
-                              {isRepairedComplete
+                              {isSupply
+                                ? "📋 Talabnoma"
+                                : isRepairedComplete
                                 ? `🛠️ ${t('requests.typeRepaired')}`
                                 : isRepair
                                 ? `🛠️ ${t('requests.typeRepair')}`
@@ -966,15 +1118,25 @@ export default function Topbar({}: TopbarProps) {
 
                           <div className="flex items-center gap-2 pt-1">
                             <button
-                              onClick={() => approveRequestMutation.mutate(req.id)}
+                              onClick={() => {
+                                if (isSupply) {
+                                  setApprovingSupplyRequest(req);
+                                  setBellOpen(false);
+                                } else {
+                                  approveRequestMutation.mutate(req.id);
+                                }
+                              }}
                               disabled={approveRequestMutation.isPending || rejectRequestMutation.isPending}
-                              className="flex-1 py-1.5 px-3 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                              className="flex-1 py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                             >
                               <Check className="w-3.5 h-3.5" />
                               <span>{t('topbar.accept')}</span>
                             </button>
                             <button
-                              onClick={() => setRejectingRequest(req)}
+                              onClick={() => {
+                                setRejectingRequest(req);
+                                setBellOpen(false);
+                              }}
                               disabled={approveRequestMutation.isPending || rejectRequestMutation.isPending}
                               className="flex-1 py-1.5 px-3 bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-neutral-900 dark:hover:bg-rose-950/40 text-neutral-600 dark:text-neutral-300 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-rose-200 dark:hover:border-rose-900 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
                             >
@@ -1099,7 +1261,7 @@ export default function Topbar({}: TopbarProps) {
         isLoading={rejectAssignmentMutation.isPending}
       />
 
-      {/* Reject Return Request Modal (When Admin/Omborchi rejects an employee's return request) */}
+      {/* Reject Return / Supply Request Modal (When Admin/Omborchi rejects a request) */}
       <RejectReasonModal
         open={!!rejectingRequest}
         onClose={() => setRejectingRequest(null)}
@@ -1110,10 +1272,45 @@ export default function Topbar({}: TopbarProps) {
             reason,
           });
         }}
-        title={t('topbar.rejectionModalTitle')}
+        title={
+          rejectingRequest?.requestType === 'SUPPLY' || String(rejectingRequest?.reason || '').includes('[TALABNOMA]')
+            ? t('supplyRequests.rejectSupplyTitle')
+            : t('topbar.rejectionModalTitle')
+        }
         itemTitle={rejectingRequest?.entityName || t('requests.typeReturn')}
+        initialReason={undefined}
+        quickOptions={
+          rejectingRequest?.requestType === 'SUPPLY' || String(rejectingRequest?.reason || '').includes('[TALABNOMA]')
+            ? [t('supplyRequests.rejectReason1')]
+            : undefined
+        }
         isLoading={rejectRequestMutation.isPending}
       />
+
+      {/* Approve Supply Modal (When Omborchi approves a supply request with mandatory comment) */}
+      {approvingSupplyRequest && (
+        <ApproveSupplyModal
+          open={Boolean(approvingSupplyRequest)}
+          onClose={() => setApprovingSupplyRequest(null)}
+          onConfirm={async (comment) => {
+            if (!approvingSupplyRequest) return;
+            try {
+              await deletionRequestsApi.approve(approvingSupplyRequest.id, { reviewComment: comment });
+              toast.success("Talabnoma tasdiqlandi va bo'lim boshlig'iga xabar yuborildi!");
+              queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
+              queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
+              queryClient.invalidateQueries({ queryKey: ['department-all-requests'] });
+              queryClient.invalidateQueries({ queryKey: ['requests'] });
+              setApprovingSupplyRequest(null);
+            } catch (err: any) {
+              toast.error(err?.message || t('common.error'));
+            }
+          }}
+          productName={approvingSupplyRequest.entityName || approvingSupplyRequest.entityTitle || "Mahsulot"}
+          requesterName={approvingSupplyRequest.requestedBy?.fullName || approvingSupplyRequest.requestedBy?.username}
+          isLoading={false}
+        />
+      )}
     </header>
   );
 }

@@ -10,6 +10,7 @@ import { exportToStyledExcel } from '../../lib/export';
 import { FileText, Loader2, Printer } from 'lucide-react';
 import api from '../../api/axios';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatProductQuantity } from '../../lib/quantity-utils';
 import TalabnomaModal, { type TalabnomaData } from '../../components/documents/talabnoma-modal';
 import DalolatnomaModal, { type DalolatnomaData } from '../../components/documents/dalolatnoma-modal';
 import ModdiyJavobgarlikModal, { type ModdiyJavobgarlikData } from '../../components/documents/moddiy-javobgarlik-modal';
@@ -143,7 +144,7 @@ export default function HistoryPage() {
           getOpLabel(item.type, item),
           item.product?.name ?? '—',
           invNo,
-          `${item.quantity ?? 1} ${item.product?.unit || 'dona'}`,
+          formatProductQuantity(item.quantity ?? 1, item.product?.unit, item.product?.packageSize, t),
           recipient,
           item.performedBy?.fullName ?? '—',
           item.documentNumber ?? '—',
@@ -346,17 +347,6 @@ export default function HistoryPage() {
     }
   }
 
-  const formatUnit = (unit?: string) => {
-    if (!unit) return t('common.pcs');
-    const u = unit.toUpperCase();
-    if (u === 'DONA' || u === 'TA' || u === 'PIECE') return t('common.pcs');
-    if (u === 'PACHKA' || u === 'PACK') return t('common.units.PACK');
-    if (u === 'KOMPLEKT') return t('common.units.KOMPLEKT');
-    if (u === 'KG') return t('common.units.KG');
-    if (u === 'LITER' || u === 'LITR') return t('common.units.LITER');
-    return unit;
-  };
-
   const columns = [
     {
       key: 'createdAt',
@@ -436,7 +426,7 @@ export default function HistoryPage() {
           <div className="space-y-1 py-0.5">
             {items.map((gi: any, idx: number) => (
               <p key={gi.id || idx} className="text-xs font-extrabold text-gray-700 dark:text-gray-300">
-                {gi.quantity ?? 1} {formatUnit(gi.product?.unit)}
+                {formatProductQuantity(gi.quantity ?? 1, gi.product?.unit, gi.product?.packageSize, t)}
               </p>
             ))}
           </div>

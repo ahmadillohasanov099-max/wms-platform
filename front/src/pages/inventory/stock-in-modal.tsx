@@ -23,9 +23,10 @@ export default function StockInModal({ open, onClose }: Props) {
   const schema = z.object({
     name: z.string().min(2, t('inventory.validationName')),
     productType: z.enum(['BERILADIGAN', 'SARFLANADIGAN']),
-    unit: z.enum(['DONA', 'PACHKA', 'KOMPLEKT']).optional(),
+    unit: z.enum(['DONA', 'PACHKA', 'KOMPLEKT', 'LITR', 'KG', 'METR']).optional(),
+    packageSize: z.coerce.number().min(1).optional().or(z.literal('')),
     year: z.coerce.number().min(1900).max(2100).optional().or(z.literal('')),
-    quantity: z.coerce.number().min(1, t('inventory.validationQty')),
+    quantity: z.coerce.number().min(0.0001, t('inventory.validationQty')),
     unitPrice: z.coerce.number().min(0),
     minLevel: z.coerce.number().min(0).optional(),
     description: z.string().optional(),
@@ -35,6 +36,13 @@ export default function StockInModal({ open, onClose }: Props) {
   }).superRefine((data, ctx) => {
     if (data.productType === 'BERILADIGAN') {
       const qty = Number(data.quantity);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['quantity'],
+          message: "Asosiy vositalar miqdori butun son bo'lishi shart!",
+        });
+      }
       const invs = data.inventoryNumbers || [];
       for (let i = 0; i < qty; i++) {
         const invVal = invs[i];
@@ -70,6 +78,7 @@ export default function StockInModal({ open, onClose }: Props) {
       unitPrice: 0,
       productType: 'BERILADIGAN',
       unit: 'DONA',
+      packageSize: '',
       inventoryNumbers: [],
     },
   });
@@ -82,21 +91,23 @@ export default function StockInModal({ open, onClose }: Props) {
   const existingProducts: any[] = existingProductsData?.items || [];
 
   const productType = watch('productType');
+  const selectedUnit = watch('unit');
   const quantity = watch('quantity') || 0;
 
   const qty = Number(quantity) || 0;
-  const displayQty = Math.min(qty, 100);
+  const displayQty = Math.min(Math.floor(qty), 100);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: FormData) => {
       const invs = data.productType === 'BERILADIGAN'
-        ? (data.inventoryNumbers || []).slice(0, qty).map((s: any) => s?.trim() || '')
+        ? (data.inventoryNumbers || []).slice(0, Math.floor(qty)).map((s: any) => s?.trim() || '')
         : undefined;
 
       return operationsApi.stockIn({
         name: data.name,
         productType: data.productType,
         unit: data.unit,
+        packageSize: data.packageSize ? Number(data.packageSize) : undefined,
         year: data.year ? Number(data.year) : undefined,
         quantity: qty,
         unitPrice: Number(data.unitPrice),
@@ -152,6 +163,7 @@ export default function StockInModal({ open, onClose }: Props) {
                 if (found) {
                   setValue('productType', found.productType);
                   if (found.unit) setValue('unit', found.unit);
+                  if (found.packageSize) setValue('packageSize', found.packageSize);
                   if (found.inventory?.unitPrice) setValue('unitPrice', found.inventory.unitPrice);
                   if (found.inventory?.minLevel) setValue('minLevel', found.inventory.minLevel);
                 }
@@ -185,6 +197,9 @@ export default function StockInModal({ open, onClose }: Props) {
               { value: 'DONA', label: t('common.units.DONA') },
               { value: 'PACHKA', label: t('common.units.PACHKA') },
               { value: 'KOMPLEKT', label: t('common.units.KOMPLEKT') },
+              { value: 'LITR', label: t('common.units.LITR') },
+              { value: 'KG', label: t('common.units.KG') },
+              { value: 'METR', label: t('common.units.METR') },
             ]}
             {...register('unit')}
           />
@@ -196,11 +211,23 @@ export default function StockInModal({ open, onClose }: Props) {
           />
         </div>
 
+        {selectedUnit === 'PACHKA' && productType === 'SARFLANADIGAN' && (
+          <Input
+            label={t('common.units.packageSize')}
+            type="number"
+            min={1}
+            placeholder={t('common.units.packageSizePlaceholder')}
+            error={errors.packageSize?.message?.toString()}
+            {...register('packageSize')}
+          />
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <Input
             label={t('operations.quantity')}
             type="number"
-            min={1}
+            step={productType === 'BERILADIGAN' ? '1' : 'any'}
+            min={productType === 'BERILADIGAN' ? 1 : 0.0001}
             placeholder={t('inventory.qtyPlaceholder')}
             error={errors.quantity?.message?.toString()}
             required

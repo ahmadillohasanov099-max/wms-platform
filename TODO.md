@@ -1,11 +1,47 @@
 # 📋 Loyiha Rivojlantirish Rejasi va Bajariladigan Vazifalar
 
-**Oxirgi yangilangan sana:** 2026-09-25  
+**Oxirgi yangilangan sana:** 2026-10-14  
 **Loyiha:** WMS Platform (Vazirlik va Quyi Tashkilotlar Ombor Boshqaruv Tizimi)
 
 ---
 
-## 🎯 Navbatdagi Bosqich Vazifalari (Amalga oshirilishi kerak bo'lgan ishlar):
+## 🚀 ERTAGA REJALASHTIRILGAN ASOSIY VAZIFALAR:
+
+### 1. 🧪 Ombor o'lchov birliklarini to'liq test qilish (Ertangi 1-vazifa):
+- [ ] **Pachka va dona konvertatsiyasini amalda testlash:**
+  - Omborda 20 pachka A4 qog'oz (1 pachka = 500 dona) bo'lganda, xodimga 200 dona berilganda omborda qoldiq aynan **`19 pachka, 300 dona`** (`19.6 pachka`) qolishini amalda tekshirish.
+  - "Pachkada" va "Donalab" rejimlarida kiritish, real-vaqtda konvertatsiya qilinishi va bazaga 4 xonali aniqlikda to'g'ri yozilishini tekshirish.
+- [ ] **Kasrli o'lchov birliklarini testlash (`LITR`, `KG`, `METR`):**
+  - Butun son bo'lmagan miqdorlar (masalan `3.6 litr`, `5.8 litr`, `0.75 kg`) bo'yicha omborga kirim qilish, xodimga berish, bo'limga berish, bo'limdan qaytarish va hisobdan chiqarish amallarini test qilish.
+  - Floating-point xatoliklari (masalan `19.599999999998` kabi drift) yo'qligini, `3.6 litr` deb toza ko'rsatilishini tekshirish.
+- [ ] **Asosiy vositalar (`BERILADIGAN`) daxlsizligi:**
+  - Asosiy vositalar faqat va faqat butun musbat son (1, 2, 3...) va alohida inventar raqam bilan ishlashi, kasr son kiritish imkoni yo'qligini tekshirish.
+- [ ] **Excel va Hisobotlar testi:**
+  - Excel orqali `LITR`, `KG`, `METR` va `PACHKA` (packageSize) li mahsulotlarni import qilish va eksportda chiroyli formatda chiqishini tekshirish.
+
+---
+
+### 2. 🛡️ Xodimga va Bo'limga Oylik Limit Qo'yish (Ertangi 2-vazifa):
+- [ ] **Oylik limit boshqaruvi (Monthly TMZ Consumption Limits):**
+  - Xodim va bo'limlar uchun mahsulotlar (masalan: A4 qog'oz oyiga 500 dona, ruchka 5 dona va h.k.) bo'yicha oylik iste'mol limitini belgilash imkoniyati (CRUD).
+- [ ] **Limit nazorati va bloklash (Over-limit Prevention):**
+  - Xodimga yoki bo'limga TMZ berilayotganda joriy oydagi sarflangan miqdor + yangi berilayotgan miqdor belgilangan oylik limitdan oshib ketsa, tizim qat'iy ogohlantirishi va amalni bloklashi ("Oylik limitdan oshib ketdi! Qolgan limit: X dona").
+- [ ] **Limit yangilanish (Limit Refresh / Reset Functionality):**
+  - Har yangi oy boshlanganda (1-sanada) oylik sarf hisoblagichi avtomatik yangilanishi yoki Admin/Omborchi tomonidan limitni yangilash / istisno tariqasida oshirish mexanizmi.
+- [ ] **Vizual limit monitoringi:**
+  - Xodim yoki bo'lim tanlanganda ularning joriy oy bo'yicha limit progress-bari ko'rinishi (masalan, `350 / 500 dona sarflandi (70%)`).
+
+---
+
+### 3. 🔍 Bugun qilingan ishlarni to'liq testlash va yakunlash (Ertangi 3-vazifa):
+- [ ] **Bildirishnomalar (Notification Engine) testi:**
+  - 5-6 kundan keyin tizimga kirganda eski o'qilgan bildirishnomalar qayta chiqib qolmasligini, 7 kunlik vaqt oynasi va `markAllAsRead` to'g'ri ishlashini rollar bo'yicha testlash.
+- [ ] **Bo'lim TMZ balansi (`departmentAsset`) testi:**
+  - Bo'limga berilgan sarflanadigan materiallar bo'lim balansiga tushishi va bo'limdan omborga qaytarish to'g'ri ishlashini testlash.
+
+---
+
+## 🎯 Boshqa Navbatdagi Bosqich Vazifalari:
 
 ### 1. 👥 Kadr (HR) roli va Xodimlar boshqaruvi (100% to'liq ishlashi):
 - [x] **Kadrlar bo'limi interfeyslari:**
@@ -31,16 +67,28 @@
   - [x] **Muhim shart:** Bo'lim boshlig'iga ombor qoldig'i (ombor holati/soni) ko'rinmaydi — faqat mahsulot nomi, kerakli miqdor va sabab/tavsif yozib talabnoma yuboradi (`DepartmentSupplyRequestModal`).
 - [x] **Omborchi tomonidan so'rovni ko'rib chiqish va boshqarish:**
   - [x] Omborchiga yangi kelib tushgan ehtiyoj so'rovlari paneli va Talabnomalar jadvali (`DepartmentRequestsTab`).
-  - [x] Omborchi so'rovni tasdiqlashda yoki rad etishda **majburiy/aniq izoh (komentariya)** kiritadi:
-    - [x] *Tasdiqlanganda (mahsulot bor bo'lsa):* "Omborda bor, 5 ta kelib olib ketishingiz mumkin" ko'rinishidagi izoh (`ApproveSupplyModal`).
-    - [x] *Rad etilganda yoki kutish rejimiga olinganda:* "Hozir bizda siz so'ragan mahsulot yo'q, keyinroq omborga keladi, o'shanda olib ketishingiz mumkin" ko'rinishidagi tezkor sabablar va erkin izoh.
+  - [x] Omborchi va Admin so'rovni ko'rib chiqishda **majburiy/aniq izoh (komentariya)** kiritadi (ikkala holatda ham backend va frontendda izoh majburiy):
+    - [x] **Default holat:** Textarea bo'sh turadi, hech narsa oldindan yozilmagan bo'ladi.
+    - [x] **2 ta aniq tezkor javob (Quick Responses):**
+      - [x] *Tasdiqlanganda (Approve):* `"Omborda bor, kelib olib ketishingiz mumkin."`
+      - [x] *Rad etilganda (Reject):* `"Hozirda omborda mavjud emas."`
+    - [x] **Rollar va Access nazorati:**
+      - [x] Admin va Omborchiga "So'rov yuborish" tugmasi ko'rinmaydi va bloklangan (ular faqat tasdiqlovchi/moderator).
+      - [x] Faqat Bo'lim boshlig'i (Department Leader) o'z bo'limi uchun talabnoma yubora oladi (backend va frontendda to'liq nazorat).
+      - [x] Oddiy xodimlar (`XODIM`, `KADR`) ushbu funksiyadan mutlaqo foydalana olmaydi.
 - [x] **Bo'limga biriktirilgan mahsulotlarni omborga qaytarish va tuzatish (ta'mirlash) so'rovi:**
   - [x] **Rollar xavfsizligi:** Bo'lim jihozlarini omborga qaytarish yoki ta'mirlash so'rovini **faqat bo'lim boshlig'i (Department Leader)** yuborishi mumkin (oddiy xodimlar uchun frontend va backendda qat'iy cheklandi).
   - [x] **Dublikatdan 100% himoya:** So'rov yuborilgach, jihoz holati darhol `"Ta'mirlash so'rovi yuborilgan ⏳"` yoki `"Qaytarish so'rovi yuborilgan ⏳"` holatiga o'tadi va qayta so'rov yuborish tugmasi bloklanadi (bazani dublikat bilan to'ldirib tashlashning oldi olindi).
   - [x] Bo'limga tegishli buzilgan yoki ta'mirtalab jihozlarni ta'mirlash so'rovi bilan omborga yuborish va omborda ta'mirlanayotgan paytda `"Ta'mirlashda 🛠"` maqomida turishi.
   - [x] Ortiqcha jihozlarni omborga qaytarish so'rovi bilan jo'natish va omborchi qabul qilishi.
-- [ ] **Bildirishnomalar (In-App & Telegram):**
-  - [ ] Omborchi qaror qabul qilishi bilanoq, bo'lim boshlig'iga omborchining izohi bilan birgalikda Telegram bildirishnoma yetib borishi.
+- [x] **Bildirishnomalar (In-App & Telegram):**
+  - [x] Yangi talabnoma yuborilganda omborchilarga Telegram bildirishnoma borishi.
+  - [x] Omborchi qaror qabul qilishi bilanoq, bo'lim boshlig'iga omborchining izohi bilan birgalikda Telegram bildirishnoma yetib borishi.
+- [x] **🔔 Senior darajadagi Topbar Bildirishnomalar Dvigateli (Notification Engine):**
+  - [x] **Vaqt gorizonti (Strict 7-Day Window):** Xabardor qiluvchi bildirishnomalar (so'rov tasdiqlandi/rad etildi, xodim rad etdi) faqat oxirgi 7 kun ichida sodir bo'lgan bo'lsa ko'rsatiladi. 7 kundan oshgan eski ma'lumotlar arxivlanadi va qo'ng'iroqdagi qizil sonda yig'ilib qolmaydi.
+  - [x] **Foydalanuvchi doirasidagi xotira (User-scoped storage):** Har bir akkaunt uchun `read_notif_ids_${user.id}` va `last_read_notif_time_${user.id}` saqlanadi. 5-6 kundan keyin qayta kirganda yoki kesh tozalanganda ham boshqa foydalanuvchilar bilan aralashib ketmaydi.
+  - [x] **Barchasini o'qildi qilish (Mark All As Read):** Qo'ng'iroqcha ochilganda yagona "Barchasini o'qildi qilish" tugmasi qo'shildi. 1 bosishda barcha axborotiy bildirishnomalar o'qilgan holatga o'tadi va badge 0 bo'ladi.
+  - [x] **Anti-self va Anti-department leak nazorati:** Omborchi o'zi tasdiqlagan so'rovlarni shaxsiy bildirishnoma sifatida olmaydi; oddiy xodimlar faqat o'zlari yuborgan so'rovlar natijasini ko'radi.
 
 ---
 
@@ -104,3 +152,21 @@ login parolni 3 marta notogri terilsa 1 soatga bloklash
   - `approve-supply-modal`: Omborchi tomonidan talabnomani tasdiqlash modali, tezkor sharhlar va izohlar.
   - `department-requests-tab` & `department-supply-request-modal`: Bo'lim talabnomalari jadvali va yangi talabnoma yuborish formasi.
   - `history-page`: Ishdan bo'shatish badgelari, Topshirish Akti va Qaytarish Akti tugmalari.
+
+### 📦 5. Ko'p Birlikli Ombor Hisobi & Bildirishnomalar Tizimi (2026-10-14):
+- [x] **Pachka va dona o'rtasidagi erkin konvertatsiya:**
+  - Mahsulotga `packageSize` parametri qo'shildi (masalan, 1 pachkada 500 dona A4 qog'oz).
+  - Xodimga va bo'limga TMZ berish oynalarida "Pachkada" va "Donalab" o'tkazgichlari yaratildi.
+  - 20 pachka A4 qog'ozdan xodimga 200 dona berilganda, tizim avtomatik `0.4 pachka` sarf hisoblab, qoldiqni `19.6 pachka` qilib, interfeysda **`19 pachka, 300 dona`** ko'rinishida aniq ko'rsatadi.
+- [x] **Kasrli o'lchov birliklari (`LITR`, `KG`, `METR`):**
+  - Database, Prisma sxemasi va barcha DTO-lar `Float` (kasr son) qilib yangilandi.
+  - `3.6 litr`, `5.8 litr`, `0.75 kg` kabi miqdorlarda kirim, sarf va qoldiq hisobi yo'lga qo'yildi.
+- [x] **Floating-point xatoliklaridan 100% himoya:**
+  - 4 xonali aniqlikdagi yaxlitlash (`roundQuantity`) va `quantity-utils.ts` ishlab chiqildi.
+- [x] **Asosiy vositalar (`BERILADIGAN`) butunligi:**
+  - Asosiy vositalar faqat va faqat musbat butun son va unikal inventar raqam bilan ishlashi qat'iy saqlab qolindi.
+- [x] **Bo'lim TMZ zaxirasi (`departmentAsset`):**
+  - Bo'limga berilgan materiallar bo'lim hisobiga (`departmentAsset`) to'g'ri o'tishi va bo'limdan omborga qaytarish mexanizmi ta'minlandi.
+- [x] **Senior darajadagi Bildirishnomalar Dvigateli (Notification Engine):**
+  - 7 kunlik vaqt gorizonti, user-scoped storage va "Barchasini o'qildi qilish" (`markAllAsRead`) integratsiya qilindi.
+

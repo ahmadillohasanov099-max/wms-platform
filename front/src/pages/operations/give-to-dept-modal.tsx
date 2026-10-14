@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import TalabnomaModal, { type TalabnomaData } from '../../components/documents/t
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { invalidateAppQueries } from '../../lib/utils';
+import { formatProductQuantity, getUnitLabel, roundQuantity } from '../../lib/quantity-utils';
 
 interface Props {
   open: boolean;
@@ -25,11 +26,13 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
   const { user } = useAuthStore();
 
   const [talabnomaData, setTalabnomaData] = useState<TalabnomaData | null>(null);
+  const [giveMode, setGiveMode] = useState<'PACHKA' | 'DONA'>('PACHKA');
+  const [donaCount, setDonaCount] = useState<number | string>(100);
 
   const schema = z.object({
     departmentId: z.string().min(1, t("operations.validationDept")),
     productId: z.string().min(1, t('operations.validationProduct')),
-    quantity: z.coerce.number().min(1, t('operations.validationQty')),
+    quantity: z.coerce.number().min(0.0001, t('operations.validationQty')),
     note: z.string().optional(),
   });
 
@@ -57,20 +60,41 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
 
   const productOptions = productList.map((p: any) => ({
     value: p.id,
-    label: `${p.name} (${p.inventory?.quantity ?? 0} ${t('common.pcs')})`,
+    label: `${p.name} (${formatProductQuantity(p.inventory?.quantity ?? 0, p.unit, p.packageSize, t)})`,
   }));
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<any>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<any>({
     resolver: zodResolver(schema),
     defaultValues: { quantity: 1 },
   });
 
+  const selectedProductId = watch('productId');
+  const selectedProduct = useMemo(
+    () => productList.find((p) => p.id === selectedProductId),
+    [productList, selectedProductId]
+  );
+
+  const hasPackaging =
+    selectedProduct?.packageSize &&
+    selectedProduct.packageSize > 1 &&
+    (selectedProduct.unit === 'PACHKA' || selectedProduct.unit === 'PACK');
+
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: FormData) => operationsApi.giveToDept(data),
+    mutationFn: (data: FormData) => {
+      let finalQty = data.quantity;
+      if (hasPackaging && giveMode === 'DONA') {
+        const donaNum = Number(donaCount) || 1;
+        finalQty = roundQuantity(donaNum / selectedProduct.packageSize, 4);
+      }
+      return operationsApi.giveToDept({
+        ...data,
+        quantity: finalQty,
+      });
+    },
     onSuccess: (_, variables) => {
       const selectedDept = deptList.find((d) => d.id === variables.departmentId);
-      const selectedProduct = productList.find((p) => p.id === variables.productId);
 
+      const isDonaMode = hasPackaging && giveMode === 'DONA';
       const tData: TalabnomaData = {
         documentNumber: `TLB-${Date.now().toString().slice(-6)}`,
         date: new Date(),
@@ -79,8 +103,8 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
         items: [
           {
             name: selectedProduct?.name || 'Mahsulot',
-            unit: selectedProduct?.unit || 'dona',
-            quantity: variables.quantity,
+            unit: isDonaMode ? 'dona' : getUnitLabel(selectedProduct?.unit, t),
+            quantity: isDonaMode ? Number(donaCount) || 1 : variables.quantity,
           },
         ],
         note: variables.note,
@@ -89,6 +113,7 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
       toast.success(t("operations.giveToDeptSuccess"));
       invalidateAppQueries(queryClient);
       reset();
+      setGiveMode('PACHKA');
       onClose();
       setTalabnomaData(tData);
     },
@@ -101,13 +126,13 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
     <>
       <Modal
         open={open}
-        onClose={() => { reset(); onClose(); }}
+        onClose={() => { reset(); setGiveMode('PACHKA'); onClose(); }}
         title={t("operations.giveToDept")}
         subtitle={t("operations.giveToDeptSubtitle")}
         size="md"
         footer={
           <>
-            <Button variant="outline" onClick={() => { reset(); onClose(); }} disabled={isPending}>
+            <Button variant="outline" onClick={() => { reset(); setGiveMode('PACHKA'); onClose(); }} disabled={isPending}>
               {t('common.cancel')}
             </Button>
             <Button onClick={handleSubmit((data) => mutate(data))} loading={isPending}>
@@ -133,14 +158,84 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
             required
             {...register('productId')}
           />
-          <Input
-            label={t('operations.quantity')}
-            type="number"
-            min={1}
-            error={errors.quantity?.message?.toString()}
-            required
-            {...register('quantity')}
-          />
+
+          {hasPackaging ? (
+            <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/80 rounded-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                  {t('common.units.giveMode')}
+                </span>
+                <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setGiveMode('PACHKA')}
+                    className={`px-2.5 py-1 text-3xs font-bold rounded-md transition-colors ${
+                      giveMode === 'PACHKA'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                    }`}
+                  >
+                    {t('common.units.pachkaMode')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGiveMode('DONA')}
+                    className={`px-2.5 py-1 text-3xs font-bold rounded-md transition-colors ${
+                      giveMode === 'DONA'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                    }`}
+                  >
+                    {t('common.units.donaMode')}
+                  </button>
+                </div>
+              </div>
+
+              {giveMode === 'DONA' ? (
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                    Donalar soni (1 pachka = {selectedProduct.packageSize} dona)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={donaCount}
+                    onChange={(e) => setDonaCount(e.target.value)}
+                    placeholder="Masalan: 200"
+                  />
+                  <span className="text-3xs text-emerald-700 dark:text-emerald-400 font-semibold block mt-1">
+                    = {roundQuantity((Number(donaCount) || 0) / selectedProduct.packageSize, 4)} pachka
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <Input
+                    label={t('operations.quantity')}
+                    type="number"
+                    step="any"
+                    min={0.001}
+                    error={errors.quantity?.message?.toString()}
+                    required
+                    {...register('quantity')}
+                  />
+                  <span className="text-3xs text-slate-500 font-medium block mt-1">
+                    = {Math.round((Number(watch('quantity')) || 0) * selectedProduct.packageSize)} dona
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Input
+              label={t('operations.quantity')}
+              type="number"
+              step={selectedProduct?.unit === 'DONA' ? '1' : 'any'}
+              min={selectedProduct?.unit === 'DONA' ? 1 : 0.0001}
+              error={errors.quantity?.message?.toString()}
+              required
+              {...register('quantity')}
+            />
+          )}
+
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.note')}</label>
             <textarea

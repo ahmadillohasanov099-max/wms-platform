@@ -15,8 +15,9 @@ export class StockInDto {
   productId: string;
 
   @ApiProperty({ example: 20, description: 'Kirim miqdori' })
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
+  @Type(() => Number)
   quantity: number;
 
   @ApiProperty({ example: 10000000, description: "1 ta narxi (so'mda)" })

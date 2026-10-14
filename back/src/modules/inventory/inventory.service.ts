@@ -53,6 +53,7 @@ export class InventoryService {
             name: true,
             productType: true,
             unit: true,
+            packageSize: true,
             imageUrl: true,
             year: true,
             ...(trimmedSearch && {
@@ -348,6 +349,11 @@ export class InventoryService {
     const allInventoryNumbers: string[] = [];
     for (const item of dto.items) {
       if (item.productType === ProductType.BERILADIGAN) {
+        if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+          throw new BadRequestException(
+            `"${item.name}" jihozi uchun miqdor butun son bo'lishi shart!`,
+          );
+        }
         if (
           !item.inventoryNumbers ||
           item.inventoryNumbers.length !== item.quantity
@@ -384,6 +390,8 @@ export class InventoryService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const item of dto.items) {
+        const cleanQty = Math.round(item.quantity * 10000) / 10000;
+
         let product = await tx.product.findFirst({
           where: {
             name: item.name,
@@ -400,6 +408,7 @@ export class InventoryService {
               name: item.name,
               productType: item.productType,
               unit: item.unit ?? 'DONA',
+              packageSize: item.packageSize ?? null,
               year: item.year ?? null,
               description: item.description,
               organizationId: performerOrgId,
@@ -419,14 +428,19 @@ export class InventoryService {
             where: { id: product.id },
             include: { inventory: true },
           });
+        } else if (item.packageSize && !product.packageSize) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { packageSize: item.packageSize },
+          });
         }
 
         const updatedInventory = await tx.inventory.update({
           where: { productId: product!.id },
           data: {
-            quantity: { increment: item.quantity },
+            quantity: { increment: cleanQty },
             unitPrice: item.unitPrice,
-            totalValue: { increment: item.quantity * item.unitPrice },
+            totalValue: { increment: cleanQty * item.unitPrice },
           },
         });
 
@@ -452,7 +466,7 @@ export class InventoryService {
         await tx.operation.create({
           data: {
             type: 'STOCK_IN',
-            quantity: item.quantity,
+            quantity: cleanQty,
             productId: product!.id,
             performedById,
             documentNumber: item.documentNumber,

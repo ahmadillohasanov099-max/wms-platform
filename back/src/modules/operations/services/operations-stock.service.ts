@@ -38,6 +38,11 @@ export class OperationsStockService {
     const { performerOrgId } = await this.getPerformerOrg(performedById);
 
     if (dto.productType === ProductType.BERILADIGAN) {
+      if (!Number.isInteger(dto.quantity) || dto.quantity <= 0) {
+        throw new BadRequestException(
+          "Asosiy vositalar (beriladigan) miqdori butun son bo'lishi shart!",
+        );
+      }
       if (
         !dto.inventoryNumbers ||
         dto.inventoryNumbers.length !== dto.quantity
@@ -69,6 +74,8 @@ export class OperationsStockService {
       }
     }
 
+    const cleanQty = Math.round(dto.quantity * 10000) / 10000;
+
     const result = await this.prisma.$transaction(async (tx) => {
       let product = await tx.product.findFirst({
         where: {
@@ -86,6 +93,7 @@ export class OperationsStockService {
             name: dto.name,
             productType: dto.productType,
             unit: dto.unit,
+            packageSize: dto.packageSize ?? null,
             year: dto.year,
             description: dto.description,
             imageUrl: dto.imageUrl,
@@ -101,12 +109,19 @@ export class OperationsStockService {
             minLevel: dto.minLevel || 5,
           },
         });
+      } else if (dto.packageSize && !product.packageSize) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { packageSize: dto.packageSize },
+        });
       }
 
       await tx.inventory.update({
         where: { productId: product.id },
         data: {
-          quantity: { increment: dto.quantity },
+          quantity: { increment: cleanQty },
+          ...(dto.unitPrice !== undefined ? { unitPrice: dto.unitPrice } : {}),
+          ...(dto.unitPrice !== undefined ? { totalValue: { increment: cleanQty * dto.unitPrice } } : {}),
         },
       });
 
@@ -130,7 +145,7 @@ export class OperationsStockService {
       await tx.operation.create({
         data: {
           type: 'STOCK_IN',
-          quantity: dto.quantity,
+          quantity: cleanQty,
           productId: product.id,
           performedById,
           documentNumber: dto.documentNumber,

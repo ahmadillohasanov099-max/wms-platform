@@ -39,6 +39,12 @@ export class UpdateProductDto {
   @IsEnum(UnitType)
   unit?: UnitType;
 
+  @ApiPropertyOptional({ example: 500, description: '1 pachkadagi donalar soni' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageSize?: number;
+
   @ApiPropertyOptional({ example: 'Dell Latitude 5520' })
   @IsOptional()
   @IsString()

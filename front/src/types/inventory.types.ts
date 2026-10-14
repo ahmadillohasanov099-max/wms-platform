@@ -25,10 +25,13 @@ export interface SetMinLevelDto {
   productId: string;
   minLevel: number;
 }
+import type { UnitType } from './product.types';
+
 export interface BulkStockInItemDto {
   name: string;
   productType: 'BERILADIGAN' | 'SARFLANADIGAN';
-  unit?: 'DONA' | 'PACHKA' | 'KOMPLEKT';
+  unit?: UnitType;
+  packageSize?: number;
   year?: number;
   description?: string;
   quantity: number;

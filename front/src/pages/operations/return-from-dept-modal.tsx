@@ -11,6 +11,7 @@ import Select from '../../components/ui/select';
 import Button from '../../components/ui/button';
 import { useTranslation } from '../../hooks/useTranslation';
 import { invalidateAppQueries } from '../../lib/utils';
+import { formatProductQuantity } from '../../lib/quantity-utils';
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -21,7 +22,7 @@ export default function ReturnFromDeptModal({ open, onClose }: Props) {
   const schema = z.object({
     departmentId: z.string().min(1, t("operations.validationDept")),
     selectedKey: z.string().min(1, t('operations.validationProduct')),
-    quantity: z.coerce.number().min(1, t('operations.validationQty')),
+    quantity: z.coerce.number().min(0.0001, t('operations.validationQty')),
     documentNumber: z.string().optional(),
     note: z.string().optional(),
   });
@@ -78,7 +79,7 @@ export default function ReturnFromDeptModal({ open, onClose }: Props) {
         assetId: undefined,
         isAsset: false,
         maxQuantity: da.quantity,
-        label: `${da.product.name} (Qoldiq: ${da.quantity} ${da.product.unit || 'dona'})`,
+        label: `${da.product.name} (Qoldiq: ${formatProductQuantity(da.quantity, da.product.unit, da.product.packageSize, t)})`,
       });
     }
   });
@@ -161,7 +162,8 @@ export default function ReturnFromDeptModal({ open, onClose }: Props) {
         <Input
           label={t('operations.quantity')}
           type="number"
-          min={1}
+          min={0.0001}
+          step="any"
           disabled={selectedItemMeta?.isAsset}
           error={errors.quantity?.message?.toString()}
           required

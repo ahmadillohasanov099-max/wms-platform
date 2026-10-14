@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../ui/modal';
 import Button from '../ui/button';
 import { CheckCircle2, MessageSquare, Package } from 'lucide-react';
@@ -20,36 +20,21 @@ export default function ApproveSupplyModal({
   onConfirm,
   productName,
   requesterName,
-  quantity,
   isLoading = false,
 }: ApproveSupplyModalProps) {
   const { t } = useTranslation();
 
-  const quickComments = useMemo(
-    () => [
-      t('supplyRequests.quickComment1'),
-      t('supplyRequests.quickComment2'),
-      t('supplyRequests.quickComment3'),
-    ],
-    [t]
-  );
-
-  const defaultComment = useMemo(() => {
-    return quantity && quantity > 0
-      ? `${t('supplyRequests.quickComment1')} (${quantity} ${t('common.pcs')})`
-      : t('supplyRequests.quickComment1');
-  }, [quantity, t]);
-
-  const [comment, setComment] = useState(defaultComment);
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     if (open) {
-      setComment(defaultComment);
+      setComment('');
     }
-  }, [open, defaultComment]);
+  }, [open]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!comment.trim()) return;
     await onConfirm(comment.trim());
     onClose();
   };
@@ -69,7 +54,8 @@ export default function ApproveSupplyModal({
             variant="primary"
             onClick={handleSubmit}
             loading={isLoading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={isLoading || !comment.trim()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
           >
             {t('common.confirm')}
           </Button>
@@ -95,9 +81,13 @@ export default function ApproveSupplyModal({
         </div>
 
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{t('supplyRequests.commentLabel')}</span>
+          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{t('supplyRequests.commentLabel')}</span>
+              <span className="text-rose-500 font-bold">*</span>
+            </div>
+            <span className="text-2xs text-gray-400 font-normal">Majburiy</span>
           </label>
           <textarea
             rows={3}
@@ -108,19 +98,16 @@ export default function ApproveSupplyModal({
             autoFocus
           />
 
-          {/* Quick presets */}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            <span className="text-2xs text-gray-400 self-center">{t('supplyRequests.quickCommentsLabel')}</span>
-            {quickComments.map((preset, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setComment(preset)}
-                className="text-2xs px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"
-              >
-                {preset}
-              </button>
-            ))}
+          {/* Tezkor javob (Quick preset) */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-2xs text-gray-400">{t('supplyRequests.quickCommentsLabel')}</span>
+            <button
+              type="button"
+              onClick={() => setComment(t('supplyRequests.quickComment1'))}
+              className="text-2xs px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 transition-colors cursor-pointer font-medium"
+            >
+              ⚡ {t('supplyRequests.quickComment1')}
+            </button>
           </div>
         </div>
       </form>

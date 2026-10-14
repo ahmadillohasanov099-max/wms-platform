@@ -69,7 +69,7 @@ export class OperationsAssignmentService {
     }
 
     if (product.productType !== ProductType.BERILADIGAN) {
-      const qtyToGive = dto.quantity && dto.quantity > 0 ? dto.quantity : 1;
+      const qtyToGive = dto.quantity && dto.quantity > 0 ? Math.round(dto.quantity * 10000) / 10000 : 1;
       const result = await this.prisma.$transaction(async (tx) => {
         const invUpdate = await tx.inventory.updateMany({
           where: { productId: dto.productId, quantity: { gte: qtyToGive } },
@@ -527,19 +527,36 @@ export class OperationsAssignmentService {
       }
     }
 
+    const cleanQty = Math.round(dto.quantity * 10000) / 10000;
+
     const result = await this.prisma.$transaction(async (tx) => {
       const invUpdate = await tx.inventory.updateMany({
-        where: { productId: dto.productId, quantity: { gte: dto.quantity } },
-        data: { quantity: { decrement: dto.quantity } },
+        where: { productId: dto.productId, quantity: { gte: cleanQty } },
+        data: { quantity: { decrement: cleanQty } },
       });
       if (invUpdate.count === 0) {
         throw new BadRequestException("Omborda yetarli miqdor yo'q");
       }
 
+      await tx.departmentAsset.upsert({
+        where: {
+          departmentId_productId: {
+            departmentId: dto.departmentId,
+            productId: dto.productId,
+          },
+        },
+        update: { quantity: { increment: cleanQty } },
+        create: {
+          departmentId: dto.departmentId,
+          productId: dto.productId,
+          quantity: cleanQty,
+        },
+      });
+
       const op = await tx.operation.create({
         data: {
           type: 'GIVE_TO_DEPT',
-          quantity: dto.quantity,
+          quantity: cleanQty,
           departmentId: dto.departmentId,
           productId: dto.productId,
           performedById,

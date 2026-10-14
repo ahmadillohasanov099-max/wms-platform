@@ -755,18 +755,10 @@ export default function RequestsPage() {
           onConfirm={handleConfirmReject}
           title={isRejectingSupply ? t('supplyRequests.rejectSupplyTitle') : undefined}
           itemTitle={rejectingItem?.entityTitle || rejectingItem?.entityName}
-          initialReason={
-            isRejectingSupply
-              ? t('supplyRequests.rejectReason1')
-              : undefined
-          }
+          initialReason={undefined}
           quickOptions={
             isRejectingSupply
-              ? [
-                  t('supplyRequests.rejectReason1'),
-                  t('supplyRequests.rejectReason2'),
-                  t('supplyRequests.rejectReason3'),
-                ]
+              ? [t('supplyRequests.rejectReason1')]
               : undefined
           }
         />

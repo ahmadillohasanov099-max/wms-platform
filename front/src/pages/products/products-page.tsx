@@ -9,6 +9,7 @@ import RoleGuard from '../../components/shared/role-guard';
 import ProductFormModal from './product-form-modal';
 import ProductHistoryModal from './product-history-modal';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatProductQuantity } from '../../lib/quantity-utils';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -81,7 +82,7 @@ export default function ProductsPage() {
         const isLow = (row.inventory?.quantity ?? 0) <= (row.inventory?.minLevel ?? 0);
         return (
           <span className={isLow ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-semibold'}>
-            {row.inventory?.quantity ?? 0} {row.unit ? row.unit.toLowerCase() : t('common.pcs')}
+            {formatProductQuantity(row.inventory?.quantity ?? 0, row.unit, row.packageSize, t)}
           </span>
         );
       },
@@ -91,7 +92,7 @@ export default function ProductsPage() {
       title: t('inventory.minLevel') || 'Minimal miqdor',
       render: (_: any, row: any) => (
         <span className="text-slate-500 dark:text-slate-400 text-xs">
-          {row.inventory?.minLevel ?? 0} {row.unit ? row.unit.toLowerCase() : t('common.pcs')}
+          {formatProductQuantity(row.inventory?.minLevel ?? 0, row.unit, row.packageSize, t)}
         </span>
       ),
     },

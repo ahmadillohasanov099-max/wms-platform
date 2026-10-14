@@ -53,6 +53,9 @@ enum UnitType {
   DONA
   PACHKA
   KOMPLEKT
+  LITR
+  KG
+  METR
 }
 
 enum AssetStatus {
@@ -219,6 +222,7 @@ model Product {
   year        Int?
   productType ProductType
   unit        UnitType    @default(DONA)
+  packageSize Int?
   description String?
   imageUrl    String?
 
@@ -249,8 +253,8 @@ model Inventory {
   id        String @id @default(uuid())
   productId String @unique
 
-  quantity   Int      @default(0)
-  minLevel   Int      @default(0)
+  quantity   Float    @default(0)
+  minLevel   Float    @default(0)
   unitPrice  Decimal? @db.Decimal(12, 2)
   totalValue Decimal? @db.Decimal(15, 2)
 
@@ -335,7 +339,7 @@ model DepartmentAsset {
 
   departmentId String
   productId    String
-  quantity     Int @default(0)
+  quantity     Float @default(0)
 
   department Department @relation(fields: [departmentId], references: [id])
   product    Product    @relation(fields: [productId], references: [id])
@@ -354,7 +358,7 @@ model Operation {
   id   String        @id @default(uuid())
   type OperationType
 
-  quantity Int @default(1)
+  quantity Float @default(1)
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])

@@ -262,7 +262,7 @@ export default function DepartmentDetailView({
             <DepartmentRequestsTab
               departmentId={departmentId}
               departmentName={department?.name}
-              isLeader={isAdmin || !!(loggedInUser?.id && (department?.leaderId === loggedInUser?.id || department?.leader?.id === loggedInUser?.id))}
+              isLeader={!!(loggedInUser?.id && (department?.leaderId === loggedInUser?.id || department?.leader?.id === loggedInUser?.id))}
             />
           )}
         </div>

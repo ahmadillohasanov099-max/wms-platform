@@ -26,6 +26,12 @@ export class BulkStockInItemDto {
   @IsEnum(UnitType)
   unit?: UnitType;
 
+  @ApiPropertyOptional({ example: 500, description: '1 pachkadagi donalar soni' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageSize?: number;
+
   @ApiPropertyOptional({ example: 2024 })
   @IsOptional()
   @IsInt()
@@ -37,8 +43,9 @@ export class BulkStockInItemDto {
   description?: string;
 
   @ApiProperty({ example: 3 })
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
+  @Type(() => Number)
   quantity: number;
 
   @ApiProperty({ example: 9000000 })

@@ -7,6 +7,7 @@ import { TableSkeleton } from "../../components/ui/spinner";
 import { ProductTypeBadge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
 import CopyableInventoryNumber from "../../components/ui/copyable-inventory-number";
+import { formatProductQuantity, getUnitLabel } from "../../lib/quantity-utils";
 
 import { ShieldCheck, User, Building2, History, Edit2, PackageCheck, Wrench } from "lucide-react";
 
@@ -57,7 +58,9 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
                 {product.name}
               </h3>
               <p className="text-2xs text-gray-400">
-                {product.unit ? t('productDetail.unitInfo', { unit: product.unit }) : t('productDetail.defaultInfo')}
+                {product.packageSize && product.packageSize > 1
+                  ? `${getUnitLabel(product.unit, t)} (1 ${getUnitLabel(product.unit, t)} = ${product.packageSize} dona)`
+                  : product.unit ? t('productDetail.unitInfo', { unit: getUnitLabel(product.unit, t) }) : t('productDetail.defaultInfo')}
               </p>
             </div>
           </div>
@@ -72,7 +75,7 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
             <div className="flex items-center gap-1.5">
               <span className="text-gray-500 font-medium">{t('productDetail.inStock')}</span>
               <span className="font-bold text-slate-900 dark:text-slate-100">
-                {inventory?.quantity || 0} {product.unit?.toLowerCase() || 'dona'}
+                {formatProductQuantity(inventory?.quantity || 0, product.unit, product.packageSize, t)}
               </span>
             </div>
 

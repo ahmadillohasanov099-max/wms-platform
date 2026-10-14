@@ -11,6 +11,7 @@ import TalabnomaModal, {
 import { useAuthStore } from "../../store/auth.store";
 import { invalidateAppQueries } from "../../lib/utils";
 import { useTranslation } from "../../hooks/useTranslation";
+import { formatProductQuantity, roundQuantity, getUnitLabel } from "../../lib/quantity-utils";
 import {
   Plus,
   Trash2,
@@ -31,7 +32,10 @@ interface ProductRow {
   productId: string;
   productName: string;
   unit: string;
+  packageSize?: number | null;
   availableQty: number;
+  inputMode: 'PACHKA' | 'DONA';
+  rawInputValue: number | string;
   quantity: number;
   searchInput: string;
 }
@@ -54,7 +58,10 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       productId: "",
       productName: "",
       unit: "dona",
+      packageSize: null,
       availableQty: 0,
+      inputMode: "PACHKA",
+      rawInputValue: 1,
       quantity: 1,
       searchInput: "",
     },
@@ -127,10 +134,12 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
         (inv: any) => inv.productId === p.id || inv.product?.id === p.id,
       );
       const qty = invMatch?.quantity ?? p.inventory?.quantity ?? 0;
+      const pkgSize = p.packageSize || invMatch?.product?.packageSize || null;
       productList.push({
         id: p.id,
         name: p.name,
         unit: p.unit || "dona",
+        packageSize: pkgSize,
         quantity: qty,
       });
     }
@@ -142,6 +151,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
         id: p.id,
         name: p.name,
         unit: p.unit || "dona",
+        packageSize: p.packageSize || null,
         quantity: inv.quantity ?? 0,
       });
     }
@@ -172,7 +182,10 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
         productId: "",
         productName: "",
         unit: "dona",
+        packageSize: null,
         availableQty: 0,
+        inputMode: "PACHKA",
+        rawInputValue: 1,
         quantity: 1,
         searchInput: "",
       },
@@ -185,6 +198,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
   };
 
   const handleSelectProduct = (rowId: string, prod: any) => {
+    const pkgSize = prod.packageSize && prod.packageSize > 1 ? prod.packageSize : null;
     setRows((prev) =>
       prev.map((r) => {
         if (r.rowId === rowId) {
@@ -193,7 +207,11 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
             productId: prod.id,
             productName: prod.name,
             unit: prod.unit || "dona",
+            packageSize: pkgSize,
             availableQty: prod.quantity ?? 0,
+            inputMode: "PACHKA",
+            rawInputValue: 1,
+            quantity: 1,
             searchInput: prod.name,
           };
         }
@@ -203,11 +221,55 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
     setActiveSearchRowId(null);
   };
 
-  const handleRowQtyChange = (rowId: string, qty: number) => {
+  const handleToggleMode = (rowId: string, newMode: 'PACHKA' | 'DONA') => {
     setRows((prev) =>
-      prev.map((r) =>
-        r.rowId === rowId ? { ...r, quantity: Math.max(1, qty) } : r,
-      ),
+      prev.map((r) => {
+        if (r.rowId === rowId && r.packageSize) {
+          if (newMode === 'DONA') {
+            const currentPacks = Number(r.quantity) || 1;
+            const donaVal = Math.round(currentPacks * r.packageSize);
+            return {
+              ...r,
+              inputMode: 'DONA',
+              rawInputValue: donaVal,
+              quantity: roundQuantity(donaVal / r.packageSize, 4),
+            };
+          } else {
+            const currentPacks = roundQuantity(Number(r.quantity) || 1, 4);
+            return {
+              ...r,
+              inputMode: 'PACHKA',
+              rawInputValue: currentPacks,
+              quantity: currentPacks,
+            };
+          }
+        }
+        return r;
+      }),
+    );
+  };
+
+  const handleRowQtyChange = (rowId: string, valStr: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.rowId === rowId) {
+          const num = parseFloat(valStr) || 0;
+          if (r.inputMode === 'DONA' && r.packageSize && r.packageSize > 1) {
+            return {
+              ...r,
+              rawInputValue: valStr,
+              quantity: roundQuantity(num / r.packageSize, 4),
+            };
+          } else {
+            return {
+              ...r,
+              rawInputValue: valStr,
+              quantity: roundQuantity(num, 4),
+            };
+          }
+        }
+        return r;
+      }),
     );
   };
 
@@ -220,7 +282,11 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
               productId: "",
               productName: "",
               unit: "dona",
+              packageSize: null,
               availableQty: 0,
+              inputMode: "PACHKA",
+              rawInputValue: 1,
+              quantity: 1,
               searchInput: "",
             }
           : r,
@@ -243,8 +309,9 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       // Check stock limits
       for (const r of validRows) {
         if (r.quantity > r.availableQty) {
+          const availStr = formatProductQuantity(r.availableQty, r.unit, r.packageSize, t);
           throw new Error(
-            `"${r.productName}" bo'yicha omborda yetarli qoldiq yo'q! Mavjud: ${r.availableQty} ${r.unit}`,
+            `"${r.productName}" bo'yicha omborda yetarli qoldiq yo'q! Mavjud: ${availStr}`,
           );
         }
       }
@@ -274,11 +341,14 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
         date: new Date(),
         fromUser: user?.fullName || "Xo‘jalik mudiri A.Urunbadalov",
         toRecipient: recipientName,
-        items: data.validRows.map((r) => ({
-          name: r.productName,
-          unit: r.unit,
-          quantity: r.quantity,
-        })),
+        items: data.validRows.map((r) => {
+          const isDonaMode = r.inputMode === 'DONA' && r.packageSize && r.packageSize > 1;
+          return {
+            name: r.productName,
+            unit: isDonaMode ? 'dona' : getUnitLabel(r.unit, t),
+            quantity: isDonaMode ? Number(r.rawInputValue) || 1 : r.quantity,
+          };
+        }),
         note: note || undefined,
       };
 
@@ -304,7 +374,10 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
         productId: "",
         productName: "",
         unit: "dona",
+        packageSize: null,
         availableQty: 0,
+        inputMode: "PACHKA",
+        rawInputValue: 1,
         quantity: 1,
         searchInput: "",
       },
@@ -483,7 +556,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                                 {row.productName}
                               </span>
                               <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
-                                {t('operations.availableQtyLabel', { count: row.availableQty, unit: row.unit })}
+                                Mavjud: {formatProductQuantity(row.availableQty, row.unit, row.packageSize, t)}
                               </span>
                             </div>
                             <button
@@ -533,7 +606,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                                           key={p.id}
                                           onClick={() => {
                                             if (isOutOfStock) {
-                                              toast.error(`"${p.name}" omborda mavjud emas! Mavjud qoldiq: 0 ${p.unit || 'dona'}`);
+                                              toast.error(`"${p.name}" omborda mavjud emas! Mavjud qoldiq: 0`);
                                               return;
                                             }
                                             handleSelectProduct(row.rowId, p);
@@ -553,7 +626,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                                             </span>
                                           ) : (
                                             <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
-                                              {t('operations.availableQtyLabel', { count: qty, unit: p.unit })}
+                                              {formatProductQuantity(qty, p.unit, p.packageSize, t)}
                                             </span>
                                           )}
                                         </div>
@@ -567,19 +640,69 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                       </div>
 
                       <div>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={row.availableQty > 0 ? row.availableQty : 9999}
-                          value={row.quantity}
-                          onChange={(e) =>
-                            handleRowQtyChange(
-                              row.rowId,
-                              parseInt(e.target.value, 10) || 1,
-                            )
-                          }
-                          placeholder={t('inventory.quantity')}
-                        />
+                        {row.packageSize && row.packageSize > 1 && (row.unit === 'PACHKA' || row.unit === 'PACK') ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMode(row.rowId, 'PACHKA')}
+                                className={`flex-1 py-0.5 text-3xs font-bold rounded transition-colors ${
+                                  row.inputMode === 'PACHKA'
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                                }`}
+                              >
+                                {t('common.units.pachkaMode')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMode(row.rowId, 'DONA')}
+                                className={`flex-1 py-0.5 text-3xs font-bold rounded transition-colors ${
+                                  row.inputMode === 'DONA'
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                                }`}
+                              >
+                                {t('common.units.donaMode')}
+                              </button>
+                            </div>
+
+                            <Input
+                              type="number"
+                              step={row.inputMode === 'DONA' ? '1' : 'any'}
+                              min={row.inputMode === 'DONA' ? 1 : 0.001}
+                              value={row.rawInputValue}
+                              onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
+                              placeholder={row.inputMode === 'DONA' ? 'Dona soni' : 'Pachka soni'}
+                            />
+
+                            {row.inputMode === 'DONA' ? (
+                              <span className="text-3xs text-emerald-700 dark:text-emerald-400 font-semibold block px-1">
+                                = {row.quantity} pachka
+                              </span>
+                            ) : (
+                              <span className="text-3xs text-slate-500 font-medium block px-1">
+                                = {Math.round((Number(row.rawInputValue) || 0) * row.packageSize)} dona
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <Input
+                              type="number"
+                              step={row.unit === 'DONA' ? '1' : 'any'}
+                              min={row.unit === 'DONA' ? 1 : 0.001}
+                              value={row.rawInputValue}
+                              onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
+                              placeholder={getUnitLabel(row.unit, t)}
+                            />
+                            {row.unit && (
+                              <span className="text-3xs text-slate-400 font-medium block px-1">
+                                {getUnitLabel(row.unit, t)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

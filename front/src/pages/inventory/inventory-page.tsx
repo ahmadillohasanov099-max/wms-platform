@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDebounce } from '../../hooks/useDebounce';
 import { downloadExport } from '../../lib/export';
+import { formatProductQuantity, getUnitLabel } from '../../lib/quantity-utils';
 
 export default function InventoryPage() {
   const { t } = useTranslation();
@@ -175,12 +176,7 @@ export default function InventoryPage() {
     return filtered.slice(start, start + limit);
   }, [filtered, filteredRepairAssets, stockStatus, page, limit]);
 
-  const unitLabel = (unit: string) => {
-    if (unit === 'DONA') return t('common.units.DONA');
-    if (unit === 'PACHKA') return t('common.units.PACHKA');
-    if (unit === 'KOMPLEKT') return t('common.units.KOMPLEKT');
-    return unit || t('common.pcs');
-  };
+  const unitLabel = (unit: string) => getUnitLabel(unit, t);
 
   const handleExport = async () => {
     try {
@@ -292,7 +288,7 @@ export default function InventoryPage() {
                   : 'text-gray-900 dark:text-gray-100 font-bold'
               }
             >
-              {value} {unitLabel(row.product?.unit)}
+              {formatProductQuantity(value, row.product?.unit, row.product?.packageSize, t)}
             </span>
             {value <= row.minLevel && (
               <span className="inline-flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-medium" title={t('inventory.lowStock')}>
@@ -309,7 +305,11 @@ export default function InventoryPage() {
       title: t('inventory.minLevel'),
       render: (value: any, row: any) => {
         if (!isAdmin) {
-          return <span className="text-gray-700 dark:text-gray-300 font-medium">{value} {unitLabel(row.product?.unit)}</span>;
+          return (
+            <span className="text-gray-700 dark:text-gray-300 font-medium">
+              {formatProductQuantity(value, row.product?.unit, row.product?.packageSize, t)}
+            </span>
+          );
         }
         if (minLevelEdit === row.productId) {
           return (
@@ -317,6 +317,7 @@ export default function InventoryPage() {
               <input
                 type="number"
                 min="0"
+                step="any"
                 value={minLevelValue}
                 onChange={(e) => setMinLevelValue(e.target.value)}
                 className="w-16 px-2 py-1 text-xs border rounded bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 font-bold"
@@ -328,7 +329,7 @@ export default function InventoryPage() {
                 onClick={() =>
                   setMinLevel({
                     productId: row.productId,
-                    minLevel: parseInt(minLevelValue, 10) || 0,
+                    minLevel: parseFloat(minLevelValue) || 0,
                   })
                 }
                 className="text-xs text-primary-600 dark:text-primary-400 font-bold hover:underline"
@@ -355,7 +356,7 @@ export default function InventoryPage() {
             }}
             className="text-gray-700 dark:text-gray-300 hover:text-primary-600 font-medium hover:underline flex items-center gap-1"
           >
-            <span>{value} {unitLabel(row.product?.unit)}</span>
+            <span>{formatProductQuantity(value, row.product?.unit, row.product?.packageSize, t)}</span>
             <Edit2 className="w-3 h-3 text-gray-400" />
           </button>
         );

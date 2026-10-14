@@ -119,7 +119,7 @@ const navItems: NavItem[] = [
     path: '/supply-requests',
     labelKey: 'supplyRequests',
     icon: <PackagePlus className="w-4 h-4" />,
-    roles: ['XODIM', 'SUPER_ADMIN', 'ORG_ADMIN'],
+    roles: ['XODIM'],
     isLeaderOnly: true,
   },
   {
@@ -157,9 +157,7 @@ export default function Sidebar() {
   const isDepartmentLeader = Boolean(
     user?.isDepartmentLeader ||
     (user as any)?.ledDepartments?.length > 0 ||
-    (userDept?.leaderId && user?.id && userDept.leaderId === user.id) ||
-    user?.role === 'SUPER_ADMIN' ||
-    user?.role === 'ORG_ADMIN'
+    (userDept?.leaderId && user?.id && userDept.leaderId === user.id)
   );
 
   const filteredNavItems = navItems.filter((item) => {

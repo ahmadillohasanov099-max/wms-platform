@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { requestsApi } from '../../../api';
 import Card, { CardContent } from '../../../components/ui/card';
 import Table from '../../../components/ui/table';
 import Button from '../../../components/ui/button';
+import Pagination from '../../../components/ui/pagination';
 import { formatDate } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../store/auth.store';
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Check,
   X,
+  Search,
 } from 'lucide-react';
 import DepartmentSupplyRequestModal from './department-supply-request-modal';
 import ApproveSupplyModal from '../../../components/modals/approve-supply-modal';
@@ -41,13 +43,19 @@ export default function DepartmentRequestsTab({
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const limit = 10;
+
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'VAZIRLIK_OMBORCHI' ||
     user?.role === 'ORG_OMBORCHI';
 
-  const canSubmit = isLeader || canManage;
+  // Admin va Omborchi so'rov yubormaydi, faqat bo'lim boshlig'i yubora oladi
+  const canSubmit = Boolean(isLeader && !canManage);
 
   // Fetch requests: managers get all, department members get their department's requests
   const { data: requestsData, isLoading, refetch } = useQuery({
@@ -63,22 +71,72 @@ export default function DepartmentRequestsTab({
     : [];
 
   // Filter to supply requests (and by department if viewing as manager)
-  const supplyRequests = rawList.filter((item) => {
-    const isSupply =
-      item.requestType === 'SUPPLY' ||
-      item.isSupply ||
-      item.reason?.includes('[TALABNOMA]') ||
-      item.reason?.includes("[MAHSULOT SO'ROVI]");
+  const supplyRequests = useMemo(() => {
+    return rawList.filter((item) => {
+      const isSupply =
+        item.requestType === 'SUPPLY' ||
+        item.isSupply ||
+        item.reason?.includes('[TALABNOMA]') ||
+        item.reason?.includes("[MAHSULOT SO'ROVI]");
 
-    if (!isSupply) return false;
-    if (departmentId && canManage) {
-      return (
-        item.requestedBy?.departmentId === departmentId ||
-        item.recipientDeptId === departmentId
-      );
+      if (!isSupply) return false;
+      if (departmentId && canManage) {
+        return (
+          item.requestedBy?.departmentId === departmentId ||
+          item.recipientDeptId === departmentId
+        );
+      }
+      return true;
+    });
+  }, [rawList, departmentId, canManage]);
+
+  // Statistics for status filter pills
+  const stats = useMemo(() => {
+    let pending = 0;
+    let approved = 0;
+    let rejected = 0;
+    supplyRequests.forEach((item) => {
+      if (item.status === 'PENDING') pending++;
+      else if (item.status === 'APPROVED') approved++;
+      else if (item.status === 'REJECTED') rejected++;
+    });
+    return { total: supplyRequests.length, pending, approved, rejected };
+  }, [supplyRequests]);
+
+  // Filtered requests by status and search keyword
+  const filteredList = useMemo(() => {
+    return supplyRequests.filter((item) => {
+      if (selectedStatus !== 'ALL' && item.status !== selectedStatus) {
+        return false;
+      }
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const matchesProduct = String(item.entityName || item.entityTitle || '').toLowerCase().includes(q);
+        const matchesReason = String(item.reason || '').toLowerCase().includes(q);
+        const matchesSender = String(item.requestedBy?.fullName || item.requestedBy?.username || '').toLowerCase().includes(q);
+        const matchesComment = String(item.reviewComment || item.rejectionReason || '').toLowerCase().includes(q);
+        return matchesProduct || matchesReason || matchesSender || matchesComment;
+      }
+      return true;
+    });
+  }, [supplyRequests, selectedStatus, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStatus, search]);
+
+  const totalPages = Math.ceil(filteredList.length / limit) || 1;
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
     }
-    return true;
-  });
+  }, [totalPages, page]);
+
+  const paginatedList = useMemo(() => {
+    const start = (page - 1) * limit;
+    return filteredList.slice(start, start + limit);
+  }, [filteredList, page, limit]);
 
   const handleConfirmApproveSupply = async (comment: string) => {
     if (!approvingSupplyItem) return;
@@ -273,7 +331,7 @@ export default function DepartmentRequestsTab({
           </p>
         </div>
 
-        {canSubmit ? (
+        {canSubmit && (
           <Button
             onClick={() => setSupplyModalOpen(true)}
             className="bg-teal-600 hover:bg-teal-700 text-white font-bold flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
@@ -281,23 +339,98 @@ export default function DepartmentRequestsTab({
             <Send className="w-4 h-4" />
             {t('supplyRequests.newSupplyBtn')}
           </Button>
-        ) : (
+        )}
+        {!canManage && !isLeader && (
           <div className="text-2xs text-gray-400 italic px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
             ℹ️ {t('supplyRequests.onlyLeaderCanSubmit')}
           </div>
         )}
       </div>
 
+      {/* Filters & Search */}
+      <Card className="p-3.5">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                selectedStatus === 'ALL'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('requests.all')} ({stats.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('PENDING')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                selectedStatus === 'PENDING'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('requests.pendingBadge')} ({stats.pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('APPROVED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                selectedStatus === 'APPROVED'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('requests.approvedBadge')} ({stats.approved})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('REJECTED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                selectedStatus === 'REJECTED'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('requests.rejectedBadge')} ({stats.rejected})
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={t('requests.searchPlaceholder') || "Qidirish..."}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+        </div>
+      </Card>
+
       {/* Requests Table */}
       <Card>
         <CardContent className="p-0">
           <Table
             columns={columns}
-            data={supplyRequests}
+            data={paginatedList}
             loading={isLoading}
             rowKey={(row: any) => String(row.id || Math.random())}
             emptyTitle={t('supplyRequests.emptyTitle')}
           />
+          {filteredList.length > limit && (
+            <div className="px-4 pb-3">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={filteredList.length}
+                limit={limit}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -328,12 +461,7 @@ export default function DepartmentRequestsTab({
           onClose={() => setRejectingId(null)}
           onConfirm={handleConfirmReject}
           title={t('supplyRequests.rejectSupplyTitle')}
-          initialReason={t('supplyRequests.rejectReason1')}
-          quickOptions={[
-            t('supplyRequests.rejectReason1'),
-            t('supplyRequests.rejectReason2'),
-            t('supplyRequests.rejectReason3'),
-          ]}
+          quickOptions={[t('supplyRequests.rejectReason1')]}
         />
       )}
     </div>

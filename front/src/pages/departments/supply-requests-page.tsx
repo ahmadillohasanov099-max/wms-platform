@@ -31,9 +31,7 @@ export default function SupplyRequestsPage() {
   const isLeader = Boolean(
     currentUser?.isDepartmentLeader ||
     (currentUser as any)?.ledDepartments?.length > 0 ||
-    (department?.leaderId && currentUser?.id && department.leaderId === currentUser.id) ||
-    currentUser?.role === 'SUPER_ADMIN' ||
-    currentUser?.role === 'ORG_ADMIN'
+    (department?.leaderId && currentUser?.id && department.leaderId === currentUser.id)
   );
 
   const deptName = department?.name || currentUser?.department?.name || '';

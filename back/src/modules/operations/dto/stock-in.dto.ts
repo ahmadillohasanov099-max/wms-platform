@@ -28,14 +28,20 @@ export class StockInDto {
   @IsEnum(UnitType)
   unit?: UnitType;
 
+  @ApiPropertyOptional({ example: 500, description: '1 pachkadagi donalar soni' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageSize?: number;
+
   @ApiPropertyOptional({ example: 2024 })
   @IsOptional()
   @IsInt()
   year?: number;
 
   @ApiProperty({ example: 5 })
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
   quantity: number;
 
   @ApiPropertyOptional({ example: 12500000 })
@@ -45,7 +51,7 @@ export class StockInDto {
 
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Min(0)
   minLevel?: number;
 

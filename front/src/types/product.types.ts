@@ -1,5 +1,5 @@
 export type ProductType = 'BERILADIGAN' | 'SARFLANADIGAN';
-export type UnitType = 'DONA' | 'PACHKA' | 'KOMPLEKT';
+export type UnitType = 'DONA' | 'PACHKA' | 'KOMPLEKT' | 'LITR' | 'KG' | 'METR';
 export type AssetStatus = 'ACTIVE' | 'BROKEN' | 'LOST' | 'WRITTEN_OFF';
 export interface Product {
   id: string;
@@ -7,6 +7,7 @@ export interface Product {
   year?: number;
   productType: ProductType;
   unit: UnitType;
+  packageSize?: number;
   description?: string;
   imageUrl?: string;
   deletedAt?: string;

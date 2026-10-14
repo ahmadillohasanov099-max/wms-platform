@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { PrismaService } from '../../prisma';
 import { AiService } from './ai.service';
 import { EventsGateway } from '../events/events.gateway';
-import { TelegramSenderService, STAFF_ROLES } from './services/telegram-sender.service';
+import { TelegramSenderService, STAFF_ROLES, escapeHtml } from './services/telegram-sender.service';
 import { TelegramExcelService } from './services/telegram-excel.service';
 import { TelegramReportsService } from './services/telegram-reports.service';
 import { TelegramAuthService } from './services/telegram-auth.service';
@@ -579,6 +579,39 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return this.sender.sendMessage(text);
   }
 
+  /**
+   * Omborchilarga yangi talabnoma (mahsulot so'rovi) bo'yicha bildirishnoma yuborish
+   */
+  async notifySupplyRequestCreated(data: {
+    senderName: string;
+    departmentName?: string;
+    organizationName?: string;
+    organizationId?: string;
+    productName: string;
+    reason: string;
+  }) {
+    const deptStr = data.departmentName ? ` (${data.departmentName})` : '';
+    const orgStr = data.organizationName ? `\n🏢 <b>Tashkilot:</b> ${escapeHtml(data.organizationName)}` : '';
+    const formattedDate = new Date().toLocaleString('uz-UZ', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const message =
+      `📋 <b>Yangi talabnoma (Mahsulot so'rovi) kelib tushdi:</b>\n` +
+      orgStr +
+      `\n👤 <b>Yuboruvchi:</b> ${escapeHtml(data.senderName)}${escapeHtml(deptStr)}\n` +
+      `📦 <b>So'ralayotgan mahsulot:</b> ${escapeHtml(data.productName)}\n` +
+      `📝 <b>Ehtiyoj asosi / Izoh:</b> ${escapeHtml(data.reason)}\n` +
+      `📅 <b>Sana:</b> <i>${formattedDate}</i>\n\n` +
+      `ℹ️ <i>Ombor boshqaruv tizimidan so'rovni ko'rib chiqib tasdiqlashingiz yoki rad etishingiz mumkin.</i>`;
+
+    return this.sender.sendWarehouseMessage(message, data.organizationId);
+  }
+
   async sendUserNotificationAlert(userId: string, title: string, message: string) {
     try {
       const user = await this.prisma.user.findUnique({
@@ -598,7 +631,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       const fullText =
         `🔔 <b>${title}</b>\n\n` +
-        `Hurmatli <b>${user.fullName}</b>,\n` +
+        `Hurmatli <b>${escapeHtml(user.fullName)}</b>,\n` +
         `${message}\n\n` +
         `📅 <i>${formattedDate}</i>`;
 

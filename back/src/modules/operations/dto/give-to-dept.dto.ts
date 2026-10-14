@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class GiveToDeptDto {
   @ApiProperty({ example: 'uuid', description: "Bo'lim ID si" })
@@ -11,8 +12,9 @@ export class GiveToDeptDto {
   productId: string;
 
   @ApiProperty({ example: 5, description: 'Miqdor' })
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
+  @Type(() => Number)
   quantity: number;
 
   @ApiPropertyOptional({

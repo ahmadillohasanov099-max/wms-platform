@@ -32,7 +32,8 @@ export interface Operation {
 export interface StockInDto {
   name: string;
   productType: 'BERILADIGAN' | 'SARFLANADIGAN';
-  unit?: 'DONA' | 'PACHKA' | 'KOMPLEKT';
+  unit?: 'DONA' | 'PACHKA' | 'KOMPLEKT' | 'LITR' | 'KG' | 'METR';
+  packageSize?: number;
   year?: number;
   quantity: number;
   unitPrice?: number;

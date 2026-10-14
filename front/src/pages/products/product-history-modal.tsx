@@ -7,6 +7,8 @@ import { OperationTypeBadge } from '../../components/ui/badge';
 import CopyableInventoryNumber from '../../components/ui/copyable-inventory-number';
 import Pagination from '../../components/ui/pagination';
 import { formatDate } from '../../lib/utils';
+import { useTranslation } from '../../hooks/useTranslation';
+import { formatProductQuantity } from '../../lib/quantity-utils';
 
 interface Props {
   open: boolean;
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export default function ProductHistoryModal({ open, onClose, product }: Props) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
 
   // Fetch full product details (for productType, inventory quantity, unit)
@@ -26,7 +29,6 @@ export default function ProductHistoryModal({ open, onClose, product }: Props) {
 
   const activeProduct = fullProduct || product;
   const isConsumable = activeProduct?.productType === 'SARFLANADIGAN';
-  const unitLabel = activeProduct?.unit ? String(activeProduct.unit).toLowerCase() : 'dona';
 
   // Fetch operations history
   const { data, isLoading } = useQuery({
@@ -106,7 +108,7 @@ export default function ProductHistoryModal({ open, onClose, product }: Props) {
               <span className="text-slate-700 dark:text-slate-300 font-medium">
                 Ombordagi qoldiq:{' '}
                 <strong className="text-slate-900 dark:text-slate-100 font-bold">
-                  {activeProduct?.inventory?.quantity ?? 0} {unitLabel}
+                  {formatProductQuantity(activeProduct?.inventory?.quantity ?? 0, activeProduct?.unit, activeProduct?.packageSize, t)}
                 </strong>
               </span>
             </div>
@@ -115,7 +117,7 @@ export default function ProductHistoryModal({ open, onClose, product }: Props) {
               <span>
                 Jami berilgan (sarf):{' '}
                 <strong className="text-slate-800 dark:text-slate-200 font-semibold">
-                  {totalConsumed} {unitLabel}
+                  {formatProductQuantity(totalConsumed, activeProduct?.unit, activeProduct?.packageSize, t)}
                 </strong>
               </span>
               <span>
@@ -209,7 +211,7 @@ export default function ProductHistoryModal({ open, onClose, product }: Props) {
                       )}
                     </div>
                     <span className="text-slate-600 dark:text-slate-300 font-mono shrink-0 ml-2 font-semibold">
-                      {item.quantity} {unitLabel}
+                      {formatProductQuantity(item.quantity, activeProduct?.unit, activeProduct?.packageSize, t)}
                     </span>
                   </div>
 
@@ -288,7 +290,7 @@ export default function ProductHistoryModal({ open, onClose, product }: Props) {
                       {/* Miqdor */}
                       <td className="px-3 py-2 whitespace-nowrap align-middle text-slate-700 dark:text-slate-300">
                         <div className="flex items-center gap-1 font-semibold">
-                          <span>{item.quantity} {unitLabel}</span>
+                          <span>{formatProductQuantity(item.quantity, activeProduct?.unit, activeProduct?.packageSize, t)}</span>
                           {!isConsumable && item.asset?.inventoryNumber && (
                             <CopyableInventoryNumber
                               value={item.asset.inventoryNumber}

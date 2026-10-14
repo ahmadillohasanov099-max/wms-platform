@@ -48,6 +48,14 @@ process.stderr.write = (chunk: any, ...args: any[]) => {
   return (originalStderrWrite as any)(chunk, ...args);
 };
 
+export function escapeHtml(str: string): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 @Injectable()
 export class TelegramSenderService {
   private readonly logger = new Logger(TelegramSenderService.name);
@@ -61,12 +69,17 @@ export class TelegramSenderService {
   }
 
   async getAdminChatIds(overrideChatId?: string): Promise<string[]> {
+    // If specific overrideChatId is provided, deliver ONLY to that target without leaking to all staff
+    if (overrideChatId) {
+      const targets = new Set<string>();
+      overrideChatId.split(',').forEach((id) => targets.add(id.trim()));
+      return Array.from(targets).filter(Boolean);
+    }
+
     const { chatId: envChatId } = this.getCredentials();
     const targets = new Set<string>();
 
-    if (overrideChatId) {
-      overrideChatId.split(',').forEach((id) => targets.add(id.trim()));
-    } else if (envChatId) {
+    if (envChatId) {
       envChatId.split(',').forEach((id) => targets.add(id.trim()));
     }
 
@@ -91,6 +104,97 @@ export class TelegramSenderService {
     }
 
     return Array.from(targets).filter(Boolean);
+  }
+
+  /**
+   * Get chat IDs of warehouse management staff (Super Admin, Ministry Warehouse, and target Org Warehouse)
+   */
+  async getWarehouseChatIds(organizationId?: string): Promise<string[]> {
+    const { chatId: envChatId } = this.getCredentials();
+    const targets = new Set<string>();
+
+    if (envChatId) {
+      envChatId.split(',').forEach((id) => targets.add(id.trim()));
+    }
+
+    try {
+      const globalRoles = ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'];
+      const orgRoles = ['ORG_ADMIN', 'ORG_OMBORCHI'];
+
+      const whereClause: any = {
+        telegramChatId: { not: null },
+        deletedAt: null,
+        isActive: true,
+        OR: [
+          { role: { in: globalRoles as any } },
+          ...(organizationId
+            ? [{ role: { in: orgRoles as any }, organizationId }]
+            : [{ role: { in: orgRoles as any } }]),
+        ],
+      };
+
+      const warehouseUsers = await this.prisma.user.findMany({
+        where: whereClause,
+        select: { telegramChatId: true },
+      });
+
+      warehouseUsers.forEach((u) => {
+        if (u.telegramChatId) {
+          targets.add(u.telegramChatId.trim());
+        }
+      });
+    } catch (err) {
+      // fallback
+    }
+
+    return Array.from(targets).filter(Boolean);
+  }
+
+  async sendWarehouseMessage(message: string, organizationId?: string): Promise<boolean> {
+    const { token } = this.getCredentials();
+    if (!token) return false;
+
+    const chatIds = await this.getWarehouseChatIds(organizationId);
+    if (chatIds.length === 0) return false;
+
+    let successCount = 0;
+    for (const targetChatId of chatIds) {
+      try {
+        const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: targetChatId,
+            text: message,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          successCount++;
+        } else {
+          const plainText = message.replace(/<[^>]*>/g, '');
+          const fallbackRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: targetChatId,
+              text: plainText,
+              disable_web_page_preview: true,
+            }),
+          });
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.ok) {
+            successCount++;
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`Telegram warehouse error (${targetChatId}): ${err.message}`);
+      }
+    }
+    return successCount > 0;
   }
 
   async sendMessage(message: string, overrideChatId?: string): Promise<boolean> {

@@ -7,6 +7,7 @@ import Input from '../../components/ui/input';
 import Button from '../../components/ui/button';
 import CopyableInventoryNumber from '../../components/ui/copyable-inventory-number';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatProductQuantity, roundQuantity } from '../../lib/quantity-utils';
 
 import {
   ChevronDown,
@@ -152,8 +153,8 @@ export default function WriteOffModal({ open, onClose }: Props) {
   };
 
   const handleQtyChange = (productId: string, val: number, max: number) => {
-    const qty = Math.max(1, Math.min(max, val));
-    setQuantities((prev) => ({ ...prev, [productId]: qty }));
+    const qty = Math.max(0.0001, Math.min(max, val));
+    setQuantities((prev) => ({ ...prev, [productId]: roundQuantity(qty, 4) }));
   };
 
   const toggleExpand = (productId: string, productType: string) => {
@@ -439,8 +440,6 @@ export default function WriteOffModal({ open, onClose }: Props) {
                 const isProductChecked = !!checkedProducts[item.productId];
                 const isExpanded = !!expandedProducts[item.productId];
                 const productType = item.product?.productType;
-                const unit = item.product?.unit;
-                const translatedUnit = unit ? (t(`common.units.${unit}`) || unit) : t('common.pcs');
                 const productAssets = assetsCache[item.productId] ?? [];
                 const isAssetsLoading = !!loadingAssets[item.productId];
                 const isAssetType = productType === 'BERILADIGAN';
@@ -482,7 +481,7 @@ export default function WriteOffModal({ open, onClose }: Props) {
                       </div>
 
                       <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">
-                        Qoldiq: <span className="font-semibold text-gray-900 dark:text-gray-100">{item.quantity} {translatedUnit}</span>
+                        Qoldiq: <span className="font-semibold text-gray-900 dark:text-gray-100">{formatProductQuantity(item.quantity, item.product?.unit, item.product?.packageSize, t)}</span>
                       </div>
 
                       {!isAssetType && isProductChecked && (
@@ -496,11 +495,12 @@ export default function WriteOffModal({ open, onClose }: Props) {
                           </button>
                           <input
                             type="number"
-                            min={1}
+                            min={0.0001}
+                            step="any"
                             max={item.quantity}
-                            value={quantities[item.productId] || 1}
-                            onChange={(e) => handleQtyChange(item.productId, Number(e.target.value), item.quantity)}
-                            className="w-10 text-center text-xs font-bold bg-transparent border-0 focus:outline-none p-0 text-gray-900 dark:text-gray-100"
+                            value={quantities[item.productId] ?? 1}
+                            onChange={(e) => handleQtyChange(item.productId, parseFloat(e.target.value) || 0, item.quantity)}
+                            className="w-14 text-center text-xs font-bold bg-transparent border-0 focus:outline-none p-0 text-gray-900 dark:text-gray-100"
                           />
                           <button
                             type="button"

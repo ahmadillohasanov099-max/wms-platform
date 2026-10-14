@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
-  IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -21,8 +21,9 @@ class BulkWriteOffItemDto {
   assetId?: string;
 
   @ApiProperty({ example: 1 })
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
+  @Type(() => Number)
   quantity: number;
 }
 

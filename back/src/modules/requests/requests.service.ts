@@ -91,6 +91,41 @@ export class RequestsService {
 
     let targetEntityId = dto.entityId;
     if (isSupply) {
+      // 1. Admin va Omborchilar talabnoma yuboruvchi emas, tasdiqlovchi/moderator hisoblanadi
+      const isStaff = [
+        'SUPER_ADMIN',
+        'VAZIRLIK_OMBORCHI',
+        'ORG_ADMIN',
+        'ORG_OMBORCHI',
+      ].includes(user.role);
+
+      if (isStaff) {
+        throw new ForbiddenException(
+          "Administrator yoki omborchi talabnoma (mahsulot so'rovi) yubora olmaydi!",
+        );
+      }
+
+      // 2. Mahsulot so'rovini (talabnoma) faqat bo'lim boshlig'i yubora oladi
+      let isDeptLeader = false;
+      if (user.departmentId) {
+        const dept = await this.prisma.department.findFirst({
+          where: { id: user.departmentId, leaderId: actualUserId, deletedAt: null },
+        });
+        if (dept) isDeptLeader = true;
+      }
+      if (!isDeptLeader) {
+        const anyDept = await this.prisma.department.findFirst({
+          where: { leaderId: actualUserId, deletedAt: null },
+        });
+        if (anyDept) isDeptLeader = true;
+      }
+
+      if (!isDeptLeader) {
+        throw new ForbiddenException(
+          "Mahsulot so'rovini (talabnoma) faqat bo'lim boshliqlari yubora oladi! Oddiy xodimlarga ruxsat berilmagan.",
+        );
+      }
+
       if (!targetEntityId || targetEntityId === 'SUPPLY' || targetEntityId.startsWith('SUPPLY_')) {
         targetEntityId = `supply-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       }
@@ -230,15 +265,24 @@ export class RequestsService {
 
     if (isSupply) {
       try {
-        const deptLabel = user.department?.name ? ` (${user.department.name})` : '';
-        await this.telegramService.sendMessage(
-          `📋 <b>Yangi talabnoma (Mahsulot so'rovi) kelib tushdi:</b>\n\n` +
-          `👤 <b>Yuboruvchi:</b> ${user.fullName}${deptLabel}\n` +
-          `📦 <b>So'ralayotgan mahsulot:</b> ${entityName}\n` +
-          `📝 <b>Izoh / Ehtiyoj:</b> ${dto.reason}\n\n` +
-          `ℹ️ <i>Ombor boshqaruv tizimidan so'rovni ko'rib chiqib tasdiqlashingiz yoki rad etishingiz mumkin.</i>`
-        );
-      } catch {}
+        const cleanReason = (dto.reason || '')
+          .replace(/^\[TALABNOMA\]\s*/i, '')
+          .replace(/^\[MAHSULOT SO'ROVI\]\s*/i, '')
+          .trim();
+
+        const orgName = (newRequest.organization as any)?.name || (user as any).organization?.name;
+
+        await this.telegramService.notifySupplyRequestCreated({
+          senderName: user.fullName || user.username,
+          departmentName: user.department?.name,
+          organizationName: orgName,
+          organizationId: targetOrgId,
+          productName: entityName || dto.entityName || "Moddiy ta'minot",
+          reason: cleanReason || dto.reason || "Ehtiyoj ko'rsatilmadi",
+        });
+      } catch (err) {
+        // fail-safe logging
+      }
     }
 
     return newRequest;
@@ -400,7 +444,21 @@ export class RequestsService {
     if (!type || type === 'DELETION') {
       const where: any = {};
       if (actualUserId) {
+        let isDeptLeader = false;
         if (user?.departmentId) {
+          const dept = await this.prisma.department.findFirst({
+            where: { id: user.departmentId, leaderId: actualUserId, deletedAt: null },
+          });
+          if (dept) isDeptLeader = true;
+        }
+        if (!isDeptLeader) {
+          const anyDept = await this.prisma.department.findFirst({
+            where: { leaderId: actualUserId, deletedAt: null },
+          });
+          if (anyDept) isDeptLeader = true;
+        }
+
+        if (isDeptLeader && user?.departmentId) {
           where.OR = [
             { requestedById: actualUserId },
             { requestedBy: { departmentId: user.departmentId } },
@@ -763,6 +821,11 @@ export class RequestsService {
         if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
           throw new ForbiddenException("Siz faqat o'z tashkilotingiz talabnomalarini tasdiqlay olasiz!");
         }
+
+        const comment = (dto.reviewComment || '').trim();
+        if (!comment) {
+          throw new BadRequestException("Talabnomani tasdiqlashda izoh kiritish majburiy!");
+        }
       }
     } else if (request.entityType === EntityType.ASSET) {
       // Internal employee return/repair: Must belong to the reviewer's organization unless ministry
@@ -982,13 +1045,11 @@ export class RequestsService {
     if (result.requestedById) {
       const isSupply = this.checkIsSupply(request.reason);
       if (isSupply) {
-        const commentMsg = dto.reviewComment
-          ? `\n\n💬 <b>Omborchi izohi:</b> ${dto.reviewComment}`
-          : '\n\nOmborda bor, kelib olib ketishingiz mumkin.';
+        const commentMsg = `\n\n💬 <b>Omborchi/Admin izohi:</b> ${dto.reviewComment?.trim()}`;
         void this.telegramService.sendUserNotificationAlert(
           result.requestedById,
           `✅ Talabnomangiz tasdiqlandi`,
-          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) omborchi tomonidan tasdiqlandi.${commentMsg}`,
+          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) tasdiqlandi.${commentMsg}`,
         );
       } else {
         const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
@@ -1177,6 +1238,11 @@ export class RequestsService {
         if (!isMinistry && reviewer.organizationId && request.organizationId !== reviewer.organizationId) {
           throw new ForbiddenException("Siz faqat o'z tashkilotingiz talabnomalarini rad eta olasiz!");
         }
+
+        const supplyComment = (dto.reviewComment || dto.rejectionReason || '').trim();
+        if (!supplyComment) {
+          throw new BadRequestException("Talabnomani rad etishda izoh kiritish majburiy!");
+        }
       }
     } else if (request.entityType === EntityType.ASSET) {
       const isMinistry = reviewer.role === 'SUPER_ADMIN' || reviewer.role === 'VAZIRLIK_OMBORCHI';
@@ -1185,7 +1251,7 @@ export class RequestsService {
       }
     }
 
-    const comment = dto.reviewComment || dto.rejectionReason || 'Sabab ko‘rsatilmadi';
+    const comment = (dto.reviewComment || dto.rejectionReason || '').trim() || 'Sabab ko‘rsatilmadi';
     const result = await this.prisma.deletionRequest.update({
       where: { id },
       data: {

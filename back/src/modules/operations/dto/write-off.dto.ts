@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -31,7 +31,7 @@ function EitherAssetOrProduct(validationOptions?: ValidationOptions) {
           const obj = args.object as WriteOffDto;
           const hasAsset = !!obj.assetId;
           const hasProduct =
-            !!obj.productId && obj.quantity !== undefined && obj.quantity >= 1;
+            !!obj.productId && obj.quantity !== undefined && obj.quantity > 0;
           return hasAsset || hasProduct;
         },
       },
@@ -62,8 +62,8 @@ export class WriteOffDto {
     description: 'SARFLANADIGAN uchun miqdor',
   })
   @IsOptional()
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.0001)
   @ValidateIf((o: WriteOffDto) => !o.assetId)
   quantity?: number;
 

@@ -3,6 +3,7 @@ import Table from '../../../components/ui/table';
 import { formatDate } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Boxes, FileText, User, Calendar, Package } from 'lucide-react';
+import { formatProductQuantity } from '../../../lib/quantity-utils';
 
 interface DepartmentTmzTabProps {
   tmzData: any;
@@ -45,10 +46,9 @@ export default function DepartmentTmzTab({ tmzData, isLoading }: DepartmentTmzTa
       key: 'quantity',
       title: t('inventory.quantity'),
       render: (val: any, row: any) => {
-        const unit = row.product?.unit || t('common.pcs');
         return (
           <span className="inline-flex items-center gap-1 font-extrabold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-900/50 text-xs">
-            {val} {unit}
+            {formatProductQuantity(val, row.product?.unit, row.product?.packageSize, t)}
           </span>
         );
       },
@@ -142,7 +142,7 @@ export default function DepartmentTmzTab({ tmzData, isLoading }: DepartmentTmzTa
                     </div>
                   </div>
                   <span className="inline-flex items-center text-xs font-extrabold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                    {item.quantity} {item.product?.unit || t('common.pcs')}
+                    {formatProductQuantity(item.quantity, item.product?.unit, item.product?.packageSize, t)}
                   </span>
                 </div>
 

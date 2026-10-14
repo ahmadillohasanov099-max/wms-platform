@@ -7,6 +7,7 @@ import CopyableInventoryNumber from '../../../components/ui/copyable-inventory-n
 import { PageLoader } from '../../../components/ui/spinner';
 import { formatCurrency, formatDate, cn, invalidateAppQueries } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { formatProductQuantity } from '../../../lib/quantity-utils';
 import ModdiyJavobgarlikModal from '../../../components/documents/moddiy-javobgarlik-modal';
 import RejectReasonModal from '../../../components/modals/reject-reason-modal';
 import { operationsApi } from '../../../api';
@@ -550,7 +551,7 @@ export default function ProfileMyAssetsTable({
                                 {items.length > 1 ? `${idx + 1}. ` : ''}{gi.product?.name ?? '—'}
                               </span>
                               <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                                {gi.quantity ?? 1} {gi.product?.unit || t('common.pcs')}
+                                {formatProductQuantity(gi.quantity ?? 1, gi.product?.unit, gi.product?.packageSize, t)}
                               </span>
                             </div>
                           ))}
@@ -610,7 +611,7 @@ export default function ProfileMyAssetsTable({
                               <div className="space-y-1">
                                 {items.map((gi: any, idx: number) => (
                                   <p key={gi.id || idx} className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-                                    {gi.quantity ?? 1} {gi.product?.unit || t('common.pcs')}
+                                    {formatProductQuantity(gi.quantity ?? 1, gi.product?.unit, gi.product?.packageSize, t)}
                                   </p>
                                 ))}
                               </div>
