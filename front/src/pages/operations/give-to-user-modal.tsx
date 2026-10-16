@@ -736,7 +736,6 @@ export default function GiveToUserModal({ open, onClose }: Props) {
           <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
             <Input
               label={t('common.documentNumber')}
-              placeholder="MJSH-2026-001"
               value={documentNumber}
               onChange={(e) => setDocumentNumber(e.target.value)}
             />

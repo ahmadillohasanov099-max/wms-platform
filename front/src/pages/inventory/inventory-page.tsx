@@ -241,7 +241,7 @@ export default function InventoryPage() {
               </span>
             )}
             {row.product?.year && (
-              <span>{row.product.year}-yil</span>
+              <span>{/^\d{4}$/.test(String(row.product.year).trim()) ? `${row.product.year}-yil` : row.product.year}</span>
             )}
           </div>
         </div>

@@ -4,7 +4,7 @@ export type AssetStatus = 'ACTIVE' | 'BROKEN' | 'LOST' | 'WRITTEN_OFF';
 export interface Product {
   id: string;
   name: string;
-  year?: number;
+  year?: string | number;
   productType: ProductType;
   unit: UnitType;
   packageSize?: number;

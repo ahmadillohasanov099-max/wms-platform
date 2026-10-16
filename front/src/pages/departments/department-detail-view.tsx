@@ -258,6 +258,8 @@ export default function DepartmentDetailView({
             <DepartmentTmzTab
               tmzData={tmzHistoryData}
               isLoading={tmzHistoryLoading}
+              departmentId={departmentId}
+              departmentName={department?.name}
             />
           ) : (
             <DepartmentRequestsTab

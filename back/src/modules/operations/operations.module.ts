@@ -6,9 +6,10 @@ import { OperationsNotifierService } from './services/operations-notifier.servic
 import { OperationsStockService } from './services/operations-stock.service';
 import { OperationsAssignmentService } from './services/operations-assignment.service';
 import { MailModule } from '../nodemailer/mail.module';
+import { LimitsModule } from '../limits/limits.module';
 
 @Module({
-  imports: [MailModule],
+  imports: [MailModule, LimitsModule],
   controllers: [OperationsController],
   providers: [
     OperationsService,

@@ -28,6 +28,7 @@ export default function ProductFormModal({ open, onClose, product }: Props) {
     }),
     unit: z.enum(['DONA', 'PACHKA', 'KOMPLEKT', 'LITR', 'KG', 'METR']).optional(),
     packageSize: z.coerce.number().min(1).optional().or(z.literal('')),
+    year: z.string().optional().or(z.literal('')),
     description: z.string().optional(),
   });
   const {
@@ -50,6 +51,7 @@ export default function ProductFormModal({ open, onClose, product }: Props) {
         productType: product.productType,
         unit: product.unit || 'DONA',
         packageSize: product.packageSize ?? '',
+        year: product.year ?? '',
         description: product.description ?? '',
       });
     } else {
@@ -59,6 +61,7 @@ export default function ProductFormModal({ open, onClose, product }: Props) {
         productType: undefined,
         unit: 'DONA',
         packageSize: '',
+        year: '',
         description: '',
       });
     }
@@ -107,7 +110,6 @@ export default function ProductFormModal({ open, onClose, product }: Props) {
       <div className="space-y-4">
         <Input
           label={t('inventory.productName')}
-          placeholder={t('inventory.productNamePlaceholder')}
           error={errors.name?.message?.toString()}
           required
           {...register('name')}
@@ -152,6 +154,12 @@ export default function ProductFormModal({ open, onClose, product }: Props) {
             {...register('packageSize')}
           />
         )}
+        <Input
+          label={t('inventory.year')}
+          type="text"
+          error={errors.year?.message?.toString()}
+          {...register('year')}
+        />
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t('common.description')}

@@ -132,7 +132,6 @@ export default function TransferUserModal({ open, onClose }: Props) {
         />
         <Input
           label={t('common.documentNumber')}
-          placeholder="AKT-2024-001"
           {...register('documentNumber')}
         />
         <div className="flex flex-col gap-1.5">

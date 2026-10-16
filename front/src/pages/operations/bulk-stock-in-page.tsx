@@ -17,7 +17,7 @@ interface BulkItem {
   unit: UnitType;
   quantity: number;
   unitPrice: number;
-  year?: number;
+  year?: string | number;
   description?: string;
   note?: string;
   inventoryNumbersText?: string;
@@ -109,7 +109,7 @@ export default function BulkStockInPage({ open, onClose }: Props) {
             name: item.name,
             productType: item.productType,
             unit: item.unit,
-            year: item.year ? Number(item.year) : undefined,
+            year: item.year ? String(item.year).trim() : undefined,
             description: item.description || undefined,
             note: item.note || undefined,
             quantity: Number(item.quantity),
@@ -183,15 +183,13 @@ export default function BulkStockInPage({ open, onClose }: Props) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input
                   label={t('inventory.productName')}
-                  placeholder="Lenovo ThinkPad E15"
                   value={item.name}
                   onChange={(e) => update(index, 'name', e.target.value)}
                   required
                 />
                 <Input
                   label={t('inventory.year')}
-                  type="number"
-                  placeholder="2024"
+                  type="text"
                   value={item.year ?? ''}
                   onChange={(e) => update(index, 'year', e.target.value)}
                 />
@@ -238,7 +236,6 @@ export default function BulkStockInPage({ open, onClose }: Props) {
                 />
                 <Input
                   label={t('common.documentNumber')}
-                  placeholder="AKT-2024-001"
                   value={item.documentNumber || ''}
                   onChange={(e) => update(index, 'documentNumber', e.target.value)}
                 />

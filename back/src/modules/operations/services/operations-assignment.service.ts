@@ -14,6 +14,7 @@ import { AssignToDeptDto } from '../dto/assign-to-dept.dto';
 import { EventsGateway } from '../../events/events.gateway';
 import { OperationsNotifierService } from './operations-notifier.service';
 import { TelegramService } from '../../nodemailer';
+import { LimitsService } from '../../limits/limits.service';
 
 @Injectable()
 export class OperationsAssignmentService {
@@ -22,6 +23,7 @@ export class OperationsAssignmentService {
     private eventsGateway: EventsGateway,
     private notifierService: OperationsNotifierService,
     private telegramService: TelegramService,
+    private limitsService: LimitsService,
   ) {}
 
   async getPerformerOrg(performedById: string) {
@@ -70,6 +72,15 @@ export class OperationsAssignmentService {
 
     if (product.productType !== ProductType.BERILADIGAN) {
       const qtyToGive = dto.quantity && dto.quantity > 0 ? Math.round(dto.quantity * 10000) / 10000 : 1;
+
+      // Oylik me'yor (limit) cheklovini tekshirish
+      await this.limitsService.checkLimitOrThrow(
+        dto.productId,
+        qtyToGive,
+        performerOrgId,
+        { userId: dto.userId },
+      );
+
       const result = await this.prisma.$transaction(async (tx) => {
         const invUpdate = await tx.inventory.updateMany({
           where: { productId: dto.productId, quantity: { gte: qtyToGive } },
@@ -489,6 +500,14 @@ export class OperationsAssignmentService {
 
     const cleanQty = Math.round(dto.quantity * 10000) / 10000;
 
+    // Oylik me'yor (limit) cheklovini tekshirish
+    await this.limitsService.checkLimitOrThrow(
+      dto.productId,
+      cleanQty,
+      performerOrgId,
+      { departmentId: dto.departmentId },
+    );
+
     const result = await this.prisma.$transaction(async (tx) => {
       const invUpdate = await tx.inventory.updateMany({
         where: { productId: dto.productId, quantity: { gte: cleanQty } },
@@ -636,14 +655,16 @@ export class OperationsAssignmentService {
       );
     }
 
+    const cleanQty = Math.round(dto.quantity * 10000) / 10000;
+
     const result = await this.prisma.$transaction(async (tx) => {
       const deptUpdate = await tx.departmentAsset.updateMany({
         where: {
           departmentId: dto.departmentId,
           productId: dto.productId,
-          quantity: { gte: dto.quantity! },
+          quantity: { gte: cleanQty },
         },
-        data: { quantity: { decrement: dto.quantity! } },
+        data: { quantity: { decrement: cleanQty } },
       });
       if (deptUpdate.count === 0) {
         throw new BadRequestException("Bo'limda yetarli miqdor yo'q");
@@ -651,13 +672,13 @@ export class OperationsAssignmentService {
 
       await tx.inventory.update({
         where: { productId: dto.productId },
-        data: { quantity: { increment: dto.quantity! } },
+        data: { quantity: { increment: cleanQty } },
       });
 
       const op = await tx.operation.create({
         data: {
           type: 'RETURN_FROM_DEPT',
-          quantity: dto.quantity!,
+          quantity: cleanQty,
           departmentId: dto.departmentId,
           productId: dto.productId,
           performedById,

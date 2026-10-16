@@ -32,10 +32,10 @@ export class BulkStockInItemDto {
   @Min(1)
   packageSize?: number;
 
-  @ApiPropertyOptional({ example: 2024 })
+  @ApiPropertyOptional({ example: '2024 yoki 2026.09.12' })
   @IsOptional()
-  @IsInt()
-  year?: number;
+  @IsString()
+  year?: string;
 
   @ApiPropertyOptional({ example: 'Dell Latitude 5520' })
   @IsOptional()

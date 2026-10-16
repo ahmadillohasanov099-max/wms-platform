@@ -9,3 +9,4 @@ export { statsApi } from "./endpoints/stats.api";
 export { organizationsApi } from "./endpoints/organizations.api";
 export { requestsApi, deletionRequestsApi } from "./endpoints/requests.api";
 export { auditApi } from "./endpoints/audit.api";
+export { limitsApi } from "./endpoints/limits.api";

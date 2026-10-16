@@ -1,39 +1,55 @@
 # 📋 Loyiha Rivojlantirish Rejasi va Bajariladigan Vazifalar
 
-**Oxirgi yangilangan sana:** 2026-10-14  
+**Oxirgi yangilangan sana:** 2026-10-16  
 **Loyiha:** WMS Platform (Vazirlik va Quyi Tashkilotlar Ombor Boshqaruv Tizimi)
 
 ---
 
 ## 🚀 ERTAGA REJALASHTIRILGAN ASOSIY VAZIFALAR:
 
-### 1. 🧪 Ombor o'lchov birliklarini to'liq test qilish (Ertangi 1-vazifa):
-- [ ] **Pachka va dona konvertatsiyasini amalda testlash:**
-  - Omborda 20 pachka A4 qog'oz (1 pachka = 500 dona) bo'lganda, xodimga 200 dona berilganda omborda qoldiq aynan **`19 pachka, 300 dona`** (`19.6 pachka`) qolishini amalda tekshirish.
+### 1. 🛡️ Oylik meʼyor (limit) tizimini toʻliq amaliy testlash, toʻgʻrilash va takomillashtirish (Eng ustuvor ⏳):
+- [ ] **Real ombor sharoitida oylik limit hisob-kitobini to‘liq amaliy testdan o‘tkazish:**
+  - Xodim va bo‘limlarga turli TMZlarni (qog‘oz, ruchka, kanselyariya va h.k.) berishda limit to‘g‘ri ishlashini, qoldiq to‘g‘ri ayirilishini amalda tekshirish.
+  - Limit oshganda tizim berishni bloklashi va ogohlantirish berishini tekshirish.
+- [ ] **Buyruq asosida limitni oshirish/tahrirlash jarayonini amalda sinash va to‘g‘rilash:**
+  - Cheklov yuzaga kelganda yangi buyruq faylini yuklab limitni oshirish modalini sinab ko‘rish.
+  - Foydalanuvchi interfeysi (UI/UX) va qulayligini amaliyotda doimiy ravishda takomillashtirib borish.
+- [ ] **Har oy almashganda limit hisoblagichlari avtomatik 0 dan boshlanishini monitoring qilish.**
+
+### 2. 🧪 Ombor o'lchov birliklarini to'liq test qilish (Bajarildi ✅):
+- [x] **Pachka va dona konvertatsiyasini amalda testlash:**
+  - Omborda 20 pachka A4 qog'oz (1 pachka = 500 dona) bo'lganda, xodimga 200 dona berilganda omborda qoldiq aynan **`19 pachka, 300 dona`** (`19.6 pachka`) qolishini amalda tekshirish (Avtomatik 23 ta testdan 100% muvaffaqiyatli o'tdi).
   - "Pachkada" va "Donalab" rejimlarida kiritish, real-vaqtda konvertatsiya qilinishi va bazaga 4 xonali aniqlikda to'g'ri yozilishini tekshirish.
-- [ ] **Kasrli o'lchov birliklarini testlash (`LITR`, `KG`, `METR`):**
+- [x] **Kasrli o'lchov birliklarini testlash (`LITR`, `KG`, `METR`):**
   - Butun son bo'lmagan miqdorlar (masalan `3.6 litr`, `5.8 litr`, `0.75 kg`) bo'yicha omborga kirim qilish, xodimga berish, bo'limga berish, bo'limdan qaytarish va hisobdan chiqarish amallarini test qilish.
-  - Floating-point xatoliklari (masalan `19.599999999998` kabi drift) yo'qligini, `3.6 litr` deb toza ko'rsatilishini tekshirish.
-- [ ] **Asosiy vositalar (`BERILADIGAN`) daxlsizligi:**
+  - Floating-point xatoliklari (masalan `19.599999999998` kabi drift) yo'qligini, `3.6 litr` deb toza ko'rsatilishini va backendda `cleanQty` (4 xonali aniqlik) bilan 100% yaxlitlanishini ta'minlash.
+- [x] **Asosiy vositalar (`BERILADIGAN`) daxlsizligi:**
   - Asosiy vositalar faqat va faqat butun musbat son (1, 2, 3...) va alohida inventar raqam bilan ishlashi, kasr son kiritish imkoni yo'qligini tekshirish.
-- [ ] **Excel va Hisobotlar testi:**
-  - Excel orqali `LITR`, `KG`, `METR` va `PACHKA` (packageSize) li mahsulotlarni import qilish va eksportda chiroyli formatda chiqishini tekshirish.
+- [x] **Komplekt birligi yaxlitligi:**
+  - Komplekt butun va daxlsiz to'plam sifatida hisobga olinishi, tarkibi tavsifda yuritilishi mustahkamlandi.
+- [x] **Moslashuvchan ishlab chiqarilgan sana/yil (`year`):**
+  - Omborchilar uchun mahsulot kirimida faqat yil (masalan `2026`) yoki aniq sana (masalan `2026.09.12`) kiritish imkoniyati yaratildi, bazada va interfeysda to'liq qo'llab-quvvatlandi.
 
 ---
 
-### 2. 🛡️ Xodimga va Bo'limga Oylik Limit Qo'yish (Ertangi 2-vazifa):
-- [ ] **Oylik limit boshqaruvi (Monthly TMZ Consumption Limits):**
-  - Xodim va bo'limlar uchun mahsulotlar (masalan: A4 qog'oz oyiga 500 dona, ruchka 5 dona va h.k.) bo'yicha oylik iste'mol limitini belgilash imkoniyati (CRUD).
-- [ ] **Limit nazorati va bloklash (Over-limit Prevention):**
-  - Xodimga yoki bo'limga TMZ berilayotganda joriy oydagi sarflangan miqdor + yangi berilayotgan miqdor belgilangan oylik limitdan oshib ketsa, tizim qat'iy ogohlantirishi va amalni bloklashi ("Oylik limitdan oshib ketdi! Qolgan limit: X dona").
-- [ ] **Limit yangilanish (Limit Refresh / Reset Functionality):**
-  - Har yangi oy boshlanganda (1-sanada) oylik sarf hisoblagichi avtomatik yangilanishi yoki Admin/Omborchi tomonidan limitni yangilash / istisno tariqasida oshirish mexanizmi.
-- [ ] **Vizual limit monitoringi:**
-  - Xodim yoki bo'lim tanlanganda ularning joriy oy bo'yicha limit progress-bari ko'rinishi (masalan, `350 / 500 dona sarflandi (70%)`).
+### 3. 🛡️ Xodimga va Bo'limga Oylik TMZ Limitlarini Boshqarish va Nazorati:
+- [x] **Oylik limit boshqaruvi (Monthly TMZ Consumption Limits - Bajarildi ✅):**
+  - Xodim va bo‘limlar uchun mahsulotlar (A4 qog‘oz, ruchka, kanselyariya va h.k.) kesimida oylik isteʼmol meʼyorlarini belgilash (CRUD).
+  - Meʼyorlar jadvalida oxirgi belgilangan sana, masʼul shaxs va tasdiqlangan buyruq fayliga to‘g‘ridan-to‘g‘ri havola (`[ 📄 Buyruq fayli (PDF) ↗ ]`).
+- [x] **Qatʼiy limit nazorati va bloklash (Over-limit Prevention - Bajarildi ✅):**
+  - Omborchi TMZ berayotganda joriy oydagi sarflangan miqdor + yangi berilayotgan miqdor oylik limitdan oshib ketsa, tizim darhol bloklaydi ("Oylik limitdan oshib ketdi! Qolgan limit: X dona").
+  - Avtomatlashtirilgan 20 ta integratsion testdan 100% muvaffaqiyatli o‘tdi.
+- [x] **Vazir / Rahbariyat buyrug‘i bilan limitni oshirish (Bajarildi ✅):**
+  - Qo‘shimcha ehtiyoj yuzaga kelganda, faqatgina tasdiqlangan Buyruq fayli (PDF yoki rasm) yuklanadi va yangi miqdor belgilanadi (qo‘lda buyruq raqami va sanasini qayta yozish talabi olib tashlandi).
+  - Backend toza arxitekturaga keltirildi: ortiqcha jadvallar va maydonlar o‘chirildi.
+- [ ] **Oylik limitlarni testlash, to‘g‘rilash va takomillashtirish (Navbatdagi vazifa ⏳):**
+  - [ ] Real ombor sharoitida xodim va bo‘limlarga turli TMZ larni (qog‘oz, ruchka va boshqalar) tarqatishda oylik limit hisob-kitobini to‘liq amaliy testdan o‘tkazish.
+  - [ ] Cheklov yuzaga kelganda Vazir buyrug‘ini biriktirish modali va jarayonini foydalanuvchilar tajribasi (UX) asosida doimiy to‘g‘rilash va takomillashtirib borish.
+  - [ ] Har oyning 1-sanasida hisoblagich avtomatik 0 dan boshlanishini monitoring qilish va zarur hisobotlarni shakllantirish.
 
 ---
 
-### 3. 🔍 Bugun qilingan ishlarni to'liq testlash va yakunlash (Ertangi 3-vazifa):
+### 4. 🔍 Bildirishnoma va Bo'lim TMZ balansi testlari (Keyingi vazifa):
 - [ ] **Bildirishnomalar (Notification Engine) testi:**
   - 5-6 kundan keyin tizimga kirganda eski o'qilgan bildirishnomalar qayta chiqib qolmasligini, 7 kunlik vaqt oynasi va `markAllAsRead` to'g'ri ishlashini rollar bo'yicha testlash.
 - [ ] **Bo'lim TMZ balansi (`departmentAsset`) testi:**

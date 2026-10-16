@@ -667,7 +667,6 @@ export default function WriteOffPage() {
                   </button>
                 </div>
                 <Input
-                  placeholder="Masalan: AKT-2026-001"
                   value={documentNumber}
                   onChange={(e) => setDocumentNumber(e.target.value)}
                   className="rounded-xl"

@@ -135,7 +135,6 @@ export default function BulkWriteOffModal({ open, onClose, selectedItems, onSucc
               </button>
             </div>
             <Input
-              placeholder="AKT-2026-001"
               value={documentNumber}
               onChange={(e) => setDocumentNumber(e.target.value)}
             />

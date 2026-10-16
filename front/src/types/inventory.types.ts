@@ -14,7 +14,7 @@ export interface Inventory {
     productType: string;
     unit: string;
     imageUrl?: string;
-    year?: number;
+    year?: string | number;
     assets?: {
       inventoryNumber: string;
       serialNumber?: string | null;
@@ -32,7 +32,7 @@ export interface BulkStockInItemDto {
   productType: 'BERILADIGAN' | 'SARFLANADIGAN';
   unit?: UnitType;
   packageSize?: number;
-  year?: number;
+  year?: string | number;
   description?: string;
   quantity: number;
   unitPrice: number;

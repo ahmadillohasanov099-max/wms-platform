@@ -34,10 +34,10 @@ export class StockInDto {
   @Min(1)
   packageSize?: number;
 
-  @ApiPropertyOptional({ example: 2024 })
+  @ApiPropertyOptional({ example: '2024 yoki 2026.09.12' })
   @IsOptional()
-  @IsInt()
-  year?: number;
+  @IsString()
+  year?: string;
 
   @ApiProperty({ example: 5 })
   @IsNumber()

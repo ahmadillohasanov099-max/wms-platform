@@ -238,6 +238,8 @@ export class OperationsStockService {
       throw new BadRequestException('Ushbu mahsulot sizning tashkilotingizga tegishli emas!');
     }
 
+    const cleanQty = dto.quantity && dto.quantity > 0 ? Math.round(dto.quantity * 10000) / 10000 : 1;
+
     if (dto.departmentId) {
       const department = await this.prisma.department.findFirst({
         where: { id: dto.departmentId, deletedAt: null },
@@ -253,9 +255,9 @@ export class OperationsStockService {
           where: {
             departmentId: dto.departmentId,
             productId: dto.productId,
-            quantity: { gte: dto.quantity! },
+            quantity: { gte: cleanQty },
           },
-          data: { quantity: { decrement: dto.quantity! } },
+          data: { quantity: { decrement: cleanQty } },
         });
 
         if (deptAssetUpdate.count === 0) {
@@ -267,7 +269,7 @@ export class OperationsStockService {
         const op = await tx.operation.create({
           data: {
             type: 'WRITE_OFF',
-            quantity: dto.quantity!,
+            quantity: cleanQty,
             productId: dto.productId!,
             departmentId: dto.departmentId,
             performedById,
@@ -288,8 +290,8 @@ export class OperationsStockService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const invUpdate = await tx.inventory.updateMany({
-        where: { productId: dto.productId, quantity: { gte: dto.quantity! } },
-        data: { quantity: { decrement: dto.quantity! } },
+        where: { productId: dto.productId, quantity: { gte: cleanQty } },
+        data: { quantity: { decrement: cleanQty } },
       });
       if (invUpdate.count === 0) {
         throw new BadRequestException("Omborda yetarli miqdor yo'q");
@@ -298,7 +300,7 @@ export class OperationsStockService {
       const op = await tx.operation.create({
         data: {
           type: 'WRITE_OFF',
-          quantity: dto.quantity!,
+          quantity: cleanQty,
           productId: dto.productId!,
           performedById,
           documentNumber: dto.documentNumber,
@@ -393,9 +395,11 @@ export class OperationsStockService {
             throw new BadRequestException(`"${product.name}" sarflanadigan materiali uchun miqdor kiritilishi shart!`);
           }
 
+          const cleanQty = Math.round(item.quantity * 10000) / 10000;
+
           const invUpdate = await tx.inventory.updateMany({
-            where: { productId: product.id, quantity: { gte: item.quantity } },
-            data: { quantity: { decrement: item.quantity } },
+            where: { productId: product.id, quantity: { gte: cleanQty } },
+            data: { quantity: { decrement: cleanQty } },
           });
           if (invUpdate.count === 0) {
             throw new BadRequestException(`"${product.name}" materialidan omborda yetarli miqdor yo'q`);
@@ -404,7 +408,7 @@ export class OperationsStockService {
           await tx.operation.create({
             data: {
               type: 'WRITE_OFF',
-              quantity: item.quantity,
+              quantity: cleanQty,
               productId: product.id,
               performedById,
               documentNumber: docNum,

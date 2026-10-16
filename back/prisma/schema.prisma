@@ -110,6 +110,8 @@ model Organization {
   operations       Operation[]
   deletionRequests DeletionRequest[]
   auditLogs        AuditLog[]
+  tmzMonthlyLimits TmzMonthlyLimit[]
+  tmzLimitExceptions TmzLimitException[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -137,6 +139,8 @@ model Department {
   departmentAssets DepartmentAsset[]
   operations       Operation[]
   assignments      Assignment[]
+  tmzMonthlyLimits TmzMonthlyLimit[]
+  tmzLimitExceptions TmzLimitException[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -202,6 +206,11 @@ model User {
 
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  tmzMonthlyLimits TmzMonthlyLimit[]
+  createdTmzLimits TmzMonthlyLimit[] @relation("CreatedTmzLimits")
+  updatedTmzLimits TmzMonthlyLimit[] @relation("UpdatedTmzLimits")
+  tmzLimitExceptions TmzLimitException[]
+  createdTmzExceptions TmzLimitException[] @relation("CreatedTmzExceptions")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -221,7 +230,7 @@ model User {
 model Product {
   id          String      @id @default(uuid())
   name        String
-  year        Int?
+  year        String?
   productType ProductType
   unit        UnitType    @default(DONA)
   packageSize Int?
@@ -237,6 +246,8 @@ model Product {
   assets           Asset[]
   departmentAssets DepartmentAsset[]
   operations       Operation[]
+  tmzMonthlyLimits TmzMonthlyLimit[]
+  tmzLimitExceptions TmzLimitException[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -494,4 +505,89 @@ model AuditLog {
   @@index([action])
   @@index([resource])
   @@index([createdAt])
+}
+
+// ─── TMZ MONTHLY LIMIT (OYLIK ME'YORLAR) ────────────────
+
+model TmzMonthlyLimit {
+  id              String        @id @default(uuid())
+
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  departmentId    String?
+  department      Department?   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  limitQuantity   Float         // masalan: 40 dona yoki 1 pachka
+  decreeReference String?       // Me'yoriy asos, masalan: "Vazirlik me'yori"
+  fileUrl         String?       // Biriktirilgan buyruq hujjati fayli (PDF/rasm)
+  fileName        String?       // Asl fayl nomi
+  isActive        Boolean       @default(true)
+
+  createdById     String?
+  createdBy       User?         @relation("CreatedTmzLimits", fields: [createdById], references: [id], onDelete: SetNull)
+
+  updatedById     String?
+  updatedBy       User?         @relation("UpdatedTmzLimits", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  exceptions      TmzLimitException[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([organizationId, productId, departmentId, userId])
+  @@index([organizationId])
+  @@index([productId])
+  @@index([departmentId])
+  @@index([userId])
+  @@index([isActive])
+  @@index([createdById])
+  @@index([updatedById])
+}
+
+// ─── TMZ LIMIT EXCEPTION (VAZIR / RAHBARIYAT BUYRUG'I) ──
+
+model TmzLimitException {
+  id              String           @id @default(uuid())
+
+  monthlyLimitId  String?
+  monthlyLimit    TmzMonthlyLimit? @relation(fields: [monthlyLimitId], references: [id], onDelete: SetNull)
+
+  organizationId  String?
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  productId       String
+  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  departmentId    String?
+  department      Department?      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  userId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  yearMonth       String           // masalan: "2026-10"
+  additionalQuantity Float         // masalan: 100 dona
+
+  documentNumber  String?          // Asl hujjat nomi yoki buyruq ma'lumoti
+  fileUrl         String?          // Yuklangan PDF/hujjat fayl manzili
+  fileName        String?          // Asl fayl nomi
+
+  createdById     String?
+  createdBy       User?            @relation("CreatedTmzExceptions", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([organizationId])
+  @@index([productId])
+  @@index([departmentId])
+  @@index([userId])
+  @@index([yearMonth])
+  @@index([monthlyLimitId])
 }

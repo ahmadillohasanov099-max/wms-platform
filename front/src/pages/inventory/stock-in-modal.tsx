@@ -25,7 +25,7 @@ export default function StockInModal({ open, onClose }: Props) {
     productType: z.enum(['BERILADIGAN', 'SARFLANADIGAN']),
     unit: z.enum(['DONA', 'PACHKA', 'KOMPLEKT', 'LITR', 'KG', 'METR']).optional(),
     packageSize: z.coerce.number().min(1).optional().or(z.literal('')),
-    year: z.coerce.number().min(1900).max(2100).optional().or(z.literal('')),
+    year: z.string().optional().or(z.literal('')),
     quantity: z.coerce.number().min(0.0001, t('inventory.validationQty')),
     unitPrice: z.coerce.number().min(0),
     minLevel: z.coerce.number().min(0).optional(),
@@ -108,7 +108,7 @@ export default function StockInModal({ open, onClose }: Props) {
         productType: data.productType,
         unit: data.unit,
         packageSize: data.packageSize ? Number(data.packageSize) : undefined,
-        year: data.year ? Number(data.year) : undefined,
+        year: data.year ? String(data.year).trim() : undefined,
         quantity: qty,
         unitPrice: Number(data.unitPrice),
         minLevel: data.minLevel ? Number(data.minLevel) : undefined,
@@ -150,7 +150,6 @@ export default function StockInModal({ open, onClose }: Props) {
         <div>
           <Input
             label={t('inventory.productName')}
-            placeholder={t('inventory.productNamePlaceholder')}
             error={errors.name?.message?.toString()}
             list="existing-products-datalist"
             required
@@ -205,8 +204,7 @@ export default function StockInModal({ open, onClose }: Props) {
           />
           <Input
             label={t('inventory.year')}
-            type="number"
-            placeholder={t('inventory.yearPlaceholder')}
+            type="text"
             {...register('year')}
           />
         </div>
@@ -294,7 +292,6 @@ export default function StockInModal({ open, onClose }: Props) {
 
         <Input
           label={t('common.documentNumber')}
-          placeholder={t('inventory.docNumberPlaceholder')}
           error={errors.documentNumber?.message?.toString()}
           {...register('documentNumber')}
         />

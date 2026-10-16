@@ -4,13 +4,21 @@ import { formatDate } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Boxes, FileText, User, Calendar, Package } from 'lucide-react';
 import { formatProductQuantity } from '../../../lib/quantity-utils';
+import LimitsSummaryCard from '../../../components/limits/limits-summary-card';
 
 interface DepartmentTmzTabProps {
   tmzData: any;
   isLoading: boolean;
+  departmentId?: string;
+  departmentName?: string;
 }
 
-export default function DepartmentTmzTab({ tmzData, isLoading }: DepartmentTmzTabProps) {
+export default function DepartmentTmzTab({
+  tmzData,
+  isLoading,
+  departmentId,
+  departmentName,
+}: DepartmentTmzTabProps) {
   const { t } = useTranslation();
 
   const items: any[] = Array.isArray(tmzData)
@@ -88,7 +96,14 @@ export default function DepartmentTmzTab({ tmzData, isLoading }: DepartmentTmzTa
   ];
 
   return (
-    <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
+    <div className="space-y-4">
+      {departmentId && (
+        <LimitsSummaryCard
+          departmentId={departmentId}
+          targetName={departmentName}
+        />
+      )}
+      <Card className="rounded-2xl border-gray-200/90 dark:border-white/15 shadow-2xs overflow-hidden">
       <CardHeader
         title={
           <div className="flex items-center justify-between gap-4 w-full flex-wrap">
@@ -179,5 +194,6 @@ export default function DepartmentTmzTab({ tmzData, isLoading }: DepartmentTmzTa
         </div>
       </CardContent>
     </Card>
+  </div>
   );
 }

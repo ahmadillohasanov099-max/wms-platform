@@ -16,7 +16,7 @@ export interface PaginatedProducts {
 }
 export interface UpdateProductDto {
   name?: string;
-  year?: number;
+  year?: string | number;
   unit?: string;
   description?: string;
   imageUrl?: string;

@@ -28,6 +28,7 @@ import Button from '../../../components/ui/button';
 import { RoleBadge, OperationTypeBadge } from '../../../components/ui/badge';
 import CopyableInventoryNumber from '../../../components/ui/copyable-inventory-number';
 import { PageLoader } from '../../../components/ui/spinner';
+import LimitsSummaryCard from '../../../components/limits/limits-summary-card';
 
 interface UserDetailSubViewProps {
   selectedUser: any;
@@ -667,22 +668,27 @@ export default function UserDetailSubView({
               </div>
             )
           ) : tab === 'tmz' ? (
-            historyLoading ? (
-              <div className="p-8">
-                <PageLoader />
-              </div>
-            ) : groupedTmzOperations.length === 0 ? (
-              <div className="text-center text-sm text-gray-500 py-12">
-                <Layers className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                <p className="font-semibold text-gray-700 dark:text-gray-300">
-                  {t('userView.noTmzFound')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {t('userView.noTmzDesc')}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
+            <div className="p-4 space-y-4">
+              <LimitsSummaryCard
+                userId={selectedUserId}
+                targetName={selectedUser?.fullName}
+              />
+              {historyLoading ? (
+                <div className="p-8">
+                  <PageLoader />
+                </div>
+              ) : groupedTmzOperations.length === 0 ? (
+                <div className="text-center text-sm text-gray-500 py-12">
+                  <Layers className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                  <p className="font-semibold text-gray-700 dark:text-gray-300">
+                    {t('userView.noTmzFound')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {t('userView.noTmzDesc')}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-800 text-left bg-gray-50/50 dark:bg-gray-800/10">
@@ -804,8 +810,9 @@ export default function UserDetailSubView({
                   </tbody>
                 </table>
               </div>
-            )
-          ) : historyLoading ? (
+            )}
+          </div>
+        ) : historyLoading ? (
             <div className="p-8">
               <PageLoader />
             </div>

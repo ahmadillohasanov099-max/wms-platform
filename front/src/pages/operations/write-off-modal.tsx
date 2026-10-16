@@ -313,7 +313,6 @@ export default function WriteOffModal({ open, onClose }: Props) {
               </button>
             </div>
             <Input
-              placeholder="AKT-2026-001"
               value={documentNumber}
               onChange={(e) => setDocumentNumber(e.target.value)}
             />

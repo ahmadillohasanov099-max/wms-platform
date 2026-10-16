@@ -10,6 +10,8 @@ import Input from '../../components/ui/input';
 import Select from '../../components/ui/select';
 import Button from '../../components/ui/button';
 import TalabnomaModal, { type TalabnomaData } from '../../components/documents/talabnoma-modal';
+import OverLimitNoticeModal from '../../components/modals/over-limit-notice-modal';
+import type { LimitStatusResponse } from '../../api/endpoints/limits.api';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
 import { invalidateAppQueries } from '../../lib/utils';
@@ -28,6 +30,15 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
   const [talabnomaData, setTalabnomaData] = useState<TalabnomaData | null>(null);
   const [giveMode, setGiveMode] = useState<'PACHKA' | 'DONA'>('PACHKA');
   const [donaCount, setDonaCount] = useState<number | string>(100);
+  const [overLimitState, setOverLimitState] = useState<{
+    open: boolean;
+    limitStatus: LimitStatusResponse | null;
+    requestedQuantity: number;
+  }>({
+    open: false,
+    limitStatus: null,
+    requestedQuantity: 1,
+  });
 
   const schema = z.object({
     departmentId: z.string().min(1, t("operations.validationDept")),
@@ -118,7 +129,16 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
       setTalabnomaData(tData);
     },
     onError: (err: any) => {
-      toast.error(err?.message || t('common.error'));
+      const errData = err?.response?.data;
+      if (errData?.errorCode === 'OVER_MONTHLY_LIMIT' && errData?.limitStatus) {
+        setOverLimitState({
+          open: true,
+          limitStatus: errData.limitStatus,
+          requestedQuantity: errData.requestedQuantity || 1,
+        });
+        return;
+      }
+      toast.error(errData?.message || err?.message || t('common.error'));
     },
   });
 
@@ -248,11 +268,25 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
         </div>
       </Modal>
 
-      {}
       <TalabnomaModal
         open={!!talabnomaData}
         onClose={() => setTalabnomaData(null)}
         data={talabnomaData}
+      />
+
+      <OverLimitNoticeModal
+        open={overLimitState.open}
+        onClose={() => setOverLimitState((prev) => ({ ...prev, open: false }))}
+        limitStatus={overLimitState.limitStatus}
+        requestedQuantity={overLimitState.requestedQuantity}
+        targetName={deptList.find((d) => d.id === watch('departmentId'))?.name}
+        isDepartment={true}
+        departmentId={watch('departmentId')}
+        onLimitIncreased={(updatedStatus) => {
+          toast.success(
+            `Limit yangilandi! Joriy oylik qoldiq: ${updatedStatus.remaining} ${updatedStatus.unit || 'dona'}`,
+          );
+        }}
       />
     </>
   );

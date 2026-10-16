@@ -28,11 +28,10 @@ export class UpdateProductDto {
   @IsEnum(ProductType)
   productType?: ProductType;
 
-  @ApiPropertyOptional({ example: 2024 })
+  @ApiPropertyOptional({ example: '2024 yoki 2026.09.12' })
   @IsOptional()
-  @IsInt()
-  @Min(1900)
-  year?: number;
+  @IsString()
+  year?: string;
 
   @ApiPropertyOptional({ enum: UnitType })
   @IsOptional()

@@ -68,3 +68,7 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# Uploads
+uploads/
+*/uploads/

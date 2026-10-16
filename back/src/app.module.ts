@@ -18,6 +18,7 @@ import { InventoryModule } from './modules/inventory';
 import { OperationsModule } from './modules/operations';
 import { StatsModule } from './modules/stats';
 import { MailModule } from './modules/nodemailer';
+import { LimitsModule } from './modules/limits/limits.module';
 import { EventsModule } from './modules/events';
 import { OrganizationsModule } from './modules/organizations';
 import { RequestsModule } from './modules/requests';
@@ -70,6 +71,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     HistoryModule,
     InventoryModule,
     OperationsModule,
+    LimitsModule,
     StatsModule,
     MailModule,
   ],

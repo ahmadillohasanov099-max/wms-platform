@@ -8,6 +8,8 @@ import Button from "../../components/ui/button";
 import TalabnomaModal, {
   type TalabnomaData,
 } from "../../components/documents/talabnoma-modal";
+import OverLimitNoticeModal from "../../components/modals/over-limit-notice-modal";
+import type { LimitStatusResponse } from "../../api/endpoints/limits.api";
 import { useAuthStore } from "../../store/auth.store";
 import { invalidateAppQueries } from "../../lib/utils";
 import { useTranslation } from "../../hooks/useTranslation";
@@ -73,6 +75,15 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
   const [talabnomaData, setTalabnomaData] = useState<TalabnomaData | null>(
     null,
   );
+  const [overLimitState, setOverLimitState] = useState<{
+    open: boolean;
+    limitStatus: LimitStatusResponse | null;
+    requestedQuantity: number;
+  }>({
+    open: false,
+    limitStatus: null,
+    requestedQuantity: 1,
+  });
 
   // Fetch Users (server-side search enabled)
   const { data: usersData, isLoading: isUsersLoading } = useQuery({
@@ -359,7 +370,16 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       setTalabnomaData(tData);
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Material berishda xatolik yuz berdi");
+      const errData = err?.response?.data;
+      if (errData?.errorCode === 'OVER_MONTHLY_LIMIT' && errData?.limitStatus) {
+        setOverLimitState({
+          open: true,
+          limitStatus: errData.limitStatus,
+          requestedQuantity: errData.requestedQuantity || 1,
+        });
+        return;
+      }
+      toast.error(errData?.message || err?.message || "Material berishda xatolik yuz berdi");
     },
   });
 
@@ -766,6 +786,21 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
           data={talabnomaData}
         />
       )}
+
+      <OverLimitNoticeModal
+        open={overLimitState.open}
+        onClose={() => setOverLimitState((prev) => ({ ...prev, open: false }))}
+        limitStatus={overLimitState.limitStatus}
+        requestedQuantity={overLimitState.requestedQuantity}
+        targetName={selectedUser?.fullName}
+        userId={selectedUser?.id}
+        departmentId={selectedUser?.departmentId || selectedUser?.department?.id}
+        onLimitIncreased={(updatedStatus) => {
+          toast.success(
+            `Limit yangilandi! Joriy oylik qoldiq: ${updatedStatus.remaining} ${updatedStatus.unit || 'dona'}`,
+          );
+        }}
+      />
     </>
   );
 }
