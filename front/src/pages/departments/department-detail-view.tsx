@@ -132,7 +132,7 @@ export default function DepartmentDetailView({
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['department-users', departmentId],
-    queryFn: () => usersApi.getAll({ departmentId, limit: 100 }),
+    queryFn: () => usersApi.getAll({ departmentId, limit: 100, employmentStatus: 'ACTIVE' }),
     enabled: !!departmentId && !selectedUserId,
   });
 
@@ -252,6 +252,7 @@ export default function DepartmentDetailView({
               isLeader={!!(loggedInUser?.id && (department?.leaderId === loggedInUser?.id || department?.leader?.id === loggedInUser?.id))}
               isDeptMember={loggedInUser?.departmentId === departmentId}
               onReturnClick={handleReturnClick}
+              department={department}
             />
           ) : activeTab === 'tmz' ? (
             <DepartmentTmzTab

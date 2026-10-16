@@ -387,11 +387,18 @@ export class UsersOffboardingService {
       ? user.username
       : `${user.username}_offboarded_${Date.now()}`;
 
+    // Bo'lim a'zoligi va rahbarlik lavozimidan ozod qilish
+    await this.prisma.department.updateMany({
+      where: { leaderId: userId },
+      data: { leaderId: null },
+    });
+
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         employmentStatus: EmploymentStatus.OFFBOARDED,
         isActive: false,
+        departmentId: null,
         username: freedUsername,
         offboardingCompletedAt: now,
         offboardingCompletedById: performedById,

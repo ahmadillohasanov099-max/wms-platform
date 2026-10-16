@@ -150,7 +150,14 @@ export class OperationsAssignmentService {
       }
 
       await tx.assignment.create({
-        data: { userId: dto.userId, assetId, status: 'PENDING' },
+        data: {
+          userId: dto.userId,
+          assetId,
+          status: 'PENDING',
+          documentNumber: dto.documentNumber,
+          assignedById: performedById,
+          note: dto.note,
+        },
       });
 
       const invUpdate = await tx.inventory.updateMany({
@@ -160,22 +167,6 @@ export class OperationsAssignmentService {
       if (invUpdate.count === 0) {
         throw new BadRequestException("Omborda yetarli miqdor yo'q");
       }
-
-      const op = await tx.operation.create({
-        data: {
-          type: 'GIVE_TO_USER',
-          quantity: 1,
-          userId: dto.userId,
-          assetId,
-          productId: dto.productId,
-          performedById,
-          documentNumber: dto.documentNumber,
-          note: dto.note,
-          organizationId: performerOrgId,
-        },
-      });
-
-      this.notifierService.notifyTelegramForOperation(op.id, dto.documentNumber);
 
       return tx.asset.findUnique({
         where: { id: assetId },
@@ -200,6 +191,12 @@ export class OperationsAssignmentService {
       documentNumber: dto.documentNumber,
       assignedAt: new Date().toISOString(),
     });
+
+    void this.telegramService.sendUserNotificationAlert(
+      dto.userId,
+      "📦 Yangi jihoz biriktirildi (Tasdiqlash kutilmoqda)",
+      `Sizga "${product?.name || 'Jihoz'}" (Inv: ${existingAsset.inventoryNumber}) biriktirildi. Qabul qilish yoki rad etish uchun tizimga kiring.`,
+    );
 
     return result;
   }
@@ -280,21 +277,13 @@ export class OperationsAssignmentService {
       }
 
       await tx.assignment.create({
-        data: { departmentId: dto.departmentId, assetId, status: 'PENDING' },
-      });
-
-      await tx.departmentAsset.upsert({
-        where: {
-          departmentId_productId: {
-            departmentId: dto.departmentId,
-            productId: dto.productId,
-          },
-        },
-        update: { quantity: { increment: 1 } },
-        create: {
+        data: {
           departmentId: dto.departmentId,
-          productId: dto.productId,
-          quantity: 1,
+          assetId,
+          status: 'PENDING',
+          documentNumber: dto.documentNumber,
+          assignedById: performedById,
+          note: dto.note,
         },
       });
 
@@ -305,22 +294,6 @@ export class OperationsAssignmentService {
       if (invUpdate.count === 0) {
         throw new BadRequestException("Omborda yetarli miqdor yo'q");
       }
-
-      const op = await tx.operation.create({
-        data: {
-          type: 'ASSIGN_TO_DEPT',
-          quantity: 1,
-          departmentId: dto.departmentId,
-          assetId,
-          productId: dto.productId,
-          performedById,
-          documentNumber: dto.documentNumber,
-          note: dto.note,
-          organizationId: performerOrgId,
-        },
-      });
-
-      this.notifierService.notifyTelegramForOperation(op.id, dto.documentNumber);
 
       return tx.asset.findUnique({
         where: { id: assetId },
@@ -455,46 +428,33 @@ export class OperationsAssignmentService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.assignment.update({
-        where: { id: assignment.id },
-        data: { returnedAt: new Date() },
-      });
-
-      await tx.assignment.create({
-        data: { userId: dto.toUserId, assetId: dto.assetId, status: 'PENDING' },
-      });
-
-      const op = await tx.operation.create({
+      const newAssignment = await tx.assignment.create({
         data: {
-          type: 'TRANSFER_USER',
-          quantity: 1,
           userId: dto.toUserId,
           fromUserId: dto.fromUserId,
           assetId: dto.assetId,
-          productId: asset.productId,
-          performedById,
+          status: 'PENDING',
           documentNumber: dto.documentNumber,
+          assignedById: performedById,
           note: dto.note,
-          organizationId: performerOrgId,
         },
       });
 
-      this.notifierService.notifyTelegramForOperation(op.id, dto.documentNumber);
-
-      return { message: "Jihoz muvaffaqiyatli o'tkazildi", op };
+      return { message: "Jihozni boshqa xodimga o'tkazish so'rovi yuborildi (Tasdiqlash kutilmoqda)", newAssignment };
     });
 
-    this.eventsGateway.broadcastAssignmentUpdated({
-      type: 'TRANSFER_USER',
-      fromUserId: dto.fromUserId,
-      toUserId: dto.toUserId,
-      assetId: dto.assetId,
-    });
     this.eventsGateway.broadcastAssignmentCreated({
       userId: dto.toUserId,
       assetId: dto.assetId,
+      documentNumber: dto.documentNumber,
+      assignedAt: new Date().toISOString(),
     });
-    this.eventsGateway.broadcastOperationCreated(result.op);
+
+    void this.telegramService.sendUserNotificationAlert(
+      dto.toUserId,
+      "📦 Sizga jihoz o'tkazildi (Tasdiqlash kutilmoqda)",
+      `Sizga "${asset.product?.name || 'Jihoz'}" (Inv: ${asset.inventoryNumber}) o'tkazildi. Qabul qilish yoki rad etish uchun tizimga kiring.`,
+    );
 
     return { message: result.message };
   }
@@ -765,18 +725,85 @@ export class OperationsAssignmentService {
       }
     }
 
-    await this.prisma.assignment.update({
-      where: { id: assignmentId },
-      data: {
-        status: 'ACCEPTED',
-        acceptedAt: new Date(),
-      },
+    const now = new Date();
+    const op = await this.prisma.$transaction(async (tx) => {
+      await tx.assignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: 'ACCEPTED',
+          acceptedAt: now,
+        },
+      });
+
+      // If it was a transfer, close the fromUser's active assignment
+      if (assignment.fromUserId) {
+        await tx.assignment.updateMany({
+          where: {
+            assetId: assignment.assetId,
+            userId: assignment.fromUserId,
+            returnedAt: null,
+            id: { not: assignmentId },
+          },
+          data: { returnedAt: now },
+        });
+      }
+
+      // If assigned to department, increment departmentAsset count
+      if (assignment.departmentId) {
+        await tx.departmentAsset.upsert({
+          where: {
+            departmentId_productId: {
+              departmentId: assignment.departmentId,
+              productId: assignment.asset.productId,
+            },
+          },
+          update: { quantity: { increment: 1 } },
+          create: {
+            departmentId: assignment.departmentId,
+            productId: assignment.asset.productId,
+            quantity: 1,
+          },
+        });
+      }
+
+      // Determine operation type
+      let opType: OperationType = OperationType.GIVE_TO_USER;
+      if (assignment.fromUserId) {
+        opType = OperationType.TRANSFER_USER;
+      } else if (assignment.departmentId) {
+        opType = OperationType.ASSIGN_TO_DEPT;
+      }
+
+      const docNumber = assignment.documentNumber || `MJSH-${Date.now().toString().slice(-6)}`;
+      const performerId = assignment.assignedById || currentUserId;
+      const orgId = assignment.user?.organizationId || assignment.department?.organizationId || null;
+
+      const createdOp = await tx.operation.create({
+        data: {
+          type: opType,
+          quantity: 1,
+          userId: assignment.userId || undefined,
+          fromUserId: assignment.fromUserId || undefined,
+          departmentId: assignment.departmentId || undefined,
+          assetId: assignment.assetId,
+          productId: assignment.asset.productId,
+          performedById: performerId,
+          documentNumber: docNumber,
+          note: assignment.note,
+          organizationId: orgId,
+        },
+      });
+
+      this.notifierService.notifyTelegramForOperation(createdOp.id, docNumber);
+
+      return createdOp;
     });
 
     this.eventsGateway.broadcastAssignmentUpdated({
       type: 'ASSIGNMENT_ACCEPTED',
       assignmentId,
     });
+    this.eventsGateway.broadcastOperationCreated(op);
 
     return {
       message: `"${assignment.asset.product.name}" jihozi muvaffaqiyatli qabul qilindi`,
@@ -836,11 +863,13 @@ export class OperationsAssignmentService {
         },
       });
 
-      // Return asset to inventory
-      await tx.inventory.update({
-        where: { productId: assignment.asset.productId },
-        data: { quantity: { increment: 1 } },
-      });
+      // If it was giveToUser or assignToDept (not transfer), return asset to warehouse inventory (+1)
+      if (!assignment.fromUserId) {
+        await tx.inventory.update({
+          where: { productId: assignment.asset.productId },
+          data: { quantity: { increment: 1 } },
+        });
+      }
 
       // If it was assigned to department, decrement DepartmentAsset
       if (assignment.departmentId) {
@@ -854,32 +883,8 @@ export class OperationsAssignmentService {
         });
       }
 
-      // Record RETURN operation on rejection
-      const op = await tx.operation.create({
-        data: {
-          type: assignment.userId ? OperationType.RETURN_FROM_USER : OperationType.RETURN_FROM_DEPT,
-          quantity: 1,
-          userId: assignment.userId || undefined,
-          departmentId: assignment.departmentId || undefined,
-          assetId: assignment.assetId,
-          productId: assignment.asset.productId,
-          performedById: currentUserId,
-          documentNumber: `RAD-${Date.now().toString().slice(-6)}`,
-          note: `Rad etildi: ${reason || 'Xodim tomonidan rad etildi'}`,
-          organizationId: assignment.user?.organizationId || assignment.department?.organizationId || null,
-        },
-      });
-
-      // Asset is already returned to inventory and assignment marked as REJECTED
-      const lastOp = await tx.operation.findFirst({
-        where: {
-          assetId: assignment.assetId,
-          type: { in: [OperationType.GIVE_TO_USER, OperationType.ASSIGN_TO_DEPT] },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { performedById: true },
-      });
-      const assignerId = lastOp?.performedById;
+      // NOTE: Do NOT create any RETURN operation. The assignment was never accepted, so history remains clean!
+      const assignerId = assignment.assignedById;
 
       this.eventsGateway.broadcastAssignmentUpdated({
         type: 'ASSIGNMENT_REJECTED',
@@ -894,12 +899,11 @@ export class OperationsAssignmentService {
       this.eventsGateway.broadcastInventoryUpdated({
         productId: assignment.asset.productId,
       });
-      this.eventsGateway.broadcastOperationCreated(op);
 
       if (assignerId) {
         void this.telegramService.sendUserNotificationAlert(
           assignerId,
-          "❌ Xodim jihozni qabul qilmadi",
+          "❌ Jihoz qabul qilinmadi (Rad etildi)",
           `Xodim ${assignment.user?.fullName || ''} siz biriktirgan "${assignment.asset.product.name}" jihozini rad etdi.\n\nSababi: ${reason || 'Sabab ko‘rsatilmadi'}`,
         );
       }

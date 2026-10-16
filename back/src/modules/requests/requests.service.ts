@@ -737,18 +737,79 @@ export class RequestsService {
       }
 
       const now = new Date();
-      const updated = await this.prisma.assignment.update({
-        where: { id },
-        data: {
-          status: 'ACCEPTED',
-          acceptedAt: now,
-        },
+      const { updated, op } = await this.prisma.$transaction(async (tx) => {
+        const u = await tx.assignment.update({
+          where: { id },
+          data: {
+            status: 'ACCEPTED',
+            acceptedAt: now,
+          },
+        });
+
+        if (assignment.fromUserId) {
+          await tx.assignment.updateMany({
+            where: {
+              assetId: assignment.assetId,
+              userId: assignment.fromUserId,
+              returnedAt: null,
+              id: { not: id },
+            },
+            data: { returnedAt: now },
+          });
+        }
+
+        if (assignment.departmentId) {
+          await tx.departmentAsset.upsert({
+            where: {
+              departmentId_productId: {
+                departmentId: assignment.departmentId,
+                productId: assignment.asset.productId,
+              },
+            },
+            update: { quantity: { increment: 1 } },
+            create: {
+              departmentId: assignment.departmentId,
+              productId: assignment.asset.productId,
+              quantity: 1,
+            },
+          });
+        }
+
+        let opType: OperationType = OperationType.GIVE_TO_USER;
+        if (assignment.fromUserId) {
+          opType = OperationType.TRANSFER_USER;
+        } else if (assignment.departmentId) {
+          opType = OperationType.ASSIGN_TO_DEPT;
+        }
+
+        const docNumber = assignment.documentNumber || `MJSH-${Date.now().toString().slice(-6)}`;
+        const performerId = assignment.assignedById || reviewerId;
+        const orgId = assignment.user?.organizationId || assignment.department?.organizationId || null;
+
+        const createdOp = await tx.operation.create({
+          data: {
+            type: opType,
+            quantity: 1,
+            userId: assignment.userId || undefined,
+            fromUserId: assignment.fromUserId || undefined,
+            departmentId: assignment.departmentId || undefined,
+            assetId: assignment.assetId,
+            productId: assignment.asset.productId,
+            performedById: performerId,
+            documentNumber: docNumber,
+            note: assignment.note,
+            organizationId: orgId,
+          },
+        });
+
+        return { updated: u, op: createdOp };
       });
 
       this.eventsGateway.broadcastAssignmentUpdated({
         type: 'ASSIGNMENT_ACCEPTED',
         assignmentId: id,
       });
+      this.eventsGateway.broadcastOperationCreated(op);
 
       return {
         ...updated,

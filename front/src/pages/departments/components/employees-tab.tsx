@@ -12,11 +12,15 @@ interface EmployeesTabProps {
 export default function EmployeesTab({ employees, isLoading, onSelectUser }: EmployeesTabProps) {
   const { t } = useTranslation();
 
+  const activeEmployees = (employees || []).filter(
+    (emp: any) => emp.employmentStatus !== 'OFFBOARDED' && emp.isActive !== false
+  );
+
   if (isLoading) {
     return <PageLoader />;
   }
 
-  if (employees.length === 0) {
+  if (activeEmployees.length === 0) {
     return (
       <Card className="text-center py-12 text-gray-500 dark:text-gray-400">
         {t('departments.noEmployees')}
@@ -26,7 +30,7 @@ export default function EmployeesTab({ employees, isLoading, onSelectUser }: Emp
 
   return (
     <div className="space-y-1 sm:space-y-1.5">
-      {employees.map((emp: any) => (
+      {activeEmployees.map((emp: any) => (
         <div
           key={emp.id}
           onClick={() => onSelectUser(emp.id)}

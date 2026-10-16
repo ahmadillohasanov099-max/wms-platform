@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, EmploymentStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma';
 import { AuditService } from 'src/common/services/audit.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -59,10 +59,12 @@ export class DepartmentsService {
             username: true,
             position: true,
             phone: true,
+            passport: true,
+            address: true,
           },
         },
         users: {
-          where: { deletedAt: null, isActive: true },
+          where: { deletedAt: null, isActive: true, employmentStatus: EmploymentStatus.ACTIVE },
           select: {
             id: true,
             fullName: true,
@@ -93,16 +95,54 @@ export class DepartmentsService {
       },
       include: {
         user: { select: { id: true, fullName: true } },
+        assignedBy: { select: { id: true, fullName: true } },
         department: { select: { id: true, name: true } },
         asset: {
           include: {
             product: {
-              select: { id: true, name: true, productType: true },
+              select: { id: true, name: true, productType: true, unit: true, packageSize: true },
             },
           },
         },
       },
       orderBy: { assignedAt: 'desc' },
+    });
+
+    const assetIds = assignments.map((a) => a.assetId);
+    const opRecords =
+      assetIds.length > 0
+        ? await this.prisma.operation.findMany({
+            where: {
+              departmentId: id,
+              assetId: { in: assetIds },
+              type: 'ASSIGN_TO_DEPT',
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              assetId: true,
+              documentNumber: true,
+              createdAt: true,
+              performedBy: { select: { id: true, fullName: true } },
+            },
+          })
+        : [];
+
+    const opByAssetId = new Map<string, (typeof opRecords)[0]>();
+    for (const op of opRecords) {
+      if (op.assetId && !opByAssetId.has(op.assetId)) {
+        opByAssetId.set(op.assetId, op);
+      }
+    }
+
+    const assignmentsWithOps = assignments.map((a) => {
+      const op = opByAssetId.get(a.assetId);
+      return {
+        ...a,
+        documentNumber: a.documentNumber || op?.documentNumber || null,
+        operationId: op?.id || null,
+        performedBy: a.assignedBy || op?.performedBy || a.user || null,
+      };
     });
 
     const operations = await this.prisma.operation.findMany({
@@ -119,7 +159,7 @@ export class DepartmentsService {
 
     return {
       ...department,
-      assignments,
+      assignments: assignmentsWithOps,
       operations,
     };
   }
@@ -135,7 +175,7 @@ export class DepartmentsService {
 
     const [userCount, assetCount, sarflanadiganAgg, giveToDeptAgg] = await Promise.all([
       this.prisma.user.count({
-        where: { departmentId: id, deletedAt: null, isActive: true },
+        where: { departmentId: id, deletedAt: null, isActive: true, employmentStatus: EmploymentStatus.ACTIVE },
       }),
       this.prisma.assignment.count({
         where: {

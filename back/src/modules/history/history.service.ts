@@ -79,7 +79,7 @@ export class HistoryService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          product: { select: { id: true, name: true, productType: true } },
+          product: { select: { id: true, name: true, productType: true, unit: true, packageSize: true } },
           asset: { select: { id: true, inventoryNumber: true } },
           user: { select: { id: true, fullName: true, username: true } },
           fromUser: { select: { id: true, fullName: true, username: true } },
@@ -159,7 +159,7 @@ export class HistoryService {
       orderBy: { createdAt: 'desc' },
       include: {
         organization: { select: { name: true } },
-        product: { select: { name: true } },
+        product: { select: { name: true, unit: true, packageSize: true } },
         asset: { select: { inventoryNumber: true } },
         user: { select: { fullName: true } },
         fromUser: { select: { fullName: true } },

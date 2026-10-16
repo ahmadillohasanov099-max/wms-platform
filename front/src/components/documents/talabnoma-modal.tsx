@@ -38,33 +38,77 @@ export function getNextTalabnomaNumber(): number {
   }
 }
 
-export function numberToWordsUz(num: number): string {
-  if (num <= 0) return '';
+import { getUnitLabel } from '../../lib/quantity-utils';
+
+function integerToWordsUz(n: number): string {
+  if (n === 0) return 'nol';
+  if (n < 0) return 'minus ' + integerToWordsUz(-n);
 
   const ones = ['', 'bir', 'ikki', 'uch', 'to‘rt', 'besh', 'olti', 'yetti', 'sakkiz', 'to‘qqiz'];
-  const tens = ['', 'o‘n', 'yigirma', 'o‘ttiz', 'qirq', 'ellik', 'oltmish', 'yetmish', 'sakkson', 'to‘qson'];
+  const tens = ['', 'o‘n', 'yigirma', 'o‘ttiz', 'qirq', 'ellik', 'oltmish', 'yetmish', 'sakson', 'to‘qson'];
 
-  if (num < 10) return ones[num].charAt(0).toUpperCase() + ones[num].slice(1);
-  if (num < 100) {
-    const t = Math.floor(num / 10);
-    const o = num % 10;
-    const res = (tens[t] + (o ? ' ' + ones[o] : '')).trim();
-    return res.charAt(0).toUpperCase() + res.slice(1);
+  if (n < 10) return ones[n];
+  if (n < 100) {
+    const t = Math.floor(n / 10);
+    const o = n % 10;
+    return (tens[t] + (o ? ' ' + ones[o] : '')).trim();
   }
-  if (num < 1000) {
-    const h = Math.floor(num / 100);
-    const rem = num % 100;
-    const res = ((h === 1 ? 'yuz' : ones[h] + ' yuz') + (rem ? ' ' + numberToWordsUz(rem).toLowerCase() : '')).trim();
-    return res.charAt(0).toUpperCase() + res.slice(1);
+  if (n < 1000) {
+    const h = Math.floor(n / 100);
+    const rem = n % 100;
+    const hStr = h === 1 ? 'yuz' : ones[h] + ' yuz';
+    return (hStr + (rem ? ' ' + integerToWordsUz(rem) : '')).trim();
   }
-  if (num < 1000000) {
-    const th = Math.floor(num / 1000);
-    const rem = num % 1000;
-    const res = ((th === 1 ? 'ming' : numberToWordsUz(th).toLowerCase() + ' ming') + (rem ? ' ' + numberToWordsUz(rem).toLowerCase() : '')).trim();
-    return res.charAt(0).toUpperCase() + res.slice(1);
+  if (n < 1000000) {
+    const th = Math.floor(n / 1000);
+    const rem = n % 1000;
+    const thStr = th === 1 ? 'ming' : integerToWordsUz(th) + ' ming';
+    return (thStr + (rem ? ' ' + integerToWordsUz(rem) : '')).trim();
+  }
+  if (n < 1000000000) {
+    const m = Math.floor(n / 1000000);
+    const rem = n % 1000000;
+    const mStr = integerToWordsUz(m) + ' million';
+    return (mStr + (rem ? ' ' + integerToWordsUz(rem) : '')).trim();
+  }
+  return n.toString();
+}
+
+export function numberToWordsUz(num: number | string): string {
+  if (num === null || num === undefined || num === '') return '';
+  const numClean = Number(num);
+  if (isNaN(numClean) || numClean <= 0) return '';
+
+  const numStr = numClean.toFixed(4).replace(/\.?0+$/, '');
+  const parts = numStr.split('.');
+
+  const intPart = parseInt(parts[0], 10);
+  const intWords = integerToWordsUz(intPart);
+
+  if (parts.length === 1) {
+    return intWords.charAt(0).toUpperCase() + intWords.slice(1);
   }
 
-  return num.toString();
+  const decStr = parts[1];
+  const decNum = parseInt(decStr, 10);
+  if (decNum === 0) {
+    return intWords.charAt(0).toUpperCase() + intWords.slice(1);
+  }
+
+  let scale = '';
+  if (decStr.length === 1) {
+    scale = 'o‘ndan';
+  } else if (decStr.length === 2) {
+    scale = 'yuzdan';
+  } else if (decStr.length === 3) {
+    scale = 'mingdan';
+  } else {
+    scale = 'o‘n mingdan';
+  }
+
+  const decWords = integerToWordsUz(decNum);
+  const full = `${intWords} butun ${scale} ${decWords}`.trim();
+  return full.charAt(0).toUpperCase() + full.slice(1);
 }
 
 export default function TalabnomaModal({ open, onClose, data }: Props) {
@@ -133,7 +177,7 @@ export default function TalabnomaModal({ open, onClose, data }: Props) {
     rows.push({
       index: i + 1,
       name: item ? item.name : '',
-      unit: item ? item.unit : '',
+      unit: item ? getUnitLabel(item.unit) : '',
       qty: item ? item.quantity : '',
       qtyWords: item ? numberToWordsUz(item.quantity) : '',
     });

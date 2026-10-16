@@ -8,8 +8,9 @@ import RejectReasonModal from '../../../components/modals/reject-reason-modal';
 import { operationsApi, requestsApi } from '../../../api';
 import { formatDate, invalidateAppQueries } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { CheckCircle2, XCircle, Wrench, Clock } from 'lucide-react';
+import { CheckCircle2, XCircle, Wrench, Clock, FileText } from 'lucide-react';
 import ProfileRequestModal from '../../profile/components/profile-request-modal';
+import ModdiyJavobgarlikModal, { type ModdiyJavobgarlikData } from '../../../components/documents/moddiy-javobgarlik-modal';
 
 interface DepartmentAssetsTabProps {
   assetsData?: any;
@@ -19,6 +20,7 @@ interface DepartmentAssetsTabProps {
   isLeader?: boolean;
   isDeptMember?: boolean;
   onReturnClick?: (item: any) => void;
+  department?: any;
 }
 
 export default function DepartmentAssetsTab({
@@ -29,11 +31,14 @@ export default function DepartmentAssetsTab({
   isLeader,
   isDeptMember,
   onReturnClick,
+  department,
 }: DepartmentAssetsTabProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [rejectingItem, setRejectingItem] = useState<any | null>(null);
   const [requestModalItem, setRequestModalItem] = useState<any | null>(null);
+  const [moddiyModalOpen, setModdiyModalOpen] = useState(false);
+  const [moddiyContractData, setModdiyContractData] = useState<ModdiyJavobgarlikData | null>(null);
 
   const canAccept = !!(isLeader || isDeptMember);
 
@@ -111,6 +116,74 @@ export default function DepartmentAssetsTab({
     : Array.isArray(assetsData)
     ? assetsData
     : assetsData?.data || [];
+
+  const batchCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item: any) => {
+      const doc = item.documentNumber || item.asset?.documentNumber;
+      if (doc && doc !== '—') {
+        map.set(doc, (map.get(doc) || 0) + 1);
+      }
+    });
+    return map;
+  }, [items]);
+
+  const handleOpenContract = (row: any) => {
+    const docNum = row.documentNumber || row.asset?.documentNumber;
+    let batchItems: any[] = [];
+
+    if (docNum && docNum !== '—') {
+      batchItems = items.filter((item: any) => {
+        const itemDoc = item.documentNumber || item.asset?.documentNumber;
+        return itemDoc === docNum && item.status !== 'REJECTED';
+      });
+    }
+
+    if (batchItems.length === 0) {
+      const rowTime = new Date(row.assignedAt || row.createdAt || 0).getTime();
+      batchItems = items.filter((item: any) => {
+        const itemTime = new Date(item.assignedAt || item.createdAt || 0).getTime();
+        return Math.abs(itemTime - rowTime) < 120000 && item.status !== 'REJECTED';
+      });
+    }
+
+    if (batchItems.length === 0) {
+      batchItems = [row];
+    }
+
+    const leader = department?.leader || row.department?.leader;
+    const deptName = department?.name || row.department?.name || '';
+    const toRecipient = leader?.fullName
+      ? leader.fullName
+      : row.user?.fullName
+      ? row.user.fullName
+      : deptName
+      ? `Bo'lim: ${deptName}`
+      : 'Bo‘lim';
+
+    const recipientPosition = leader?.position || (leader ? "Bo'lim boshlig'i" : row.user?.position || (deptName ? "Bo'lim mas'uli" : undefined));
+    const recipientPassport = leader?.passport || row.user?.passport || row.user?.passportSeries || '';
+    const recipientAddress = leader?.address || row.user?.address || '';
+
+    setModdiyContractData({
+      documentNumber: docNum || `MJSH-2026-${String(row.asset?.inventoryNumber || row.inventoryNumber || '001').slice(-4)}`,
+      date: row.assignedAt || row.createdAt || new Date(),
+      fromUser: 'Алиматов Таир Наматуллаевич',
+      toRecipient,
+      recipientPosition,
+      recipientDepartment: deptName,
+      recipientPassport,
+      recipientAddress,
+      items: batchItems.map((b: any) => ({
+        name: b.asset?.product?.name || b.product?.name || b.name || '—',
+        inventoryNumber: b.asset?.inventoryNumber || b.inventoryNumber || '—',
+        serialNumber: b.asset?.serialNumber || b.serialNumber || '',
+        unit: b.asset?.product?.unit || b.product?.unit || 'dona',
+        quantity: 1,
+      })),
+    });
+    setModdiyModalOpen(true);
+  };
 
   const columns = [
     {
@@ -281,6 +354,25 @@ export default function DepartmentAssetsTab({
                 <span>{t('departments.requestReturnRepair')}</span>
               </button>
             )}
+            {!isPending && row.status !== 'REJECTED' && (
+              <button
+                type="button"
+                onClick={() => handleOpenContract(row)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 rounded-lg transition-all border border-teal-200 dark:border-teal-800 cursor-pointer shadow-2xs active:scale-95"
+                title={t('userView.viewBatchContractTitle') || "Moddiy javobgarlik shartnomasini ko'rish"}
+              >
+                <FileText className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>
+                  {(() => {
+                    const doc = row.documentNumber || row.asset?.documentNumber;
+                    const batchCount = doc && doc !== '—' ? batchCountMap.get(doc) : 1;
+                    return batchCount && batchCount > 1
+                      ? `${t('profile.contract')} (${batchCount})`
+                      : t('profile.contract');
+                  })()}
+                </span>
+              </button>
+            )}
             {!isPending && isAdmin && onReturnClick && (
               <button
                 onClick={() => onReturnClick(row)}
@@ -339,6 +431,14 @@ export default function DepartmentAssetsTab({
             queryClient.invalidateQueries({ queryKey: ['department-detail'] });
             setRequestModalItem(null);
           }}
+        />
+      )}
+
+      {moddiyContractData && (
+        <ModdiyJavobgarlikModal
+          open={moddiyModalOpen}
+          onClose={() => setModdiyModalOpen(false)}
+          data={moddiyContractData}
         />
       )}
     </>

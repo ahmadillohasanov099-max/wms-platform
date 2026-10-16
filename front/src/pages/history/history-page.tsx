@@ -10,7 +10,7 @@ import { exportToStyledExcel } from '../../lib/export';
 import { FileText, Loader2, Printer } from 'lucide-react';
 import api from '../../api/axios';
 import { useTranslation } from '../../hooks/useTranslation';
-import { formatProductQuantity } from '../../lib/quantity-utils';
+import { formatProductQuantity, getUnitLabel } from '../../lib/quantity-utils';
 import TalabnomaModal, { type TalabnomaData } from '../../components/documents/talabnoma-modal';
 import DalolatnomaModal, { type DalolatnomaData } from '../../components/documents/dalolatnoma-modal';
 import ModdiyJavobgarlikModal, { type ModdiyJavobgarlikData } from '../../components/documents/moddiy-javobgarlik-modal';
@@ -250,7 +250,7 @@ export default function HistoryPage() {
       toRecipient: recipient,
       items: groupItems.map((gi: any) => ({
         name: gi.product?.name ? `${gi.product.name}${gi.asset?.inventoryNumber ? ` (Inv: ${gi.asset.inventoryNumber})` : ''}` : 'Mahsulot',
-        unit: gi.product?.unit || 'dona',
+        unit: getUnitLabel(gi.product?.unit),
         quantity: gi.quantity || 1,
       })),
       note: row.note,
@@ -272,7 +272,7 @@ export default function HistoryPage() {
         name: gi.product?.name ?? 'Asosiy vosita',
         inventoryNumber: gi.asset?.inventoryNumber || gi.inventoryNumber || '—',
         serialNumber: gi.asset?.serialNumber || gi.serialNumber || undefined,
-        unit: gi.product?.unit || 'dona',
+        unit: getUnitLabel(gi.product?.unit),
         quantity: gi.quantity || 1,
       })),
       note: row.note,
@@ -298,7 +298,7 @@ export default function HistoryPage() {
         name: gi.product?.name ?? 'Asosiy vosita',
         inventoryNumber: gi.asset?.inventoryNumber || gi.inventoryNumber || '—',
         serialNumber: gi.asset?.serialNumber || gi.serialNumber || undefined,
-        unit: gi.product?.unit || 'dona',
+        unit: getUnitLabel(gi.product?.unit),
         quantity: gi.quantity || 1,
       })),
       note: row.note,

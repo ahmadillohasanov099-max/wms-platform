@@ -46,7 +46,11 @@ export class UsersService {
       deletedAt: null,
       ...orgFilter,
       ...(role && { role }),
-      ...(employmentStatus && { employmentStatus }),
+      ...(employmentStatus
+        ? { employmentStatus }
+        : departmentId
+        ? { employmentStatus: EmploymentStatus.ACTIVE, isActive: true }
+        : {}),
       ...(departmentId && { departmentId }),
       ...(search && {
         OR: [
@@ -154,14 +158,15 @@ export class UsersService {
   async getAssignments(id: string) {
     await this.findOne(id);
 
-    return this.prisma.assignment.findMany({
+    const assignments = await this.prisma.assignment.findMany({
       where: {
         userId: id,
         returnedAt: null,
       },
       include: {
         department: { select: { id: true, name: true } },
-        user: { select: { id: true, fullName: true } },
+        user: { select: { id: true, fullName: true, position: true, passport: true, address: true } },
+        assignedBy: { select: { id: true, fullName: true } },
         asset: {
           include: {
             product: {
@@ -171,6 +176,42 @@ export class UsersService {
         },
       },
       orderBy: { assignedAt: 'desc' },
+    });
+
+    const assetIds = assignments.map((a) => a.assetId);
+    const operations =
+      assetIds.length > 0
+        ? await this.prisma.operation.findMany({
+            where: {
+              userId: id,
+              assetId: { in: assetIds },
+              type: { in: ['GIVE_TO_USER', 'TRANSFER_USER'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              assetId: true,
+              documentNumber: true,
+              performedBy: { select: { id: true, fullName: true } },
+            },
+          })
+        : [];
+
+    const opByAssetId = new Map<string, (typeof operations)[0]>();
+    for (const op of operations) {
+      if (op.assetId && !opByAssetId.has(op.assetId)) {
+        opByAssetId.set(op.assetId, op);
+      }
+    }
+
+    return assignments.map((a) => {
+      const op = opByAssetId.get(a.assetId);
+      return {
+        ...a,
+        documentNumber: a.documentNumber || op?.documentNumber || null,
+        operationId: op?.id || null,
+        performedBy: a.assignedBy || op?.performedBy || null,
+      };
     });
   }
 
@@ -188,6 +229,7 @@ export class UsersService {
             name: true,
             productType: true,
             unit: true,
+            packageSize: true,
             inventory: {
               select: {
                 unitPrice: true,

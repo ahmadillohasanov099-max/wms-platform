@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import ModdiyJavobgarlikModal from '../../../components/documents/moddiy-javobgarlik-modal';
 import TalabnomaModal, { type TalabnomaData } from '../../../components/documents/talabnoma-modal';
 import RepairCompleteModal from '../../../components/modals/repair-complete-modal';
+import { formatProductQuantity, getUnitLabel } from '../../../lib/quantity-utils';
 import {
   Package,
   Phone,
@@ -204,7 +205,7 @@ export default function UserDetailSubView({
       toRecipient: `${selectedUser.fullName}${selectedUser.department?.name ? ` (${selectedUser.department.name})` : ''}`,
       items: items.map((gi: any) => ({
         name: gi.product?.name || 'Mahsulot',
-        unit: gi.product?.unit || 'dona',
+        unit: getUnitLabel(gi.product?.unit, t),
         quantity: gi.quantity || 1,
       })),
       note: row.note,
@@ -629,15 +630,27 @@ export default function UserDetailSubView({
 
                         {/* Contract Button */}
                         <td className="px-4 py-3 text-right align-middle whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenBatchContract(batch)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 rounded-xl transition-all border border-teal-200 dark:border-teal-800 cursor-pointer shadow-2xs active:scale-95"
-                            title={t('userView.viewBatchContractTitle')}
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>{t('userView.contractBtn', { count: batch.items.length })}</span>
-                          </button>
+                          {(() => {
+                            const hasPending = batch.items.some((i: any) => i.status === 'PENDING');
+                            if (hasPending) {
+                              return (
+                                <span className="text-2xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/60">
+                                  {t('profile.waitingConfirm')}
+                                </span>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenBatchContract(batch)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 rounded-xl transition-all border border-teal-200 dark:border-teal-800 cursor-pointer shadow-2xs active:scale-95"
+                                title={t('userView.viewBatchContractTitle')}
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>{t('userView.contractBtn', { count: batch.items.length })}</span>
+                              </button>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -730,7 +743,7 @@ export default function UserDetailSubView({
                             <div className="space-y-1">
                               {items.map((gi: any, idx: number) => (
                                 <p key={gi.id || idx} className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-                                  {gi.quantity ?? 1} {gi.product?.unit || t('common.units.DONA')}
+                                  {formatProductQuantity(gi.quantity ?? 1, gi.product?.unit, gi.product?.packageSize, t)}
                                 </p>
                               ))}
                             </div>

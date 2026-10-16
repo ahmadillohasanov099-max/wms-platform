@@ -47,7 +47,7 @@ export default function ProfileDepartmentPage() {
   // Fetch all department employees/colleagues
   const { data: usersData, isLoading: isUsersLoading } = useQuery({
     queryKey: ['profile-department-users', departmentId],
-    queryFn: () => usersApi.getAll({ departmentId: departmentId!, limit: 100 }),
+    queryFn: () => usersApi.getAll({ departmentId: departmentId!, limit: 100, employmentStatus: 'ACTIVE' }),
     enabled: !!departmentId,
   });
 
@@ -68,13 +68,15 @@ export default function ProfileDepartmentPage() {
   const isLoading = isDeptLoading || isUsersLoading;
 
   const rawUsers = usersData as any;
-  let employees: any[] = Array.isArray(rawUsers)
-    ? rawUsers
-    : Array.isArray(rawUsers?.items)
-    ? rawUsers.items
-    : Array.isArray(rawUsers?.data)
-    ? rawUsers.data
-    : [];
+  let employees: any[] = (
+    Array.isArray(rawUsers)
+      ? rawUsers
+      : Array.isArray(rawUsers?.items)
+      ? rawUsers.items
+      : Array.isArray(rawUsers?.data)
+      ? rawUsers.data
+      : []
+  ).filter((emp: any) => emp.employmentStatus !== 'OFFBOARDED' && emp.isActive !== false);
 
   // Department TMZ items (fallback to department.operations if historyApi is empty)
   const rawTmzData = tmzHistoryData as any;
@@ -277,6 +279,7 @@ export default function ProfileDepartmentPage() {
               isLoading={isDeptLoading}
               isLeader={isLeader}
               isDeptMember={true}
+              department={department}
             />
           ) : activeTab === 'tmz' ? (
             <DepartmentTmzTab

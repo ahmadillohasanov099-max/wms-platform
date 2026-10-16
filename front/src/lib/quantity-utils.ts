@@ -41,8 +41,11 @@ export function getUnitLabel(
       return 'kg';
     case 'METR':
       return 'metr';
-    default:
+    case 'DONA':
+    case 'PIECE':
       return 'dona';
+    default:
+      return unit.toLowerCase();
   }
 }
 

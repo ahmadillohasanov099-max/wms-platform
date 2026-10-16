@@ -128,6 +128,7 @@ export default function ProfileMyAssetsTable({
   const handleOpenBatchContract = (batch: any) => {
     const pass = user?.passport || user?.passportSeries || '';
     const addr = user?.address || '';
+    const acceptedItems = batch.items.filter((b: any) => b.status !== 'PENDING' && b.status !== 'REJECTED');
 
     setModdiyContractData({
       documentNumber: batch.documentNumber || `MJSH-2026-${batch.key?.slice(-4) || '001'}`,
@@ -138,7 +139,7 @@ export default function ProfileMyAssetsTable({
       recipientDepartment: user?.department?.name,
       recipientPassport: pass,
       recipientAddress: addr,
-      items: batch.items.map((b: any) => ({
+      items: (acceptedItems.length > 0 ? acceptedItems : batch.items).map((b: any) => ({
         name: b.asset?.product?.name || b.product?.name || '—',
         inventoryNumber: b.asset?.inventoryNumber || '—',
         serialNumber: b.asset?.serialNumber || '',
@@ -356,14 +357,20 @@ export default function ProfileMyAssetsTable({
                           </span>
                         </div>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => handleOpenBatchContract(batch)}
-                          className="w-full justify-center text-xs font-bold text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 py-2 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>{t('profile.contractWithCount', { count: batch.items.length })}</span>
-                        </Button>
+                        {!hasPending ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleOpenBatchContract(batch)}
+                            className="w-full justify-center text-xs font-bold text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 py-2 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>{t('profile.contractWithCount', { count: batch.items.length })}</span>
+                          </Button>
+                        ) : (
+                          <div className="w-full text-center py-1.5 text-2xs text-amber-600 dark:text-amber-400 font-semibold bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200/60 dark:border-amber-900/40">
+                            {t('profile.waitingConfirm')} — shartnoma tasdiqlangach ochiladi
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -490,16 +497,28 @@ export default function ProfileMyAssetsTable({
                             {formatCurrency(batch.totalPrice)}
                           </td>
                           <td className="px-4 py-3 text-right align-middle whitespace-nowrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenBatchContract(batch)}
-                              className="text-xs font-bold text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                              title="Operatsiya bo'yicha umumiy shartnomani ko'rish"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                              <span>{t('profile.contract')} ({batch.items.length})</span>
-                            </Button>
+                            {(() => {
+                              const hasPending = batch.items.some((i: any) => i.status === 'PENDING');
+                              if (hasPending) {
+                                return (
+                                  <span className="text-2xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/60">
+                                    {t('profile.waitingConfirm')}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenBatchContract(batch)}
+                                  className="text-xs font-bold text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                  title="Operatsiya bo'yicha umumiy shartnomani ko'rish"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>{t('profile.contract')} ({batch.items.length})</span>
+                                </Button>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))}
