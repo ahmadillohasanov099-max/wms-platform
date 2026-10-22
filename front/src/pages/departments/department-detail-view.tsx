@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { departmentsApi, usersApi, historyApi, operationsApi } from '../../api';
+import { departmentsApi, usersApi, historyApi, operationsApi, requestsApi } from '../../api';
 import { PageLoader } from '../../components/ui/spinner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../store/auth.store';
 import VerifyIdentityModal from '../../components/shared/verify-identity-modal';
 import toast from 'react-hot-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Users, Package, Boxes, ClipboardList } from 'lucide-react';
 import Button from '../../components/ui/button';
-import { invalidateAppQueries } from '../../lib/utils';
+import { invalidateAppQueries, cn } from '../../lib/utils';
 import DepartmentStatsCards from './components/department-stats-cards';
 import EmployeesTab from './components/employees-tab';
 import DepartmentAssetsTab from './components/department-assets-tab';
@@ -130,6 +130,43 @@ export default function DepartmentDetailView({
   const totalTmzQty = tmzItems.reduce((sum: number, item: any) => sum + (item.quantity ?? 1), 0);
   const displayTmzCount = totalTmzQty > 0 ? totalTmzQty : (stats?.sarflanadigan ?? 0);
 
+  const canManageRequests =
+    loggedInUser?.role === 'SUPER_ADMIN' ||
+    loggedInUser?.role === 'ORG_ADMIN' ||
+    loggedInUser?.role === 'VAZIRLIK_OMBORCHI' ||
+    loggedInUser?.role === 'ORG_OMBORCHI';
+
+  const { data: requestsData } = useQuery({
+    queryKey: canManageRequests ? ['department-all-requests', departmentId] : ['my-deletion-requests'],
+    queryFn: () => (canManageRequests ? requestsApi.getAll() : requestsApi.getMy()),
+    enabled: !!departmentId,
+  });
+
+  const rawReqList: any[] = Array.isArray(requestsData)
+    ? requestsData
+    : Array.isArray((requestsData as any)?.data)
+    ? (requestsData as any).data
+    : [];
+
+  const requestsCount = useMemo(() => {
+    return rawReqList.filter((item) => {
+      const isSupply =
+        item.requestType === 'SUPPLY' ||
+        item.isSupply ||
+        item.reason?.includes('[TALABNOMA]') ||
+        item.reason?.includes("[MAHSULOT SO'ROVI]");
+
+      if (!isSupply) return false;
+      if (departmentId && canManageRequests) {
+        return (
+          item.requestedBy?.departmentId === departmentId ||
+          item.recipientDeptId === departmentId
+        );
+      }
+      return true;
+    }).length;
+  }, [rawReqList, departmentId, canManageRequests]);
+
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['department-users', departmentId],
     queryFn: () => usersApi.getAll({ departmentId, limit: 100, employmentStatus: 'ACTIVE' }),
@@ -192,47 +229,102 @@ export default function DepartmentDetailView({
           {/* Top Stats Cards */}
           <DepartmentStatsCards stats={stats} isLoading={statsLoading} />
 
-          {/* Navigation Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-800 mb-4">
+          {/* Modern Navigation Tabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/60 rounded-2xl border border-gray-200/80 dark:border-white/10 w-fit flex-wrap mb-4">
             <button
-              className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
-                activeTab === 'employees'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+              type="button"
               onClick={() => setActiveTab('employees')}
+              className={cn(
+                'px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'employees'
+                  ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-xs border border-gray-200/60 dark:border-slate-700/60 font-bold'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
             >
-              {t('departments.staffList')} ({employees.length})
+              <Users className="w-4 h-4" />
+              <span>{t('departments.tabEmployees', 'Xodimlar')}</span>
+              <span
+                className={cn(
+                  'text-[11px] px-2 py-0.5 rounded-full font-bold',
+                  activeTab === 'employees'
+                    ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200/60 dark:border-teal-900/60'
+                    : 'bg-gray-200/80 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+                )}
+              >
+                {employees.length}
+              </span>
             </button>
+
             <button
-              className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
-                activeTab === 'assets'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+              type="button"
               onClick={() => setActiveTab('assets')}
+              className={cn(
+                'px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'assets'
+                  ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-xs border border-gray-200/60 dark:border-slate-700/60 font-bold'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
             >
-              {t('departments.assetsTab', { count: stats?.assetCount ?? 0 })}
+              <Package className="w-4 h-4" />
+              <span>{t('departments.tabAssets', 'Asosiy vositalar')}</span>
+              <span
+                className={cn(
+                  'text-[11px] px-2 py-0.5 rounded-full font-bold',
+                  activeTab === 'assets'
+                    ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200/60 dark:border-teal-900/60'
+                    : 'bg-gray-200/80 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+                )}
+              >
+                {stats?.assetCount ?? 0}
+              </span>
             </button>
+
             <button
-              className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
-                activeTab === 'tmz'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+              type="button"
               onClick={() => setActiveTab('tmz')}
+              className={cn(
+                'px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'tmz'
+                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs border border-gray-200/60 dark:border-slate-700/60 font-bold'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
             >
-              {t('departments.tmzTab', { count: displayTmzCount })}
+              <Boxes className="w-4 h-4" />
+              <span>{t('departments.tabTmz', 'TMZ mahsulotlari')}</span>
+              <span
+                className={cn(
+                  'text-[11px] px-2 py-0.5 rounded-full font-bold',
+                  activeTab === 'tmz'
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/60'
+                    : 'bg-gray-200/80 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+                )}
+              >
+                {displayTmzCount}
+              </span>
             </button>
+
             <button
-              className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
-                activeTab === 'requests'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
+              type="button"
               onClick={() => setActiveTab('requests')}
+              className={cn(
+                'px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer',
+                activeTab === 'requests'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-200/60 dark:border-slate-700/60 font-bold'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
             >
-              Talabnomalar
+              <ClipboardList className="w-4 h-4" />
+              <span>{t('departments.tabRequests', 'Talabnomalar')}</span>
+              <span
+                className={cn(
+                  'text-[11px] px-2 py-0.5 rounded-full font-bold',
+                  activeTab === 'requests'
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/60'
+                    : 'bg-gray-200/80 dark:bg-slate-700/60 text-gray-600 dark:text-gray-300'
+                )}
+              >
+                {requestsCount}
+              </span>
             </button>
           </div>
 

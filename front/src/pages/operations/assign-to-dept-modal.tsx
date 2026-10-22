@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { operationsApi, departmentsApi, productsApi, inventoryApi } from '../../api';
@@ -9,6 +9,7 @@ import Button from '../../components/ui/button';
 import ModdiyJavobgarlikModal, { type ModdiyJavobgarlikData } from '../../components/documents/moddiy-javobgarlik-modal';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useDebounce } from '../../hooks/useDebounce';
 import { invalidateAppQueries } from '../../lib/utils';
 import { Search, Building2, Package, Loader2, Plus, Trash2 } from 'lucide-react';
 
@@ -119,10 +120,12 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
   rawProductsArray.forEach((p: any) => {
     if (p.productType && p.productType !== 'BERILADIGAN') return;
     const invMatch = inventoryMap.get(p.id);
-    const qty = invMatch?.quantity ?? p.inventory?.quantity ?? (invMatch?.assets ? invMatch.assets.length : 0);
+    const freeAssets = invMatch?.product?.assets || invMatch?.assets || p.assets || [];
+    const qty = invMatch?.quantity ?? p.inventory?.quantity ?? freeAssets.length;
     productList.push({
       ...p,
       stockQuantity: qty,
+      assets: freeAssets,
     });
     addedIds.add(p.id);
   });
@@ -130,13 +133,38 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
   inventoryList.forEach((inv: any) => {
     const p = inv.product;
     if (p && (!p.productType || p.productType === 'BERILADIGAN') && !addedIds.has(p.id)) {
+      const freeAssets = p.assets || inv.assets || [];
       productList.push({
         ...p,
-        stockQuantity: inv.quantity ?? (inv.assets ? inv.assets.length : 0),
+        stockQuantity: inv.quantity ?? freeAssets.length,
+        assets: freeAssets,
       });
       addedIds.add(p.id);
     }
   });
+
+  // Active search query for currently focused row to enable live backend inventory search by name or inv number
+  const activeSearchRow = rows.find((r) => r.rowId === activeSearchRowId);
+  const activeSearchQuery = activeSearchRow?.productSearch?.trim() || '';
+  const debouncedProductSearch = useDebounce(activeSearchQuery, 250);
+
+  const { data: liveSearchData, isFetching: isLiveSearchFetching } = useQuery({
+    queryKey: ['assign-dept-live-inventory-search', debouncedProductSearch],
+    queryFn: () => inventoryApi.getAll({ search: debouncedProductSearch }),
+    enabled: open && debouncedProductSearch.length >= 1,
+    staleTime: 5000,
+  });
+
+  const liveProducts: any[] = useMemo(() => {
+    if (!liveSearchData || !Array.isArray(liveSearchData)) return [];
+    return liveSearchData
+      .filter((inv: any) => inv.product && (!inv.product.productType || inv.product.productType === 'BERILADIGAN'))
+      .map((inv: any) => ({
+        ...inv.product,
+        stockQuantity: inv.quantity ?? (inv.product.assets ? inv.product.assets.length : 0),
+        assets: inv.product.assets || [],
+      }));
+  }, [liveSearchData]);
 
   // Load assets for a specific product
   const loadAssetsForProduct = async (productId: string) => {
@@ -197,7 +225,9 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   };
 
-  const handleSelectProduct = (rowId: string, product: any) => {
+  const handleSelectProduct = (rowId: string, product: any, preselectedInv?: string) => {
+    const matchedAsset = preselectedInv && product.assets?.find((a: any) => a.inventoryNumber === preselectedInv);
+
     setRows((prev) =>
       prev.map((r) => {
         if (r.rowId === rowId) {
@@ -207,14 +237,17 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
             productName: product.name,
             productCode: product.code,
             productSearch: product.name,
-            selectedInventoryNumber: '',
-            serialNumber: '',
+            selectedInventoryNumber: preselectedInv || '',
+            serialNumber: matchedAsset?.serialNumber || '',
           };
         }
         return r;
       })
     );
     setActiveSearchRowId(null);
+    if (product.assets && product.assets.length > 0) {
+      setAssetsCache((prev) => ({ ...prev, [product.id]: product.assets }));
+    }
     loadAssetsForProduct(product.id);
   };
 
@@ -453,15 +486,32 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
 
             <div className="space-y-3.5">
               {rows.map((row, idx) => {
-                const matchingProducts = productList.filter((p: any) => {
-                  const q = row.productSearch.toLowerCase().trim();
+                const q = row.productSearch.toLowerCase().trim();
+                const combinedList = q.length >= 1 ? [...liveProducts, ...productList] : productList;
+                const uniqueProductsMap = new Map<string, any>();
+                combinedList.forEach((item) => {
+                  if (!uniqueProductsMap.has(item.id)) {
+                    uniqueProductsMap.set(item.id, item);
+                  } else {
+                    const existing = uniqueProductsMap.get(item.id);
+                    if ((!existing.assets || existing.assets.length === 0) && item.assets && item.assets.length > 0) {
+                      uniqueProductsMap.set(item.id, { ...existing, assets: item.assets });
+                    }
+                  }
+                });
+
+                const matchingProducts = Array.from(uniqueProductsMap.values()).filter((p: any) => {
                   if (!q) return true;
                   const name = String(p.name || '').toLowerCase();
                   const code = String(p.code || '').toLowerCase();
                   const cat = String(p.category?.name || p.category || '').toLowerCase();
                   const brand = String(p.brand || '').toLowerCase();
                   const model = String(p.model || '').toLowerCase();
-                  return name.includes(q) || code.includes(q) || cat.includes(q) || brand.includes(q) || model.includes(q);
+                  const hasInv = p.assets?.some((a: any) =>
+                    (a.inventoryNumber && a.inventoryNumber.toLowerCase().includes(q)) ||
+                    (a.serialNumber && a.serialNumber.toLowerCase().includes(q))
+                  );
+                  return name.includes(q) || code.includes(q) || cat.includes(q) || brand.includes(q) || model.includes(q) || hasInv;
                 });
 
                 const freeAssets = getFreeAssetsForProduct(row.productId, row.rowId);
@@ -545,21 +595,29 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
                                     {t('operations.productNotFound')}
                                   </div>
                                 ) : (
-                                  matchingProducts.slice(0, 20).map((p: any) => {
+                                  matchingProducts.slice(0, 25).map((p: any) => {
                                     const qty = p.stockQuantity ?? p.inventory?.quantity ?? 0;
-                                    const freeAssetsCount = assetsCache[p.id] ? getFreeAssetsForProduct(p.id, row.rowId).length : qty;
-                                    const displayQty = assetsCache[p.id] ? freeAssetsCount : qty;
+                                    const freeAssetsCount = assetsCache[p.id] ? getFreeAssetsForProduct(p.id, row.rowId).length : (p.assets?.length ?? qty);
+                                    const displayQty = assetsCache[p.id] ? freeAssetsCount : (p.assets?.length ?? qty);
                                     const isOutOfStock = displayQty <= 0;
+
+                                    const matchedAsset = q
+                                      ? p.assets?.find((a: any) =>
+                                          (a.inventoryNumber && a.inventoryNumber.toLowerCase().includes(q)) ||
+                                          (a.serialNumber && a.serialNumber.toLowerCase().includes(q))
+                                        )
+                                      : null;
+
                                     return (
                                       <div
                                         key={p.id}
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           if (isOutOfStock) {
-                                            toast.error(`"${p.name}" omborda mavjud emas! Qayta biriktirish uchun avval amaldagi xodimidan qaytarish lozim.`);
+                                            toast.error(`"${p.name}" omborda mavjud emas! Qayta biriktirish uchun avval amaldagi bo‘lim/xodimidan qaytarish lozim.`);
                                             return;
                                           }
-                                          handleSelectProduct(row.rowId, p);
+                                          handleSelectProduct(row.rowId, p, matchedAsset?.inventoryNumber);
                                         }}
                                         className={`p-3 px-3.5 flex items-center justify-between text-sm transition-colors ${
                                           isOutOfStock
@@ -571,11 +629,16 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
                                           <span className={`font-bold ${isOutOfStock ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'} truncate`}>
                                             {p.name}
                                           </span>
-                                          {p.code && (
+                                          {matchedAsset ? (
+                                            <span className="text-[11px] font-mono font-bold text-teal-600 dark:text-teal-400 flex items-center gap-1 mt-0.5">
+                                              🏷️ Inventar №: {matchedAsset.inventoryNumber}
+                                              {matchedAsset.serialNumber ? ` (${matchedAsset.serialNumber})` : ''}
+                                            </span>
+                                          ) : p.code ? (
                                             <span className="text-xs text-gray-400 font-mono">
                                               {t('operations.code')}: {p.code}
                                             </span>
-                                          )}
+                                          ) : null}
                                         </div>
                                         {isOutOfStock ? (
                                           <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950 px-2 py-0.5 rounded shrink-0">

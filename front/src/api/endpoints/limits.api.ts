@@ -31,8 +31,14 @@ export interface LimitStatusResponse {
   totalExceptions: number;
   totalAllowed: number | null;
   currentMonthSpent: number;
+  currentQuarterSpent?: number;
   remaining: number | null;
   yearMonth: string;
+  periodCode?: string;
+  periodName?: string;
+  periodRange?: string;
+  limitSetDate?: string | null;
+  nextResetDate?: string | Date | null;
   createdBy?: {
     id: string;
     fullName: string;

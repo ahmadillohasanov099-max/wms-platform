@@ -75,6 +75,32 @@ export function formatCompactCurrency(
   return `${num.toLocaleString(config.locale)}${suffix}`;
 }
 
+
+export const UZ_MONTH_NAMES = [
+  'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+  'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'
+];
+
+export function formatUzbekDateText(dateInput?: string | Date | null): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const day = d.getDate();
+  const month = UZ_MONTH_NAMES[d.getMonth()];
+  const year = d.getFullYear();
+  return year + '-yil ' + day + '-' + month;
+}
+
+export function formatSimpleDate(dateInput?: string | Date | null): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return day + '.' + month + '.' + year;
+}
+
 export function formatDate(dateString?: string | Date | null, lang?: 'uz' | 'ru' | 'en'): string {
   if (!dateString) return '—';
   try {

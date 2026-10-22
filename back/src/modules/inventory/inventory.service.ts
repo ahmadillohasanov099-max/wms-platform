@@ -56,21 +56,19 @@ export class InventoryService {
             packageSize: true,
             imageUrl: true,
             year: true,
-            ...(trimmedSearch && {
-              assets: {
-                where: {
-                  deletedAt: null,
-                  OR: [
-                    { inventoryNumber: { contains: trimmedSearch, mode: 'insensitive' } },
-                    { serialNumber: { contains: trimmedSearch, mode: 'insensitive' } },
-                  ],
-                },
-                select: {
-                  inventoryNumber: true,
-                  serialNumber: true,
-                },
+            assets: {
+              where: {
+                deletedAt: null,
+                status: 'ACTIVE',
+                assignments: { none: { returnedAt: null } },
               },
-            }),
+              select: {
+                id: true,
+                inventoryNumber: true,
+                serialNumber: true,
+                status: true,
+              },
+            },
           },
         },
       },

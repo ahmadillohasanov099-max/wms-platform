@@ -34,6 +34,7 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
     open: boolean;
     limitStatus: LimitStatusResponse | null;
     requestedQuantity: number;
+    fallbackMessage?: string;
   }>({
     open: false,
     limitStatus: null,
@@ -129,12 +130,21 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
       setTalabnomaData(tData);
     },
     onError: (err: any) => {
-      const errData = err?.response?.data;
-      if (errData?.errorCode === 'OVER_MONTHLY_LIMIT' && errData?.limitStatus) {
+      const errData = err?.response?.data || err;
+      const isOverLimit =
+        errData?.errorCode === 'OVER_MONTHLY_LIMIT' ||
+        !!errData?.limitStatus ||
+        (typeof errData?.message === 'string' &&
+          (errData.message.includes('OVER_MONTHLY_LIMIT') ||
+           errData.message.includes('Oylik meʼyor') ||
+           errData.message.includes('limitdan oshib')));
+
+      if (isOverLimit) {
         setOverLimitState({
           open: true,
-          limitStatus: errData.limitStatus,
-          requestedQuantity: errData.requestedQuantity || 1,
+          limitStatus: errData?.limitStatus || null,
+          requestedQuantity: errData?.requestedQuantity || 1,
+          fallbackMessage: errData?.message,
         });
         return;
       }
@@ -145,7 +155,7 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
   return (
     <>
       <Modal
-        open={open}
+        open={open && !overLimitState.open}
         onClose={() => { reset(); setGiveMode('PACHKA'); onClose(); }}
         title={t("operations.giveToDept")}
         subtitle={t("operations.giveToDeptSubtitle")}
@@ -180,9 +190,9 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
           />
 
           {hasPackaging ? (
-            <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/80 rounded-xl">
+            <div className="space-y-2 p-2.5 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/80 rounded-xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                   {t('common.units.giveMode')}
                 </span>
                 <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
@@ -224,13 +234,15 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
                     placeholder="Masalan: 200"
                   />
                   <span className="text-3xs text-emerald-700 dark:text-emerald-400 font-semibold block mt-1">
-                    = {roundQuantity((Number(donaCount) || 0) / selectedProduct.packageSize, 4)} pachka
+                    = {roundQuantity((Number(donaCount) || 0) / selectedProduct.packageSize, 4)} pachka ombordan chiqariladi
                   </span>
                 </div>
               ) : (
                 <div>
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                    Pachkalar soni (1 pachka = {selectedProduct.packageSize} dona)
+                  </label>
                   <Input
-                    label={t('operations.quantity')}
                     type="number"
                     step="any"
                     min={0.001}
@@ -276,17 +288,17 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
 
       <OverLimitNoticeModal
         open={overLimitState.open}
-        onClose={() => setOverLimitState((prev) => ({ ...prev, open: false }))}
+        onClose={() => {
+          setOverLimitState({ open: false, limitStatus: null, requestedQuantity: 1 });
+          reset();
+          setGiveMode('PACHKA');
+          onClose();
+        }}
         limitStatus={overLimitState.limitStatus}
         requestedQuantity={overLimitState.requestedQuantity}
         targetName={deptList.find((d) => d.id === watch('departmentId'))?.name}
         isDepartment={true}
-        departmentId={watch('departmentId')}
-        onLimitIncreased={(updatedStatus) => {
-          toast.success(
-            `Limit yangilandi! Joriy oylik qoldiq: ${updatedStatus.remaining} ${updatedStatus.unit || 'dona'}`,
-          );
-        }}
+        fallbackMessage={overLimitState.fallbackMessage}
       />
     </>
   );

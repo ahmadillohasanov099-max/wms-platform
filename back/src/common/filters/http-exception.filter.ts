@@ -48,10 +48,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse() as any;
 
+      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        return response.status(status).json({
+          success: false,
+          error: exceptionResponse.error || 'ERROR',
+          message: exceptionResponse.message || exception.message,
+          statusCode: status,
+          timestamp: new Date().toISOString(),
+          ...exceptionResponse,
+        });
+      }
+
       return response.status(status).json({
         success: false,
-        error: exceptionResponse.error || 'ERROR',
-        message: exceptionResponse.message || exception.message,
+        error: 'ERROR',
+        message: exception.message,
         statusCode: status,
         timestamp: new Date().toISOString(),
       });

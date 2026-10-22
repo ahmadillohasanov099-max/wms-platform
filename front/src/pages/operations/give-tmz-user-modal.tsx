@@ -79,6 +79,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
     open: boolean;
     limitStatus: LimitStatusResponse | null;
     requestedQuantity: number;
+    fallbackMessage?: string;
   }>({
     open: false,
     limitStatus: null,
@@ -370,12 +371,21 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       setTalabnomaData(tData);
     },
     onError: (err: any) => {
-      const errData = err?.response?.data;
-      if (errData?.errorCode === 'OVER_MONTHLY_LIMIT' && errData?.limitStatus) {
+      const errData = err?.response?.data || err;
+      const isOverLimit =
+        errData?.errorCode === 'OVER_MONTHLY_LIMIT' ||
+        !!errData?.limitStatus ||
+        (typeof errData?.message === 'string' &&
+          (errData.message.includes('OVER_MONTHLY_LIMIT') ||
+           errData.message.includes('Oylik meʼyor') ||
+           errData.message.includes('limitdan oshib')));
+
+      if (isOverLimit) {
         setOverLimitState({
           open: true,
-          limitStatus: errData.limitStatus,
-          requestedQuantity: errData.requestedQuantity || 1,
+          limitStatus: errData?.limitStatus || null,
+          requestedQuantity: errData?.requestedQuantity || 1,
+          fallbackMessage: errData?.message,
         });
         return;
       }
@@ -412,7 +422,7 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
   return (
     <>
       <Modal
-        open={open}
+        open={open && !overLimitState.open}
         onClose={handleCloseModal}
         title={`👤 ${t('operations.giveToUserModalTitle')}`}
         size="lg"
@@ -567,147 +577,181 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                      <div className="sm:col-span-2 relative">
-                        {row.productId ? (
-                          <div className="flex items-center justify-between bg-white dark:bg-gray-900 border border-emerald-300 dark:border-emerald-800 px-2.5 py-1.5 rounded-lg shadow-2xs text-xs">
-                            <div className="min-w-0 pr-2 flex items-center gap-2">
-                              <span className="font-bold text-gray-900 dark:text-gray-100 truncate">
-                                {row.productName}
-                              </span>
-                              <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
-                                Mavjud: {formatProductQuantity(row.availableQty, row.unit, row.packageSize, t)}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleClearProduct(row.rowId)}
-                              className="text-3xs font-bold text-rose-500 hover:underline shrink-0"
-                            >
-                              {t('common.change')}
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-                            <input
-                              type="text"
-                              placeholder={t('operations.materialSearchPlaceholder')}
-                              value={row.searchInput}
-                              onFocus={() => setActiveSearchRowId(row.rowId)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setRows((prev) =>
-                                  prev.map((r) =>
-                                    r.rowId === row.rowId
-                                      ? { ...r, searchInput: val }
-                                      : r,
-                                  ),
-                                );
-                                setActiveSearchRowId(row.rowId);
-                              }}
-                              className="w-full pl-7 pr-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                            />
+                    {/* MAHSULOT VA MIQDOR BLOKI */}
+                    {!row.productId ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                        <div className="sm:col-span-2 relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder={t('operations.materialSearchPlaceholder')}
+                            value={row.searchInput}
+                            onFocus={() => setActiveSearchRowId(row.rowId)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setRows((prev) =>
+                                prev.map((r) =>
+                                  r.rowId === row.rowId
+                                    ? { ...r, searchInput: val }
+                                    : r,
+                                ),
+                              );
+                              setActiveSearchRowId(row.rowId);
+                            }}
+                            className="w-full pl-7 pr-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                          />
 
-                            {activeSearchRowId === row.rowId && (
-                              <div className="absolute left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 divide-y divide-gray-100 dark:divide-gray-800">
-                                {matchingProducts.length === 0 ? (
-                                  <div className="p-2.5 text-xs text-gray-400 text-center">
-                                    {t('operations.materialNotFound')}
-                                  </div>
-                                ) : (
-                                  matchingProducts
-                                    .slice(0, 15)
-                                    .map((p: any) => {
-                                      const qty = p.quantity ?? 0;
-                                      const isOutOfStock = qty <= 0;
-                                      return (
-                                        <div
-                                          key={p.id}
-                                          onClick={() => {
-                                            if (isOutOfStock) {
-                                              toast.error(`"${p.name}" omborda mavjud emas! Mavjud qoldiq: 0`);
-                                              return;
-                                            }
-                                            handleSelectProduct(row.rowId, p);
-                                          }}
-                                          className={`p-2 px-3 flex items-center justify-between text-xs transition-colors ${
-                                            isOutOfStock
-                                              ? 'opacity-60 bg-gray-50 dark:bg-gray-800/40 cursor-not-allowed select-none'
-                                              : 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer'
-                                          }`}
-                                        >
-                                          <span className={`font-bold ${isOutOfStock ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
-                                            {p.name}
+                          {activeSearchRowId === row.rowId && (
+                            <div className="absolute left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 divide-y divide-gray-100 dark:divide-gray-800">
+                              {matchingProducts.length === 0 ? (
+                                <div className="p-2.5 text-xs text-gray-400 text-center">
+                                  {t('operations.materialNotFound')}
+                                </div>
+                              ) : (
+                                matchingProducts
+                                  .slice(0, 15)
+                                  .map((p: any) => {
+                                    const qty = p.quantity ?? 0;
+                                    const isOutOfStock = qty <= 0;
+                                    return (
+                                      <div
+                                        key={p.id}
+                                        onClick={() => {
+                                          if (isOutOfStock) {
+                                            toast.error(`"${p.name}" omborda mavjud emas! Mavjud qoldiq: 0`);
+                                            return;
+                                          }
+                                          handleSelectProduct(row.rowId, p);
+                                        }}
+                                        className={`p-2 px-3 flex items-center justify-between text-xs transition-colors ${
+                                          isOutOfStock
+                                            ? 'opacity-60 bg-gray-50 dark:bg-gray-800/40 cursor-not-allowed select-none'
+                                            : 'hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer'
+                                        }`}
+                                      >
+                                        <span className={`font-bold ${isOutOfStock ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
+                                          {p.name}
+                                        </span>
+                                        {isOutOfStock ? (
+                                          <span className="text-3xs font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950 px-1.5 py-0.5 rounded shrink-0">
+                                            {t('operations.outOfStockBadge')}
                                           </span>
-                                          {isOutOfStock ? (
-                                            <span className="text-3xs font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950 px-1.5 py-0.5 rounded shrink-0">
-                                              {t('operations.outOfStockBadge')}
-                                            </span>
-                                          ) : (
-                                            <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
-                                              {formatProductQuantity(qty, p.unit, p.packageSize, t)}
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })
-                                )}
+                                        ) : (
+                                          <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
+                                            {formatProductQuantity(qty, p.unit, p.packageSize, t)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <Input
+                            type="number"
+                            disabled
+                            placeholder={t('operations.quantity')}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mahsulot tanlangan holat */
+                      <div className="space-y-2">
+                        {/* Tanlangan mahsulot kartasi */}
+                        <div className="flex items-center justify-between bg-white dark:bg-gray-900 border border-emerald-300 dark:border-emerald-800 px-3 py-2 rounded-xl shadow-2xs text-xs">
+                          <div className="min-w-0 pr-2 flex items-center gap-2">
+                            <span className="font-bold text-gray-900 dark:text-gray-100 truncate">
+                              {row.productName}
+                            </span>
+                            <span className="text-3xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded shrink-0">
+                              Mavjud: {formatProductQuantity(row.availableQty, row.unit, row.packageSize, t)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleClearProduct(row.rowId)}
+                            className="text-3xs font-bold text-rose-500 hover:underline shrink-0"
+                          >
+                            {t('common.change')}
+                          </button>
+                        </div>
+
+                        {/* Pachkali yoki donali qolip */}
+                        {row.packageSize && row.packageSize > 1 && (row.unit === 'PACHKA' || row.unit === 'PACK') ? (
+                          <div className="space-y-2 p-2.5 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/80 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                {t('common.units.giveMode')}
+                              </span>
+                              <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMode(row.rowId, 'PACHKA')}
+                                  className={`px-2.5 py-1 text-3xs font-bold rounded-md transition-colors ${
+                                    row.inputMode === 'PACHKA'
+                                      ? 'bg-emerald-600 text-white shadow-2xs'
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                                  }`}
+                                >
+                                  {t('common.units.pachkaMode')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMode(row.rowId, 'DONA')}
+                                  className={`px-2.5 py-1 text-3xs font-bold rounded-md transition-colors ${
+                                    row.inputMode === 'DONA'
+                                      ? 'bg-emerald-600 text-white shadow-2xs'
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                                  }`}
+                                >
+                                  {t('common.units.donaMode')}
+                                </button>
+                              </div>
+                            </div>
+
+                            {row.inputMode === 'DONA' ? (
+                              <div>
+                                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                                  Donalar soni (1 pachka = {row.packageSize} dona)
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={row.rawInputValue}
+                                  onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
+                                  placeholder="Masalan: 200"
+                                />
+                                <span className="text-3xs text-emerald-700 dark:text-emerald-400 font-semibold block mt-1">
+                                  = {row.quantity} pachka ombordan chiqariladi
+                                </span>
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                                  Pachkalar soni (1 pachka = {row.packageSize} dona)
+                                </label>
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  min={0.001}
+                                  value={row.rawInputValue}
+                                  onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
+                                  placeholder="Masalan: 2"
+                                />
+                                <span className="text-3xs text-slate-500 font-medium block mt-1">
+                                  = {Math.round((Number(row.rawInputValue) || 0) * row.packageSize)} dona
+                                </span>
                               </div>
                             )}
                           </div>
-                        )}
-                      </div>
-
-                      <div>
-                        {row.packageSize && row.packageSize > 1 && (row.unit === 'PACHKA' || row.unit === 'PACK') ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleMode(row.rowId, 'PACHKA')}
-                                className={`flex-1 py-0.5 text-3xs font-bold rounded transition-colors ${
-                                  row.inputMode === 'PACHKA'
-                                    ? 'bg-emerald-600 text-white shadow-2xs'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-                                }`}
-                              >
-                                {t('common.units.pachkaMode')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleMode(row.rowId, 'DONA')}
-                                className={`flex-1 py-0.5 text-3xs font-bold rounded transition-colors ${
-                                  row.inputMode === 'DONA'
-                                    ? 'bg-emerald-600 text-white shadow-2xs'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-                                }`}
-                              >
-                                {t('common.units.donaMode')}
-                              </button>
-                            </div>
-
-                            <Input
-                              type="number"
-                              step={row.inputMode === 'DONA' ? '1' : 'any'}
-                              min={row.inputMode === 'DONA' ? 1 : 0.001}
-                              value={row.rawInputValue}
-                              onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
-                              placeholder={row.inputMode === 'DONA' ? 'Dona soni' : 'Pachka soni'}
-                            />
-
-                            {row.inputMode === 'DONA' ? (
-                              <span className="text-3xs text-emerald-700 dark:text-emerald-400 font-semibold block px-1">
-                                = {row.quantity} pachka
-                              </span>
-                            ) : (
-                              <span className="text-3xs text-slate-500 font-medium block px-1">
-                                = {Math.round((Number(row.rawInputValue) || 0) * row.packageSize)} dona
-                              </span>
-                            )}
-                          </div>
                         ) : (
-                          <div className="space-y-0.5">
+                          <div>
+                            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                              {t('operations.quantity')} ({getUnitLabel(row.unit, t)})
+                            </label>
                             <Input
                               type="number"
                               step={row.unit === 'DONA' ? '1' : 'any'}
@@ -716,15 +760,10 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
                               onChange={(e) => handleRowQtyChange(row.rowId, e.target.value)}
                               placeholder={getUnitLabel(row.unit, t)}
                             />
-                            {row.unit && (
-                              <span className="text-3xs text-slate-400 font-medium block px-1">
-                                {getUnitLabel(row.unit, t)}
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -789,17 +828,14 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
 
       <OverLimitNoticeModal
         open={overLimitState.open}
-        onClose={() => setOverLimitState((prev) => ({ ...prev, open: false }))}
+        onClose={() => {
+          setOverLimitState({ open: false, limitStatus: null, requestedQuantity: 1 });
+          handleCloseModal();
+        }}
         limitStatus={overLimitState.limitStatus}
         requestedQuantity={overLimitState.requestedQuantity}
         targetName={selectedUser?.fullName}
-        userId={selectedUser?.id}
-        departmentId={selectedUser?.departmentId || selectedUser?.department?.id}
-        onLimitIncreased={(updatedStatus) => {
-          toast.success(
-            `Limit yangilandi! Joriy oylik qoldiq: ${updatedStatus.remaining} ${updatedStatus.unit || 'dona'}`,
-          );
-        }}
+        fallbackMessage={overLimitState.fallbackMessage}
       />
     </>
   );

@@ -21,14 +21,60 @@ export class LimitsService {
   /**
    * Joriy yil-oy va boshlanish/tugash sanalarini hisoblash
    */
-  private getMonthRange(dateInput?: string | Date) {
+  /**
+   * Davlat standarti bo'yicha choraklik (kvartal / 3 oylik) oraliq va yangilanish sanasini hisoblash:
+   * I chorak:  01.01 - 31.03 (Yangilanish: 01.04)
+   * II chorak: 01.04 - 30.06 (Yangilanish: 01.07)
+   * III chorak: 01.07 - 30.09 (Yangilanish: 01.10)
+   * IV chorak: 01.10 - 31.12 (Yangilanish: 01.01 keyingi yil)
+   */
+  private getQuarterRange(dateInput?: string | Date) {
     const d = dateInput ? new Date(dateInput) : new Date();
     const year = d.getFullYear();
-    const month = d.getMonth(); // 0-indexed
-    const startOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
-    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
-    const yearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
-    return { startOfMonth, endOfMonth, yearMonth, year, month };
+    const month = d.getMonth(); // 0..11
+
+    const quarterIndex = Math.floor(month / 3) + 1; // 1, 2, 3, 4
+    const startMonth = (quarterIndex - 1) * 3; // 0, 3, 6, 9
+    const endMonth = startMonth + 2; // 2, 5, 8, 11
+
+    const startOfQuarter = new Date(year, startMonth, 1, 0, 0, 0, 0);
+    const endOfQuarter = new Date(year, endMonth + 1, 0, 23, 59, 59, 999);
+
+    let nextResetDate: Date;
+    if (quarterIndex === 4) {
+      nextResetDate = new Date(year + 1, 0, 1, 0, 0, 0, 0);
+    } else {
+      nextResetDate = new Date(year, startMonth + 3, 1, 0, 0, 0, 0);
+    }
+
+    const quarterRoman = ['I', 'II', 'III', 'IV'][quarterIndex - 1];
+    const quarterCode = `${year}-Q${quarterIndex}`;
+    const quarterName = `${year}-yil ${quarterRoman} chorak (3 oylik)`;
+
+    const monthNamesUz = [
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr',
+    ];
+    const periodRangeStr = `1-${monthNamesUz[startMonth]} – ${endOfQuarter.getDate()}-${monthNamesUz[endMonth]}`;
+
+    return {
+      startOfQuarter,
+      endOfQuarter,
+      nextResetDate,
+      quarterCode,
+      quarterName,
+      periodRangeStr,
+      quarterIndex,
+      year,
+      // Backward compatibility aliases
+      startOfMonth: startOfQuarter,
+      endOfMonth: endOfQuarter,
+      yearMonth: quarterCode,
+    };
+  }
+
+  private getMonthRange(dateInput?: string | Date) {
+    return this.getQuarterRange(dateInput);
   }
 
   /**
@@ -183,6 +229,7 @@ export class LimitsService {
 
     // Agar hech qanday limit belgilanmagan bo'lsa -> cheklov yo'q
     if (!activeLimit) {
+      const qRange = this.getQuarterRange(target.date);
       return {
         hasLimit: false,
         limitId: null,
@@ -194,8 +241,14 @@ export class LimitsService {
         totalExceptions: 0,
         totalAllowed: null,
         currentMonthSpent: 0,
+        currentQuarterSpent: 0,
         remaining: null,
         yearMonth,
+        periodCode: qRange.quarterCode,
+        periodName: qRange.quarterName,
+        periodRange: qRange.periodRangeStr,
+        limitSetDate: null,
+        nextResetDate: qRange.nextResetDate,
         exceptions: [],
       };
     }
@@ -364,6 +417,7 @@ export class LimitsService {
 
     const remaining = Math.max(0, Math.round((totalAllowed - currentMonthSpent) * 10000) / 10000);
 
+    const qRange = this.getQuarterRange(target.date);
     return {
       hasLimit: true,
       limitId: activeLimit.id,
@@ -377,8 +431,14 @@ export class LimitsService {
       totalExceptions,
       totalAllowed,
       currentMonthSpent,
+      currentQuarterSpent: currentMonthSpent,
       remaining,
       yearMonth,
+      periodCode: qRange.quarterCode,
+      periodName: qRange.quarterName,
+      periodRange: qRange.periodRangeStr,
+      limitSetDate: activeLimit.createdAt,
+      nextResetDate: qRange.nextResetDate,
       createdBy: activeLimit.createdBy,
       updatedBy: activeLimit.updatedBy,
       createdAt: activeLimit.createdAt,
@@ -413,10 +473,18 @@ export class LimitsService {
 
     const cleanQty = Math.round(quantityToGive * 10000) / 10000;
     if (cleanQty > (status.remaining ?? 0)) {
+      const nextResetStr = status.nextResetDate
+        ? new Date(status.nextResetDate).toLocaleDateString('uz-UZ', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'keyingi chorak boshida';
+
       throw new BadRequestException({
         statusCode: 400,
         errorCode: 'OVER_MONTHLY_LIMIT',
-        message: `Oylik meʼyor cheklovi! Joriy oy uchun belgilangan limit: ${status.totalAllowed} ${status.unit || 'dona'}. Shu oyda olingan: ${status.currentMonthSpent}. Qolgan ruxsat etilgan limit: ${status.remaining}. Berilayotgan miqdor (${cleanQty}) oylik meʼyordan oshib ketmoqda. Limitni oshirish uchun Vazir yoki Rahbariyat buyrug‘i biriktirilishi shart!`,
+        message: `Choraklik meʼyor cheklovi! ${status.periodName} (${status.periodRange}) uchun belgilangan 3 oylik limit: ${status.totalAllowed} ${status.unit || 'dona'}. Shu chorakda olingan: ${status.currentQuarterSpent || status.currentMonthSpent}. Qolgan ruxsat etilgan limit: ${status.remaining}. Berilayotgan miqdor (${cleanQty}) 3 oylik meʼyordan oshib ketmoqda. Yangi limit ${nextResetStr}da ochiladi!`,
         limitStatus: status,
         requestedQuantity: cleanQty,
       });
@@ -806,12 +874,19 @@ export class LimitsService {
             }
           : null;
 
+        const qRange = this.getQuarterRange();
         return {
           ...item,
           currentMonth: yearMonth,
+          periodCode: qRange.quarterCode,
+          periodName: qRange.quarterName,
+          periodRange: qRange.periodRangeStr,
+          limitSetDate: item.createdAt,
+          nextResetDate: qRange.nextResetDate,
           totalExceptions,
           totalAllowed,
           currentMonthSpent: spent,
+          currentQuarterSpent: spent,
           remaining,
           latestDecree,
           exceptionsCount: exceptions.length,

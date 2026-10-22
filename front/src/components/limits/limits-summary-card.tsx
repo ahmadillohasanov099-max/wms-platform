@@ -19,7 +19,7 @@ import Modal from '../ui/modal';
 import { limitsApi } from '../../api/endpoints/limits.api';
 import { productsApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
-import { formatDate } from '../../lib/utils';
+import { formatDate, formatSimpleDate } from '../../lib/utils';
 import { formatProductQuantity, roundQuantity } from '../../lib/quantity-utils';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -190,12 +190,12 @@ export default function LimitsSummaryCard({
             </div>
             <div>
               <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base block">
-                Oylik TMZ isteʼmol meʼyorlari (limitlar)
+                Choraklik TMZ isteʼmol meʼyorlari (3 oylik limitlar)
               </span>
               <span className="text-xs text-muted-foreground block">
                 {targetName
                   ? `${targetName} uchun belgilangan meʼyorlar va qoldiqlar`
-                  : 'Oylik meʼyorlar va qoldiqlar nazorati'}
+                  : 'Choraklik meʼyorlar va qoldiqlar nazorati'}
               </span>
             </div>
           </div>
@@ -235,9 +235,10 @@ export default function LimitsSummaryCard({
               <thead>
                 <tr className="border-b border-gray-200/80 dark:border-white/10 bg-gray-50/75 dark:bg-slate-800/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-3 px-4">Mahsulot</th>
-                  <th className="py-3 px-4 text-center">Oylik meʼyor</th>
-                  <th className="py-3 px-4 text-center">Sarf (Bu oy)</th>
+                  <th className="py-3 px-4 text-center">Choraklik meʼyor (3 oylik)</th>
+                  <th className="py-3 px-4 text-center">Choraklik sarf</th>
                   <th className="py-3 px-4 text-center">Qolgan limit</th>
+                  <th className="py-3 px-4 text-center">Yangilanish sanasi</th>
                   <th className="py-3 px-4">Asos va Masʼul</th>
                   {canManage && <th className="py-3 px-4 text-right">Amallar</th>}
                 </tr>
@@ -315,6 +316,18 @@ export default function LimitsSummaryCard({
                         </span>
                       </td>
 
+                      {/* Yangilanish sanasi */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center">
+                          <span className="font-semibold text-xs text-foreground">
+                            {formatSimpleDate(item.nextResetDate) || '01.01.2027'}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {item.periodCode ? (item.periodCode.split('-')[1] + ' chorak') : (item.periodName || 'IV chorak')}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Asos va Mas'ul */}
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1">
@@ -389,7 +402,7 @@ export default function LimitsSummaryCard({
       <Modal
         open={isAddLimitModalOpen}
         onClose={() => setIsAddLimitModalOpen(false)}
-        title="Oylik isteʼmol meʼyorini belgilash"
+        title="Choraklik isteʼmol meʼyorini belgilash (3 oylik)"
         size="md"
         footer={null}
       >

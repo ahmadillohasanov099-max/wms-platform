@@ -1,20 +1,29 @@
 # 📋 Loyiha Rivojlantirish Rejasi va Bajariladigan Vazifalar
 
-**Oxirgi yangilangan sana:** 2026-10-16  
+**Oxirgi yangilangan sana:** 2026-10-22  
 **Loyiha:** WMS Platform (Vazirlik va Quyi Tashkilotlar Ombor Boshqaruv Tizimi)
 
 ---
 
-## 🚀 ERTAGA REJALASHTIRILGAN ASOSIY VAZIFALAR:
+## 🚀 ASOSIY AMALGA OSHIRILGAN YANGI BOSQICH:
 
-### 1. 🛡️ Oylik meʼyor (limit) tizimini toʻliq amaliy testlash, toʻgʻrilash va takomillashtirish (Eng ustuvor ⏳):
-- [ ] **Real ombor sharoitida oylik limit hisob-kitobini to‘liq amaliy testdan o‘tkazish:**
-  - Xodim va bo‘limlarga turli TMZlarni (qog‘oz, ruchka, kanselyariya va h.k.) berishda limit to‘g‘ri ishlashini, qoldiq to‘g‘ri ayirilishini amalda tekshirish.
-  - Limit oshganda tizim berishni bloklashi va ogohlantirish berishini tekshirish.
-- [ ] **Buyruq asosida limitni oshirish/tahrirlash jarayonini amalda sinash va to‘g‘rilash:**
-  - Cheklov yuzaga kelganda yangi buyruq faylini yuklab limitni oshirish modalini sinab ko‘rish.
-  - Foydalanuvchi interfeysi (UI/UX) va qulayligini amaliyotda doimiy ravishda takomillashtirib borish.
-- [ ] **Har oy almashganda limit hisoblagichlari avtomatik 0 dan boshlanishini monitoring qilish.**
+### 🏛️ Choraklik (Kvartal / 3 oylik) TMZ Meʼyorlari Tizimi (Bajarildi ✅):
+- [x] **Davlat va budjet standartlariga to'liq moslashtirildi:**
+  - Oylik tor cheklov o'rniga, rasmiy kalendar choraklari (I, II, III, IV choraklar) bo'yicha 3 oylik limit tizimi joriy etildi.
+  - Bo'lim yoki xodim 3 oy davomida xohlagan vaqtida (donada yoki pachkada) me'yor doirasida TMZ olishi mumkin.
+  - Agar 3 oylik limit muddatidan oldin (masalan 1-2 oyda) tugasa, tizim avtomatik ravishda qolgan muddat davomida (yangi chorak 1-sanasigacha) TMZ berishni qat'iy bloklaydi.
+  - Har chorak boshida (1-yanvar, 1-aprel, 1-iyul, 1-oktyabr) hisoblagichlar avtomatik 0 dan yangilanadi.
+- [x] **Sanalar shaffofligi va ko'rgazmaliligi:**
+  - `limitSetDate`: Me'yor belgilangan aniq sana ko'rsatiladi.
+  - `nextResetDate`: Keyingi yangi chorak me'yori ochiladigan sana (masalan, `2027-yil 1-yanvar`) aniq aks etadi.
+  - `periodName` & `periodRange`: Masalan, `2026-yil IV chorak (1-oktyabr – 31-dekabr)`.
+- [x] **Minimal va professional Ogohlantirish modali (`OverLimitNoticeModal`):**
+  - Ortiqcha ranglar va matnlar olib tashlandi, juda ixcham (`size="md"`), jiddiy davlat standarti ko'rinishiga keltirildi.
+  - 4 ta asosiy katak: Choraklik me'yor (3 oylik), Chorakda olingan, Qolgan limit, So'ralayotgan miqdor.
+  - Limitdan ortiqcha miqdor va rasmiy buyruq fayliga havola.
+  - Berish modali yopilib, o'rniga markazda ushbu toza modal ochilishi ta'minlandi.
+- [x] **Backend tozalash va yagona Super Admin seed:**
+  - Barcha jadvallar 0 ga tushirildi, ortiqcha test ma'lumotlar tozalandi va faqat yagona Super Admin (`ahmadillohasanov099@gmail.com`) qoldirildi.
 
 ### 2. 🧪 Ombor o'lchov birliklarini to'liq test qilish (Bajarildi ✅):
 - [x] **Pachka va dona konvertatsiyasini amalda testlash:**
