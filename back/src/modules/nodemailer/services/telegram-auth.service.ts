@@ -5,7 +5,7 @@ import { TelegramSenderService } from './telegram-sender.service';
 
 @Injectable()
 export class TelegramAuthService {
-  public loginSessions = new Map<string, { step: 'USERNAME' | 'PASSWORD'; username?: string }>();
+  public loginSessions = new Map<string, { step: 'USERNAME' | 'PASSWORD'; username?: string; timestamp: number }>();
 
   constructor(
     private prisma: PrismaService,
@@ -18,20 +18,20 @@ export class TelegramAuthService {
 
     const replyKeyboard = {
       keyboard: [
-        [{ text: '🔑 Kirish (/login)' }],
-        [{ text: '❓ Yordam / Qo‘llanma' }],
+        [{ text: '🔑 Tizimga Kirish (/login)' }],
       ],
       resize_keyboard: true,
     };
 
     await this.sender.sendMessageWithKeyboard(
       `🏛 <b>QURILISH VA UY-JOY KOMMUNAL XO'JALIGI VAZIRLIGI</b>\n` +
-      `📦 <b>WMS Ombor va Jihozlar Boshqaruv Tizimi Botiga Xush Kelibsiz!</b>\n\n` +
-      `Siz bot imkoniyatlaridan to'liq foydalanishingiz uchun tizimdagi hisobingizga kirishingiz lozim.\n\n` +
+      `📦 <b>WMS Ombor va Jihozlar Boshqaruv Tizimi Boti</b>\n\n` +
+      `⚠️ <b>DIQQAT:</b> Botdan foydalanish uchun tizimdagi hisobingiz orqali ro'yxatdan o'tishingiz (tizimga kirishingiz) shart!\n\n` +
+      `Muvaffaqiyatli kirilgandan so'ng sizga rolingizga mos xizmatlar va menyu ochiladi.\n\n` +
       `👉 <b>Tezkor buyruq orqali kirish:</b>\n` +
       `<code>/login username parol</code>\n\n` +
       `<i>Misol: <code>/login admin 123456</code> yoki <code>/login omborchi 123456</code></i>\n\n` +
-      `Yoki quyidagi <b>"🔑 Kirish (/login)"</b> tugmasini bosing.`,
+      `Yoki quyidagi <b>"🔑 Tizimga Kirish (/login)"</b> tugmasini bosing:`,
       replyKeyboard,
       chatId,
     );
@@ -51,12 +51,26 @@ export class TelegramAuthService {
     chatId: string,
     onSuccess?: (user: any) => Promise<void>,
   ) {
-    const session = this.loginSessions.get(chatId);
+    let session = this.loginSessions.get(chatId);
+
+    // Sessiya 5 daqiqadan oshgan bo'lsa yangilaymiz
+    if (session && Date.now() - session.timestamp > 5 * 60 * 1000) {
+      this.loginSessions.delete(chatId);
+      session = undefined;
+    }
+
+    if (text === '/cancel' || text.startsWith('/logout')) {
+      this.loginSessions.delete(chatId);
+      await this.sender.sendMessage(`❌ <b>Kirish jarayoni bekor qilindi.</b>`, chatId);
+      await this.sendLoginPrompt(chatId);
+      return;
+    }
 
     if (text.startsWith('/login')) {
       const parts = text.replace('/login', '').trim().split(/\s+/);
       if (parts.length >= 2) {
-        const [username, password] = parts;
+        const username = parts[0];
+        const password = parts.slice(1).join(' ');
         this.loginSessions.delete(chatId);
         await this.authenticateAndBind(username, password, chatId, onSuccess);
         return;
@@ -64,29 +78,29 @@ export class TelegramAuthService {
     }
 
     if (!session) {
-      this.loginSessions.set(chatId, { step: 'USERNAME' });
+      this.loginSessions.set(chatId, { step: 'USERNAME', timestamp: Date.now() });
       await this.sender.sendMessage(
         `👤 <b>TIZIMGA KIRISH (1/2)</b>\n\n` +
-        `Web-tizimdagi <b>loginingizni</b> (username yoki pochta) yozing:`,
+        `Web-tizimdagi <b>loginingizni</b> (username yoki telefon raqam) yozing:`,
         chatId,
       );
       return;
     }
 
     if (session.step === 'USERNAME') {
-      if (text === '🔑 Kirish (/login)' || text === '/login') {
+      if (text === '🔑 Kirish (/login)' || text === '🔑 Tizimga Kirish (/login)' || text === '/login') {
         await this.sender.sendMessage(
           `👤 <b>TIZIMGA KIRISH (1/2)</b>\n\n` +
-          `Web-tizimdagi <b>loginingizni</b> (username yoki pochta) yozing:`,
+          `Web-tizimdagi <b>loginingizni</b> (username yoki telefon raqam) yozing:`,
           chatId,
         );
         return;
       }
       const username = text.trim();
-      this.loginSessions.set(chatId, { step: 'PASSWORD', username });
+      this.loginSessions.set(chatId, { step: 'PASSWORD', username, timestamp: Date.now() });
       await this.sender.sendMessage(
         `🔐 <b>TIZIMGA KIRISH (2/2)</b>\n\n` +
-        `Endi loginingiz (<b>${username}</b>) uchun <b>parolingizni</b> kiriting:`,
+        `Endi <b>${username}</b> hisobingiz uchun <b>parolingizni</b> kiriting:`,
         chatId,
       );
       return;
@@ -117,7 +131,7 @@ export class TelegramAuthService {
             { phone: { equals: username } },
           ],
         },
-        include: { department: true },
+        include: { department: true, organization: true },
       });
 
       if (!user || !user.passwordHash) {
@@ -144,21 +158,22 @@ export class TelegramAuthService {
         data: { telegramChatId: null },
       });
 
-      await this.prisma.user.update({
+      const updatedUser = await this.prisma.user.update({
         where: { id: user.id },
         data: { telegramChatId: chatId },
+        include: { department: true, organization: true },
       });
 
       await this.sender.sendMessage(
         `✅ <b>MUVAFFAQIYATLI KIRILDINGIZ!</b>\n\n` +
-        `Xush kelibsiz, <b>${user.fullName}</b>!\n` +
-        `💼 Lavozim: <i>${user.position || user.role}</i>\n` +
-        `🏢 Bo'lim: <b>${user.department?.name || 'Markaziy Boshqarma'}</b>`,
+        `Xush kelibsiz, <b>${updatedUser.fullName}</b>!\n` +
+        `💼 Lavozim: <i>${updatedUser.position || updatedUser.role}</i>\n` +
+        `🏢 Bo'lim: <b>${updatedUser.department?.name || 'Markaziy Boshqarma'}</b>`,
         chatId,
       );
 
       if (onSuccess) {
-        await onSuccess(user);
+        await onSuccess(updatedUser);
       }
     } catch (err) {
       await this.sender.sendMessage(`❌ Kirishda xatolik yuz berdi. Qaytatdan urinib ko'ring.`, chatId);
@@ -174,7 +189,8 @@ export class TelegramAuthService {
       });
 
       await this.sender.sendMessage(
-        `🚪 <b>Tizimdan muvaffaqiyatli chiqdingiz.</b>`,
+        `🚪 <b>Tizimdan muvaffaqiyatli chiqdingiz.</b>\n\n` +
+        `Telegram akkauntingiz tizimdan uzildi. Qayta kirish uchun <b>/login</b> buyrug'idan foydalaning.`,
         chatId,
       );
       await this.sendLoginPrompt(chatId);

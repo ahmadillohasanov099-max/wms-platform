@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma';
-import { TelegramSenderService, STAFF_ROLES, serverLogBuffer } from './telegram-sender.service';
+import { TelegramSenderService, STAFF_ROLES, serverLogBuffer, escapeHtml } from './telegram-sender.service';
 
 @Injectable()
 export class TelegramReportsService {
@@ -33,23 +33,23 @@ export class TelegramReportsService {
     );
   }
 
-  async sendStatusReport(chatId: string) {
+  async sendStatusReport(chatId: string, organizationId?: string) {
     try {
+      const orgFilter = organizationId ? { organizationId } : {};
       const [prod, users, depts, activeAssets] = await Promise.all([
-        this.prisma.product.count({ where: { deletedAt: null } }),
-        this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
-        this.prisma.department.count({ where: { deletedAt: null } }),
-        this.prisma.assignment.count({ where: { returnedAt: null } }),
+        this.prisma.product.count({ where: { deletedAt: null, ...orgFilter } }),
+        this.prisma.user.count({ where: { deletedAt: null, isActive: true, ...orgFilter } }),
+        this.prisma.department.count({ where: { deletedAt: null, ...orgFilter } }),
+        this.prisma.assignment.count({ where: { returnedAt: null, asset: { deletedAt: null, ...orgFilter } } }),
       ]);
 
       const text =
-        `📊 <b>TIZIM UMUMIY STATISTIKASI</b>\n\n` +
-        `📦 Barcha mahsulotlar: <b>${prod} ta tur</b>\n` +
-        `👥 Faol xodimlar: <b>${users} ta</b>\n` +
-        `🏢 Bo'limlar soni: <b>${depts} ta</b>\n` +
-        `💻 Biriktirilgan jihozlar: <b>${activeAssets} ta</b>\n` +
-        `🟢 Tizim holati: <b>Faol (OK)</b>\n\n` +
-        `📥 <i>Excel hisobot yuklash: <code>/stats_export</code></i>`;
+        `📊 <b>Tizim umumiy statistikasi</b>\n\n` +
+        `• Mahsulotlar: <b>${prod} xil</b>\n` +
+        `• Xodimlar: <b>${users} ta</b>\n` +
+        `• Bo'limlar: <b>${depts} ta</b>\n` +
+        `• Biriktirilgan aktivlar: <b>${activeAssets} ta</b>\n\n` +
+        `<blockquote>🟢 <b>Holat:</b> Barcha xizmatlar barqaror ishlamoqda</blockquote>`;
 
       await this.sender.sendMessage(text, chatId);
     } catch (err) {
@@ -57,11 +57,12 @@ export class TelegramReportsService {
     }
   }
 
-  async sendStockReport(chatId: string, page = 1) {
+  async sendStockReport(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
+      const orgFilter = organizationId ? { organizationId } : {};
       const totalCount = await this.prisma.inventory.count({
-        where: { product: { deletedAt: null } },
+        where: { product: { deletedAt: null, ...orgFilter } },
       });
 
       if (totalCount === 0) {
@@ -73,20 +74,21 @@ export class TelegramReportsService {
       const currentPage = Math.max(1, Math.min(page, totalPages));
 
       const items = await this.prisma.inventory.findMany({
-        where: { product: { deletedAt: null } },
+        where: { product: { deletedAt: null, ...orgFilter } },
         include: { product: { select: { name: true, unit: true } } },
         skip: (currentPage - 1) * pageSize,
         take: pageSize,
         orderBy: { quantity: 'desc' },
       });
 
-      let text = `📦 <b>OMBORDAGI QOLDIQLAR</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `📦 <b>Ombordagi qoldiqlar</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       items.forEach((item, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
         const isLow = item.quantity <= item.minLevel;
-        const statusIcon = isLow ? '⚠️' : '🔹';
-        text += `${statusIcon} <b>${index}. ${item.product.name}</b>\n` +
-          `   📦 Qoldiq: <b>${item.quantity} ${item.product.unit || 'ta'}</b> (Min: ${item.minLevel})\n\n`;
+        const icon = isLow ? '⚠️' : '•';
+        text += `${icon} <b>${escapeHtml(item.product.name)}</b>\n` +
+          `   Qoldiq: <code>${item.quantity} ${item.product.unit || 'ta'}</code> (Min: ${item.minLevel})\n\n`;
       });
       text += `📥 <i>Excel yuklash: <code>/stock_export</code></i>`;
 
@@ -101,11 +103,12 @@ export class TelegramReportsService {
     }
   }
 
-  async sendUsersReport(chatId: string, page = 1) {
+  async sendUsersReport(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
+      const orgFilter = organizationId ? { organizationId } : {};
       const totalCount = await this.prisma.user.count({
-        where: { deletedAt: null, isActive: true },
+        where: { deletedAt: null, isActive: true, ...orgFilter },
       });
 
       if (totalCount === 0) {
@@ -117,7 +120,7 @@ export class TelegramReportsService {
       const currentPage = Math.max(1, Math.min(page, totalPages));
 
       const users = await this.prisma.user.findMany({
-        where: { deletedAt: null, isActive: true },
+        where: { deletedAt: null, isActive: true, ...orgFilter },
         select: {
           fullName: true,
           position: true,
@@ -133,14 +136,14 @@ export class TelegramReportsService {
         orderBy: { fullName: 'asc' },
       });
 
-      let text = `👥 <b>XODIMLAR RO'YXATI</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `👥 <b>Xodimlar ro'yxati</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       users.forEach((u, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
         const assetsCount = u.assignments.length;
-        text += `🔹 <b>${index}. ${u.fullName}</b>\n` +
-          `   💼 Lavozimi: <i>${u.position || u.role}</i>\n` +
-          `   🏢 Bo'limi: ${u.department?.name || 'Bo\'limsiz'}\n` +
-          `   📦 Biriktirilgan jihozlar: <b>${assetsCount} ta</b>\n\n`;
+        text += `${index}. <b>${escapeHtml(u.fullName)}</b>\n` +
+          `   ${escapeHtml(u.position || u.role)} • ${escapeHtml(u.department?.name || 'Bo\'limsiz')}\n` +
+          `   Aktivlar: <code>${assetsCount} ta</code>\n\n`;
       });
       text += `📥 <i>Excel yuklash: <code>/users_export</code></i>`;
 
@@ -155,11 +158,12 @@ export class TelegramReportsService {
     }
   }
 
-  async sendLowStockReport(chatId: string, page = 1) {
+  async sendLowStockReport(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
+      const orgFilter = organizationId ? { organizationId } : {};
       const allItems = await this.prisma.inventory.findMany({
-        where: { product: { deletedAt: null } },
+        where: { product: { deletedAt: null, ...orgFilter } },
         include: { product: { select: { name: true, unit: true } } },
       });
 
@@ -175,11 +179,12 @@ export class TelegramReportsService {
       const currentPage = Math.max(1, Math.min(page, totalPages));
       const pagedLow = lowItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-      let text = `⚠️ <b>KAMAYIB KETGAN TOVARLAR</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `⚠️ <b>Kam qolgan tovarlar</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       pagedLow.forEach((item, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
-        text += `🔴 <b>${index}. ${item.product.name}</b>\n` +
-          `   🔻 Joriy qoldiq: <b>${item.quantity} ${item.product.unit || 'ta'}</b> (Minimal chegara: ${item.minLevel})\n\n`;
+        text += `${index}. <b>${escapeHtml(item.product.name)}</b>\n` +
+          `   Qoldiq: <code>${item.quantity} ${item.product.unit || 'ta'}</code> (Minimal: ${item.minLevel})\n\n`;
       });
 
       const keyboard = this.buildPaginationKeyboard('cb_lowstock', currentPage, totalPages);
@@ -193,10 +198,11 @@ export class TelegramReportsService {
     }
   }
 
-  async sendRecentOperations(chatId: string, page = 1) {
+  async sendRecentOperations(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
-      const totalCount = await this.prisma.operation.count();
+      const orgFilter = organizationId ? { organizationId } : {};
+      const totalCount = await this.prisma.operation.count({ where: orgFilter });
 
       if (totalCount === 0) {
         await this.sender.sendMessage('📜 Operatsiyalar tarixi bo\'sh.', chatId);
@@ -207,6 +213,7 @@ export class TelegramReportsService {
       const currentPage = Math.max(1, Math.min(page, totalPages));
 
       const ops = await this.prisma.operation.findMany({
+        where: orgFilter,
         skip: (currentPage - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -216,17 +223,17 @@ export class TelegramReportsService {
         },
       });
 
-      let text = `📜 <b>OXIRGI OPERATSIYALAR</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `📜 <b>So'nggi operatsiyalar</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       ops.forEach((op, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
         const typeLabel =
-          op.type === 'STOCK_IN' ? '📥 Kirim qilindi' :
-          op.type === 'GIVE_TO_USER' ? '📤 Xodimga berildi' :
-          op.type === 'RETURN_FROM_USER' ? '↩️ Omborga qaytarildi' : '📋 Operatsiya';
+          op.type === 'STOCK_IN' ? '📥 Kirim' :
+          op.type === 'GIVE_TO_USER' ? '📤 Berildi' :
+          op.type === 'RETURN_FROM_USER' ? '↩️ Qaytarildi' : '📋 Operatsiya';
 
-        text += `🔹 <b>${index}. ${typeLabel}</b>\n` +
-          `   📦 Mahsulot: <b>${op.product?.name || 'Mahsulot'}</b> (${op.quantity} ta)\n` +
-          `   👨‍💼 Mas'ul: <i>${op.performedBy?.fullName || 'Tizim'}</i>\n\n`;
+        text += `${index}. <b>${typeLabel}</b> — ${escapeHtml(op.product?.name || 'Mahsulot')} (${op.quantity} ta)\n` +
+          `   Mas'ul: ${escapeHtml(op.performedBy?.fullName || 'Tizim')}\n\n`;
       });
       text += `📥 <i>Excel yuklash: <code>/recent_export</code></i>`;
 
@@ -241,10 +248,13 @@ export class TelegramReportsService {
     }
   }
 
-  async sendDepartmentsReport(chatId: string, page = 1) {
+  async sendDepartmentsReport(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
-      const totalCount = await this.prisma.department.count({ where: { deletedAt: null } });
+      const orgFilter = organizationId ? { organizationId } : {};
+      const totalCount = await this.prisma.department.count({
+        where: { deletedAt: null, ...orgFilter },
+      });
 
       if (totalCount === 0) {
         await this.sender.sendMessage('🏢 Bo\'limlar topilmadi.', chatId);
@@ -255,7 +265,7 @@ export class TelegramReportsService {
       const currentPage = Math.max(1, Math.min(page, totalPages));
 
       const depts = await this.prisma.department.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, ...orgFilter },
         skip: (currentPage - 1) * pageSize,
         take: pageSize,
         include: {
@@ -264,11 +274,12 @@ export class TelegramReportsService {
         },
       });
 
-      let text = `🏢 <b>BO'LIMLAR BO'YICHA JIHOZLAR</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `🏢 <b>Bo'limlar ro'yxati</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       depts.forEach((d, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
-        text += `▪️ <b>${index}. ${d.name}</b>\n` +
-          `   👥 Xodimlar: <b>${d._count.users} ta</b>  •  💻 Jihozlar: <b>${d.assignments.length} ta</b>\n\n`;
+        text += `${index}. <b>${escapeHtml(d.name)}</b>\n` +
+          `   Xodimlar: <code>${d._count.users} ta</code> • Aktivlar: <code>${d.assignments.length} ta</code>\n\n`;
       });
 
       const keyboard = this.buildPaginationKeyboard('cb_depts', currentPage, totalPages);
@@ -282,13 +293,15 @@ export class TelegramReportsService {
     }
   }
 
-  async sendOffboardingReport(chatId: string, page = 1) {
+  async sendOffboardingReport(chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
+      const orgFilter = organizationId ? { organizationId } : {};
       const totalCount = await this.prisma.user.count({
         where: {
           employmentStatus: 'OFFBOARDING_PENDING',
           deletedAt: null,
+          ...orgFilter,
         },
       });
 
@@ -304,6 +317,7 @@ export class TelegramReportsService {
         where: {
           employmentStatus: 'OFFBOARDING_PENDING',
           deletedAt: null,
+          ...orgFilter,
         },
         skip: (currentPage - 1) * pageSize,
         take: pageSize,
@@ -316,14 +330,15 @@ export class TelegramReportsService {
         },
       });
 
-      let text = `🚨 <b>ISHDAN BO'SHATISH VA JIHOZLAR TOPSHIRISH NAZORATI</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `🚨 <b>Offboarding nazorati</b>\n` +
+        `Topshirmagan xodimlar: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
 
       offboardingUsers.forEach((u, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
-        text += `🔴 <b>${index}. ${u.fullName}</b> (${u.department?.name || 'Bo\'limsiz'})\n` +
-          `   💻 Qaytarilishi kerak bo'lgan jihozlar: <b>${u.assignments.length} ta</b>\n`;
+        text += `${index}. <b>${escapeHtml(u.fullName)}</b> (${escapeHtml(u.department?.name || 'Bo\'limsiz')})\n` +
+          `   Topshirilishi lozim: <code>${u.assignments.length} ta jihoz</code>\n`;
         u.assignments.forEach((a) => {
-          text += `      • ${a.asset?.product?.name} (Inv: <code>${a.asset?.inventoryNumber}</code>)\n`;
+          text += `   • ${escapeHtml(a.asset?.product?.name || 'Jihoz')} (№ <code>${escapeHtml(a.asset?.inventoryNumber || '—')}</code>)\n`;
         });
         text += `\n`;
       });
@@ -365,7 +380,8 @@ export class TelegramReportsService {
         include: { asset: { include: { product: true } } },
       });
 
-      let text = `📱 <b>${boundUser.fullName.toUpperCase()} — BIRIKTIRILGAN JIHOZLAR</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `📱 <b>Mening jihozlarim</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
 
       activeAssignments.forEach((assign, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
@@ -373,9 +389,8 @@ export class TelegramReportsService {
         const invNumber = assign.asset?.inventoryNumber || 'Raqamsiz';
         const dateStr = assign.assignedAt ? new Date(assign.assignedAt).toLocaleDateString('uz-UZ') : '—';
 
-        text += `🔹 <b>${index}. ${assetName}</b>\n` +
-          `   🏷 Inv №: <code>${invNumber}</code>\n` +
-          `   📅 Biriktirilgan sana: <i>${dateStr}</i>\n\n`;
+        text += `${index}. <b>${escapeHtml(assetName)}</b>\n` +
+          `   № <code>${escapeHtml(invNumber)}</code> • ${dateStr}\n\n`;
       });
 
       const keyboard = this.buildPaginationKeyboard('cb_myassets', currentPage, totalPages);
@@ -389,13 +404,15 @@ export class TelegramReportsService {
     }
   }
 
-  async searchProducts(query: string, chatId: string, page = 1) {
+  async searchProducts(query: string, chatId: string, page = 1, organizationId?: string) {
     try {
       const pageSize = 10;
+      const orgFilter = organizationId ? { organizationId } : {};
       const totalCount = await this.prisma.product.count({
         where: {
           deletedAt: null,
           name: { contains: query, mode: 'insensitive' },
+          ...orgFilter,
         },
       });
 
@@ -411,17 +428,19 @@ export class TelegramReportsService {
         where: {
           deletedAt: null,
           name: { contains: query, mode: 'insensitive' },
+          ...orgFilter,
         },
         include: { inventory: true },
         skip: (currentPage - 1) * pageSize,
         take: pageSize,
       });
 
-      let text = `🔍 <b>QIDIRUV NATIJALARI ("${query}")</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `🔍 <b>Qidiruv natijalari ("${escapeHtml(query)}")</b>\n` +
+        `Topildi: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
       products.forEach((p, i) => {
         const index = (currentPage - 1) * pageSize + i + 1;
-        text += `📦 <b>${index}. ${p.name}</b>\n` +
-          `   Qoldiq: <b>${p.inventory?.quantity ?? 0} ${p.unit || 'ta'}</b>  •  Minimal: ${p.inventory?.minLevel ?? 0}\n\n`;
+        text += `${index}. <b>${escapeHtml(p.name)}</b>\n` +
+          `   Qoldiq: <code>${p.inventory?.quantity ?? 0} ${p.unit || 'ta'}</code> (Min: ${p.inventory?.minLevel ?? 0})\n\n`;
       });
 
       const keyboard = this.buildPaginationKeyboard('cb_find', currentPage, totalPages, `:${query}`);
@@ -471,17 +490,17 @@ export class TelegramReportsService {
         },
       });
 
-      let text = `📜 <b>${boundUser.fullName.toUpperCase()} — SHAXSIY OPERATSIYALAR TARIHI</b> (${currentPage}/${totalPages}-sahifa, jami ${totalCount} ta)\n\n`;
+      let text = `📜 <b>Mening tarixim</b>\n` +
+        `Jami: <code>${totalCount} ta</code> • ${currentPage}/${totalPages}-sahifa\n\n`;
 
       ops.forEach((op: any, i: number) => {
         const index = (currentPage - 1) * pageSize + i + 1;
-        const typeIcon = op.type === 'GIVE_TO_USER' ? '📥 Berilgan' : op.type === 'RETURN_FROM_USER' ? '↩️ Qaytarilgan' : '📋 Operatsiya';
-        const invStr = op.asset?.inventoryNumber ? ` (Inv №: <code>${op.asset.inventoryNumber}</code>)` : '';
+        const typeIcon = op.type === 'GIVE_TO_USER' ? '📥 Qabul qilindi' : op.type === 'RETURN_FROM_USER' ? '↩️ Topshirildi' : '📋 Amal';
+        const invStr = op.asset?.inventoryNumber ? ` • № <code>${escapeHtml(op.asset.inventoryNumber)}</code>` : '';
         const dateStr = new Date(op.createdAt).toLocaleDateString('uz-UZ');
 
-        text += `🔹 <b>${index}. ${typeIcon}</b>\n` +
-          `   📦 Mahsulot: <b>${op.product?.name || 'Mahsulot'}</b> (${op.quantity} ta)${invStr}\n` +
-          `   📅 Sana: <i>${dateStr}</i>\n\n`;
+        text += `${index}. <b>${typeIcon}</b> — ${escapeHtml(op.product?.name || 'Mahsulot')}${invStr}\n` +
+          `   Sana: ${dateStr}\n\n`;
       });
 
       const keyboard = this.buildPaginationKeyboard('cb_myhistory', currentPage, totalPages);
@@ -516,13 +535,12 @@ export class TelegramReportsService {
         return;
       }
 
-      let text = `🏢 <b>${dept.name.toUpperCase()} BO'LIMI</b>\n\n` +
-        `👥 Hamkasblar soni: <b>${dept._count.users} ta xodim</b>\n` +
-        `💻 Bo'limga biriktirilgan aktivlar: <b>${dept.assignments.length} ta</b>\n\n` +
-        `📋 <b>Bo'lim xodimlari:</b>\n`;
+      let text = `🏢 <b>${escapeHtml(dept.name)}</b>\n` +
+        `Xodimlar: <code>${dept._count.users} ta</code> • Aktivlar: <code>${dept.assignments.length} ta</code>\n\n` +
+        `<b>Bo'lim xodimlari:</b>\n`;
 
       dept.users.forEach((u, i) => {
-        text += `${i + 1}. <b>${u.fullName}</b> — <i>${u.position || 'Xodim'}</i>\n`;
+        text += `${i + 1}. <b>${escapeHtml(u.fullName)}</b> • ${escapeHtml(u.position || 'Xodim')}\n`;
       });
 
       await this.sender.sendMessage(text, chatId);
@@ -531,16 +549,69 @@ export class TelegramReportsService {
     }
   }
 
+  async sendUserMyRequests(chatId: string, boundUser: any) {
+    try {
+      const requests = await this.prisma.deletionRequest.findMany({
+        where: { requestedById: boundUser.id },
+        include: {
+          reviewedBy: { select: { fullName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+
+      if (!requests || requests.length === 0) {
+        await this.sender.sendMessage(
+          `📋 <b>Mening so'rovlarim</b>\n\n` +
+          `Siz tomonidan hali biror bir talabnoma yoki so'rov yuborilmagan.\n\n` +
+          `ℹ️ Yangi talabnoma yuborish uchun WMS veb-platformasidan foydalanishingiz mumkin.`,
+          chatId,
+        );
+        return;
+      }
+
+      let text = `📋 <b>Mening so'rovlarim</b>\n` +
+        `Jami: <code>${requests.length} ta</code>\n\n`;
+
+      requests.forEach((req, idx) => {
+        const dateStr = new Date(req.createdAt).toLocaleDateString('uz-UZ', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+        const statusBadge =
+          req.status === 'APPROVED' ? '🟢 Tasdiqlangan' :
+          req.status === 'REJECTED' ? '🔴 Rad etilgan' : '🟡 Kutilmoqda';
+
+        const reviewerStr = req.reviewedBy?.fullName
+          ? ` • ${escapeHtml(req.reviewedBy.fullName)}`
+          : '';
+
+        let commentStr = '';
+        if (req.reviewComment?.trim()) {
+          const prefix = req.status === 'REJECTED' ? '❌ Rad sababi:' : '💬 Izoh:';
+          commentStr = `\n<blockquote>${prefix}\n${escapeHtml(req.reviewComment.trim())}</blockquote>`;
+        }
+
+        text += `${idx + 1}. <b>${escapeHtml(req.entityName || 'Mahsulot so\'rovi')}</b>\n` +
+          `   ${statusBadge} • ${dateStr}${reviewerStr}${commentStr}\n\n`;
+      });
+
+      await this.sender.sendMessage(text, chatId);
+    } catch (err: any) {
+      this.logger.error(`Error in sendUserMyRequests: ${err?.message}`);
+      await this.sender.sendMessage('❌ So\'rovlarni olishda xatolik yuz berdi.', chatId);
+    }
+  }
+
   async sendOrganizationContacts(chatId: string) {
     const text =
-      `📞 <b>VAZIRLIK VA OMBORXONA MAS'ULLARI ALOQA MA'LUMOTLARI</b>\n\n` +
-      `🏢 <b>O'zbekiston Respublikasi Qurilish va Uy-Joy Kommunal Xo'jaligi Vazirligi</b>\n\n` +
-      `📦 <b>Omborxona va WMS Boshqarmasi:</b>\n` +
-      `👨‍💼 Bosh Omborchi: <b>Urinbadalov Abdulaziz</b> (+998 71 200 00 00)\n` +
-      `👩‍💼 Kadrlar Bo'limi: <b>Karimova Shahnoza</b>\n` +
-      `💻 IT va Texnik Qo'llab-quvvatlash: <b>Hasanov Ahmadillo</b>\n\n` +
-      `📍 <b>Manzil:</b> Toshkent shahri, Abay ko'chasi 6\n` +
-      `🌐 <b>Veb-sayt:</b> http://localhost:5173`;
+      `📞 <b>Aloqa va qo'llab-quvvatlash</b>\n\n` +
+      `<b>O'zbekiston Respublikasi Qurilish va Uy-Joy Kommunal Xo'jaligi Vazirligi</b>\n\n` +
+      `<blockquote>📦 <b>Bosh Omborxona:</b> Urinbadalov Abdulaziz\n` +
+      `💻 <b>IT Xizmati:</b> Hasanov Ahmadillo\n` +
+      `📍 <b>Manzil:</b> Toshkent sh., Abay ko'chasi 6\n` +
+      `🌐 <b>Portal:</b> http://localhost:5173</blockquote>`;
 
     await this.sender.sendMessage(text, chatId);
   }

@@ -556,10 +556,17 @@ export class OperationsStockService {
     }
 
     if (result.targetUserId) {
+      const performer = await this.prisma.user.findUnique({
+        where: { id: performedById },
+        select: { fullName: true },
+      });
+
       this.notifierService.notifyRepairCompleted(
         result.targetUserId,
         asset.product.name,
         asset.inventoryNumber,
+        asset.serialNumber,
+        performer?.fullName,
         dto.note,
       );
     }

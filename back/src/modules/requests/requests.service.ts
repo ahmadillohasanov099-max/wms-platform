@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { EventsGateway } from '../events/events.gateway';
-import { TelegramService } from '../nodemailer/telegram.service';
+import { TelegramService, escapeHtml } from '../nodemailer';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ReviewRequestDto } from './dto/review-request.dto';
 import { AssetStatus, EntityType, OperationType, RequestStatus, UserRole } from '@prisma/client';
@@ -1105,24 +1105,57 @@ export class RequestsService {
     }
     if (result.requestedById) {
       const isSupply = this.checkIsSupply(request.reason);
+      const reviewerName = result.reviewedBy?.fullName ? escapeHtml(result.reviewedBy.fullName) : "Bosh omborchi";
+      const cleanComment = dto.reviewComment?.trim();
+
       if (isSupply) {
-        const commentMsg = `\n\n💬 <b>Omborchi/Admin izohi:</b> ${dto.reviewComment?.trim()}`;
-        void this.telegramService.sendUserNotificationAlert(
-          result.requestedById,
-          `✅ Talabnomangiz tasdiqlandi`,
-          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) tasdiqlandi.${commentMsg}`,
-        );
-      } else {
-        const reqTitle = isRepair ? "Ta'mirlash so'rovi qabul qilindi" : "Qaytarish so'rovi qabul qilindi";
-        const detailMsg = isRepair
-          ? "Siz yuborgan ta'mirlash so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz servisga/ta'mirlashga olindi. Jihoz ta'mirlangach yana bildirishnoma olasiz."
-          : "Siz yuborgan qaytarish so'rovingiz mas'ul xodim (omborchi) tomonidan qabul qilindi va jihoz ombor hisobiga o'tkazildi.";
+        const commentMsg = cleanComment
+          ? `<blockquote>💬 <b>Omborchi izohi:</b>\n${escapeHtml(cleanComment)}</blockquote>\n\n`
+          : `<blockquote>💬 <b>Omborchi izohi:</b>\nMahsulot omborxonada tayyorlab qo'yildi, qabul qilib olishingiz mumkin.</blockquote>\n\n`;
+
+        const body =
+          `<b>${escapeHtml(request.entityName || "Moddiy ta'minot")}</b>\n\n` +
+          commentMsg +
+          `📍 Bosh omborxona • ${reviewerName}`;
 
         void this.telegramService.sendUserNotificationAlert(
           result.requestedById,
-          `✅ ${reqTitle}`,
-          `${detailMsg}${dto.reviewComment ? `\n\nIzoh: ${dto.reviewComment}` : ''}`,
+          `✅ <b>Talabnomangiz tasdiqlandi</b>`,
+          body,
         );
+      } else {
+        const isRepair = this.checkIsRepair(request.reason);
+        if (isRepair) {
+          const repairComment = cleanComment
+            ? `<blockquote>💬 <b>Usta izohi:</b>\n${escapeHtml(cleanComment)}</blockquote>\n\n`
+            : `<blockquote>💬 <b>Usta izohi:</b>\nJihoz ta'mirlash xizmatiga qabul qilindi va mutaxassisga topshirildi.</blockquote>\n\n`;
+
+          const body =
+            `<b>${escapeHtml(request.entityName || 'Jihoz')}</b>\n\n` +
+            repairComment +
+            `📍 IT xizmati / Servis • ${reviewerName}`;
+
+          void this.telegramService.sendUserNotificationAlert(
+            result.requestedById,
+            `🔧 <b>Ta'mirlashga qabul qilindi</b>`,
+            body,
+          );
+        } else {
+          const returnComment = cleanComment
+            ? `<blockquote>💬 <b>Omborchi izohi:</b>\n${escapeHtml(cleanComment)}</blockquote>\n\n`
+            : `<blockquote>💬 <b>Omborchi izohi:</b>\nJihoz ombor hisobiga qabul qilindi va hisobingizdan yechildi.</blockquote>\n\n`;
+
+          const body =
+            `<b>${escapeHtml(request.entityName || 'Jihoz')}</b>\n\n` +
+            returnComment +
+            `📍 Bosh omborxona • ${reviewerName}`;
+
+          void this.telegramService.sendUserNotificationAlert(
+            result.requestedById,
+            `↩️ <b>Qaytarish tasdiqlandi</b>`,
+            body,
+          );
+        }
       }
     }
     return result;
@@ -1222,8 +1255,10 @@ export class RequestsService {
       if (assignerId) {
         void this.telegramService.sendUserNotificationAlert(
           assignerId,
-          "❌ Xodim jihozni qabul qilmadi",
-          `Xodim ${assignment.user?.fullName || ''} siz biriktirgan "${assignment.asset.product.name}" jihozini rad etdi.\n\nSababi: ${reason}`,
+          "❌ <b>Xodim jihozni qabul qilmadi</b>",
+          `<b>${escapeHtml(assignment.asset.product.name)}</b>\n\n` +
+          `<blockquote>❌ <b>Rad sababi:</b>\n${escapeHtml(reason)}</blockquote>\n\n` +
+          `👤 Xodim: ${escapeHtml(assignment.user?.fullName || 'Xodim')}`,
         );
       }
 
@@ -1331,20 +1366,32 @@ export class RequestsService {
     this.eventsGateway.broadcastRequestUpdated(result);
     if (result.requestedById) {
       const isSupply = this.checkIsSupply(request.reason);
+      const isRepair = this.checkIsRepair(request.reason);
+      const reviewerName = result.reviewedBy?.fullName || "Mas'ul omborchi";
+      const cleanComment = comment?.trim() || dto.rejectionReason?.trim() || "Sabab ko'rsatilmadi";
+
       if (isSupply) {
-        void this.telegramService.sendUserNotificationAlert(
-          result.requestedById,
-          `❌ Talabnomangiz rad etildi`,
-          `Siz yuborgan mahsulot so'rovingiz (${request.entityName}) omborchi tomonidan rad etildi.${comment ? `\n\n💬 Sabab: ${comment}` : ''}`,
-        );
-      } else {
-        const isRepair = this.checkIsRepair(request.reason);
-        const reqTitle = isRepair ? "Ta'mirlash so'rovi rad etildi" : "Qaytarish so'rovi rad etildi";
+        const body =
+          `<b>${escapeHtml(request.entityName || "Moddiy ta'minot")}</b>\n\n` +
+          `<blockquote>❌ <b>Rad etish sababi:</b>\n${escapeHtml(cleanComment)}</blockquote>\n\n` +
+          `📍 Omborxona • ${escapeHtml(reviewerName)}`;
 
         void this.telegramService.sendUserNotificationAlert(
           result.requestedById,
-          `❌ ${reqTitle}`,
-          `Siz yuborgan ${isRepair ? "ta'mirlash" : "qaytarish"} so'rovingiz omborchi tomonidan rad etildi.${comment ? `\n\nSababi: ${comment}` : ''}`,
+          `❌ <b>Talabnomangiz rad etildi</b>`,
+          body,
+        );
+      } else {
+        const reqTitle = isRepair ? "Ta'mirlash so'rovi" : "Qaytarish so'rovi";
+        const body =
+          `<b>${escapeHtml(request.entityName || 'Jihoz')}</b>\n\n` +
+          `<blockquote>❌ <b>Rad etish sababi:</b>\n${escapeHtml(cleanComment)}</blockquote>\n\n` +
+          `📍 Mas'ul xodim • ${escapeHtml(reviewerName)}`;
+
+        void this.telegramService.sendUserNotificationAlert(
+          result.requestedById,
+          `❌ <b>${reqTitle} rad etildi</b>`,
+          body,
         );
       }
     }

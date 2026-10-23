@@ -198,8 +198,8 @@ export class TelegramExcelService {
         this.prisma.product.count({ where: { deletedAt: null, ...orgFilter } }),
         this.prisma.user.count({ where: { deletedAt: null, isActive: true, ...orgFilter } }),
         this.prisma.department.count({ where: { deletedAt: null, ...orgFilter } }),
-        this.prisma.assignment.count({ where: { returnedAt: null, asset: orgFilter } }),
-        this.prisma.inventory.count({ where: { quantity: { lte: 5 }, product: orgFilter } }),
+        this.prisma.assignment.count({ where: { returnedAt: null, asset: { deletedAt: null, ...orgFilter } } }),
+        this.prisma.inventory.count({ where: { quantity: { lte: 5 }, product: { deletedAt: null, ...orgFilter } } }),
       ]);
 
       const workbook = new ExcelJS.Workbook();
@@ -348,7 +348,7 @@ export class TelegramExcelService {
     try {
       const orgFilter = organizationId ? { organizationId } : {};
       const assignments = await this.prisma.assignment.findMany({
-        where: { returnedAt: null, asset: orgFilter },
+        where: { returnedAt: null, asset: { deletedAt: null, ...orgFilter } },
         include: {
           user: { include: { department: true } },
           department: true,

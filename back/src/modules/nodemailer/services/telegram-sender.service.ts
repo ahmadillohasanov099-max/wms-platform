@@ -4,10 +4,16 @@ import { PrismaService } from '../../../prisma';
 export const STAFF_ROLES = [
   'SUPER_ADMIN',
   'VAZIRLIK_OMBORCHI',
-  'OMBORCHI',
   'ORG_ADMIN',
   'ORG_OMBORCHI',
   'KADR',
+];
+
+export const NOTIFICATION_ROLES = [
+  'SUPER_ADMIN',
+  'VAZIRLIK_OMBORCHI',
+  'ORG_OMBORCHI',
+  'ORG_ADMIN',
 ];
 
 export const MAX_LOG_BUFFER_SIZE = 2000;
@@ -68,39 +74,63 @@ export class TelegramSenderService {
     return { token, chatId };
   }
 
-  async getAdminChatIds(overrideChatId?: string): Promise<string[]> {
-    // If specific overrideChatId is provided, deliver ONLY to that target without leaking to all staff
+  async getAdminChatIds(overrideChatId?: string, organizationId?: string): Promise<string[]> {
+    // If specific overrideChatId is provided, deliver ONLY to that target
     if (overrideChatId) {
       const targets = new Set<string>();
       overrideChatId.split(',').forEach((id) => targets.add(id.trim()));
       return Array.from(targets).filter(Boolean);
     }
 
-    const { chatId: envChatId } = this.getCredentials();
     const targets = new Set<string>();
 
-    if (envChatId) {
-      envChatId.split(',').forEach((id) => targets.add(id.trim()));
-    }
-
     try {
-      const staffUsers = await this.prisma.user.findMany({
-        where: {
-          role: { in: STAFF_ROLES as any },
+      // 2-VARIANT QOIDASI (Qat'iy ajratilgan — Tinch rejim):
+      // Agar operatsiya quyi tashkilotda (SUB_ORG) bo'lsa, xabar FAQAT o'sha tashkilotning ORG_ADMIN va ORG_OMBORCHI siga boradi.
+      // Super Admin (Vazirlik) quyi tashkilotlarning mayda operatsiyalari bilan bezovta qilinmaydi!
+      // Agar operatsiya Vazirlik (MINISTRY) miqyosida bo'lsa, xabar SUPER_ADMIN va VAZIRLIK_OMBORCHI siga boradi.
+      let targetOrg: { id: string; type: string } | null = null;
+      if (organizationId) {
+        targetOrg = await this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { id: true, type: true },
+        });
+      }
+
+      let whereClause: any;
+
+      if (targetOrg && targetOrg.type === 'SUB_ORG') {
+        // Quyi tashkilot operatsiyasi: FAQAT shu quyi tashkilot mas'ullari oladi (Super Admin bezovta qilinmaydi)
+        whereClause = {
           telegramChatId: { not: null },
           deletedAt: null,
           isActive: true,
-        },
+          role: { in: ['ORG_ADMIN', 'ORG_OMBORCHI'] as any },
+          organizationId: targetOrg.id,
+        };
+      } else {
+        // Vazirlik (MINISTRY) operatsiyasi yoki umumiy tizim xabari: Vazirlik Super Admin va Vazirlik omborchisi oladi
+        whereClause = {
+          telegramChatId: { not: null },
+          deletedAt: null,
+          isActive: true,
+          role: { in: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'] as any },
+          ...(organizationId ? { organizationId } : {}),
+        };
+      }
+
+      const authorizedStaff = await this.prisma.user.findMany({
+        where: whereClause,
         select: { telegramChatId: true },
       });
 
-      staffUsers.forEach((u) => {
-        if (u.telegramChatId) {
+      authorizedStaff.forEach((u) => {
+        if (u.telegramChatId && u.telegramChatId.trim()) {
           targets.add(u.telegramChatId.trim());
         }
       });
-    } catch (err) {
-      // fallback
+    } catch (err: any) {
+      this.logger.error(`Xatolik bildirishnoma chat ID larni olishda: ${err.message}`);
     }
 
     return Array.from(targets).filter(Boolean);
@@ -108,30 +138,42 @@ export class TelegramSenderService {
 
   /**
    * Get chat IDs of warehouse management staff (Super Admin, Ministry Warehouse, and target Org Warehouse)
+   * Faqat botga start bosib login qilgan Super Admin va Omborchilar
    */
   async getWarehouseChatIds(organizationId?: string): Promise<string[]> {
-    const { chatId: envChatId } = this.getCredentials();
     const targets = new Set<string>();
 
-    if (envChatId) {
-      envChatId.split(',').forEach((id) => targets.add(id.trim()));
-    }
-
     try {
-      const globalRoles = ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI'];
-      const orgRoles = ['ORG_ADMIN', 'ORG_OMBORCHI'];
+      // 2-VARIANT QOIDASI (Qat'iy ajratilgan — Tinch rejim):
+      // Quyi tashkilot (SUB_ORG) talabnomasi bo'lsa -> FAQAT shu tashkilot omborchisi va adminiga boradi. Super Admin bezovta qilinmaydi!
+      // Vazirlik talabnomasi bo'lsa -> Vazirlik omborchisi va Super Adminga boradi.
+      let targetOrg: { id: string; type: string } | null = null;
+      if (organizationId) {
+        targetOrg = await this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { id: true, type: true },
+        });
+      }
 
-      const whereClause: any = {
-        telegramChatId: { not: null },
-        deletedAt: null,
-        isActive: true,
-        OR: [
-          { role: { in: globalRoles as any } },
-          ...(organizationId
-            ? [{ role: { in: orgRoles as any }, organizationId }]
-            : [{ role: { in: orgRoles as any } }]),
-        ],
-      };
+      let whereClause: any;
+
+      if (targetOrg && targetOrg.type === 'SUB_ORG') {
+        whereClause = {
+          telegramChatId: { not: null },
+          deletedAt: null,
+          isActive: true,
+          role: { in: ['ORG_OMBORCHI', 'ORG_ADMIN'] as any },
+          organizationId: targetOrg.id,
+        };
+      } else {
+        whereClause = {
+          telegramChatId: { not: null },
+          deletedAt: null,
+          isActive: true,
+          role: { in: ['VAZIRLIK_OMBORCHI', 'SUPER_ADMIN'] as any },
+          ...(organizationId ? { organizationId } : {}),
+        };
+      }
 
       const warehouseUsers = await this.prisma.user.findMany({
         where: whereClause,
@@ -139,12 +181,12 @@ export class TelegramSenderService {
       });
 
       warehouseUsers.forEach((u) => {
-        if (u.telegramChatId) {
+        if (u.telegramChatId && u.telegramChatId.trim()) {
           targets.add(u.telegramChatId.trim());
         }
       });
-    } catch (err) {
-      // fallback
+    } catch (err: any) {
+      this.logger.error(`Xatolik omborchi chat ID larni olishda: ${err.message}`);
     }
 
     return Array.from(targets).filter(Boolean);
@@ -197,11 +239,11 @@ export class TelegramSenderService {
     return successCount > 0;
   }
 
-  async sendMessage(message: string, overrideChatId?: string): Promise<boolean> {
+  async sendMessage(message: string, overrideChatId?: string, organizationId?: string): Promise<boolean> {
     const { token } = this.getCredentials();
     if (!token) return false;
 
-    const chatIds = await this.getAdminChatIds(overrideChatId);
+    const chatIds = await this.getAdminChatIds(overrideChatId, organizationId);
     if (chatIds.length === 0) return false;
 
     let successCount = 0;
@@ -246,8 +288,8 @@ export class TelegramSenderService {
   }
 
   async sendMessageWithKeyboard(message: string, keyboard: any, overrideChatId?: string): Promise<boolean> {
-    const { token, chatId: envChatId } = this.getCredentials();
-    const rawTarget = overrideChatId || envChatId;
+    const { token } = this.getCredentials();
+    const rawTarget = overrideChatId;
     if (!token || !rawTarget) return false;
 
     const chatIds = rawTarget.split(',').map((id) => id.trim()).filter(Boolean);
@@ -280,11 +322,11 @@ export class TelegramSenderService {
     return successCount > 0;
   }
 
-  async sendDocumentBuffer(filename: string, buffer: Buffer, caption: string, overrideChatId?: string): Promise<boolean> {
+  async sendDocumentBuffer(filename: string, buffer: Buffer, caption: string, overrideChatId?: string, organizationId?: string): Promise<boolean> {
     const { token } = this.getCredentials();
     if (!token) return false;
 
-    const chatIds = await this.getAdminChatIds(overrideChatId);
+    const chatIds = await this.getAdminChatIds(overrideChatId, organizationId);
     if (chatIds.length === 0) return false;
 
     let successCount = 0;

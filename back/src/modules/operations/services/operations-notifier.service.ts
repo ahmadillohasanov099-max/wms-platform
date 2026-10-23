@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { ProductType } from '@prisma/client';
-import { MailService, TelegramService } from '../../nodemailer';
+import { MailService, TelegramService, escapeHtml } from '../../nodemailer';
 import { OperationsPdfService } from './operations-pdf.service';
 
 @Injectable()
@@ -96,6 +96,8 @@ export class OperationsNotifierService {
         op.quantity,
         targetName,
         op.performedBy?.fullName || 'Bosh Omborchi',
+        'ta',
+        op.organizationId || undefined,
       );
     } catch (err) {
       this.logger.error('Error sending immediate Telegram operation alert:', err);
@@ -135,6 +137,7 @@ export class OperationsNotifierService {
 
       if (relatedOps.length === 0) return;
 
+      const opOrgId = mainOp.organizationId || mainOp.user?.organizationId || mainOp.department?.organizationId || undefined;
       const isAsosiyVosita = mainOp.product?.productType === ProductType.BERILADIGAN;
 
       if (isAsosiyVosita && (mainOp.type === 'GIVE_TO_USER' || mainOp.type === 'ASSIGN_TO_DEPT')) {
@@ -177,12 +180,12 @@ export class OperationsNotifierService {
         const filename = `moddiy_javobgarlik_shartnomasi_${docNumStr}.pdf`;
         const caption =
           `📄 <b>Moddiy javobgarlik shartnomasi № ${docNumStr}</b>\n\n` +
-          `📤 <b>Kimdan:</b> ${mainOp.performedBy?.fullName || 'Bosh Omborchi'}\n` +
-          `📥 <b>Kimga:</b> ${targetName}\n` +
-          `📦 <b>Jihozlar:</b> ${itemsSummary}\n` +
-          `📅 <b>Sana:</b> ${formattedDate}`;
+          `<b>${escapeHtml(targetName)}</b>\n` +
+          `Jihozlar: ${escapeHtml(itemsSummary)}\n\n` +
+          `<blockquote>📤 <b>Mas'ul:</b> ${escapeHtml(mainOp.performedBy?.fullName || 'Bosh Omborchi')}</blockquote>\n\n` +
+          `📅 ${formattedDate}`;
 
-        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption);
+        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption, undefined, opOrgId);
       } else if (!isAsosiyVosita && (mainOp.type === 'GIVE_TO_USER' || mainOp.type === 'GIVE_TO_DEPT')) {
         const docNumStr = documentNumber || mainOp.documentNumber || `${opId.slice(-6)}`;
         const targetUser = mainOp.user;
@@ -222,12 +225,12 @@ export class OperationsNotifierService {
         const filename = `talabnoma_${docNumStr}.pdf`;
         const caption =
           `📋 <b>Talabnoma № ${docNumStr}</b>\n\n` +
-          `📤 <b>Kimdan:</b> ${mainOp.performedBy?.fullName || 'Xo‘jalik mudiri'}\n` +
-          `📥 <b>Kimga:</b> ${targetName}\n` +
-          `📦 <b>Materiallar:</b> ${itemsSummary}\n` +
-          `📅 <b>Sana:</b> ${formattedDate}`;
+          `<b>${escapeHtml(targetName)}</b>\n` +
+          `Materiallar: ${escapeHtml(itemsSummary)}\n\n` +
+          `<blockquote>📤 <b>Mas'ul:</b> ${escapeHtml(mainOp.performedBy?.fullName || 'Xo‘jalik mudiri')}</blockquote>\n\n` +
+          `📅 ${formattedDate}`;
 
-        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption);
+        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption, undefined, opOrgId);
       } else {
         const pdfBuffer = await this.pdfService.generatePdfAct(opId);
         const filename = `dalolatnoma_${opId.slice(-6)}.pdf`;
@@ -252,24 +255,67 @@ export class OperationsNotifierService {
 
         const caption =
           `📑 <b>Dalolatnoma № ${opId.slice(-6)}</b>\n\n` +
-          `🔄 <b>Amal:</b> ${opTypeNames[mainOp.type] || mainOp.type}\n` +
-          `📤 <b>Mas'ul:</b> ${mainOp.performedBy?.fullName || 'Bosh Omborchi'}\n` +
-          `📦 <b>Mahsulot:</b> ${mainOp.product?.name || 'Mahsulot'} (${mainOp.quantity} ta)\n` +
-          `📅 <b>Sana:</b> ${formattedDate}`;
-        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption);
+          `<b>${escapeHtml(mainOp.product?.name || 'Mahsulot')}</b> (${mainOp.quantity} ta)\n` +
+          `Amal: <code>${escapeHtml(opTypeNames[mainOp.type] || mainOp.type)}</code>\n\n` +
+          `<blockquote>📤 <b>Mas'ul:</b> ${escapeHtml(mainOp.performedBy?.fullName || 'Bosh Omborchi')}</blockquote>\n\n` +
+          `📅 ${formattedDate}`;
+        await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption, undefined, opOrgId);
+      }
+
+      // Xodimga shaxsiy bildirishnoma yuborish (GIVE_TO_USER va RETURN_FROM_USER holatlarida)
+      if (mainOp.user && mainOp.user.telegramChatId) {
+        if (mainOp.type === 'GIVE_TO_USER') {
+          const invStr = mainOp.asset?.inventoryNumber ? `№ <code>${escapeHtml(mainOp.asset.inventoryNumber)}</code>` : '';
+          const senderName = mainOp.performedBy?.fullName ? escapeHtml(mainOp.performedBy.fullName) : 'Bosh omborchi';
+          const personalMsg =
+            `📦 <b>Yangi jihoz biriktirildi</b>\n\n` +
+            `<b>${escapeHtml(mainOp.product?.name || 'Jihoz')}</b>\n` +
+            (invStr ? `${invStr}\n\n` : '\n') +
+            `<blockquote>ℹ️ <b>Javobgarlik:</b>\nJihoz shaxsiy foydalanishingizga biriktirildi va moddiy hisobingizga kiritildi.</blockquote>\n\n` +
+            `📍 Bosh omborxona • ${senderName}`;
+
+          void this.telegramService.sendMessage(personalMsg, mainOp.user.telegramChatId);
+        } else if (mainOp.type === 'RETURN_FROM_USER') {
+          const invStr = mainOp.asset?.inventoryNumber ? `№ <code>${escapeHtml(mainOp.asset.inventoryNumber)}</code>` : '';
+          const receiverName = mainOp.performedBy?.fullName ? escapeHtml(mainOp.performedBy.fullName) : 'Bosh omborchi';
+          const personalMsg =
+            `↩️ <b>Jihoz omborga qabul qilindi</b>\n\n` +
+            `<b>${escapeHtml(mainOp.product?.name || 'Jihoz')}</b>\n` +
+            (invStr ? `${invStr}\n\n` : '\n') +
+            `<blockquote>✅ <b>Natija:</b>\nJihoz butun va soz holatda omborga muvaffaqiyatli qabul qilindi hamda hisobingizdan yechildi.</blockquote>\n\n` +
+            `📍 Bosh omborxona • ${receiverName}`;
+
+          void this.telegramService.sendMessage(personalMsg, mainOp.user.telegramChatId);
+        }
       }
     } catch (err: any) {
       this.logger.error('Telegram document generation error:', err);
     }
   }
 
-  notifyRepairCompleted(targetUserId: string, productName: string, inventoryNumber?: string | null, note?: string | null) {
-    const invText = inventoryNumber ? ` (Inv: ${inventoryNumber})` : '';
-    const noteText = note?.trim() ? `\n\nUsta/Omborchi izohi: "${note.trim()}"` : '';
+  notifyRepairCompleted(
+    targetUserId: string,
+    productName: string,
+    inventoryNumber?: string | null,
+    serialNumber?: string | null,
+    performerName?: string | null,
+    note?: string | null,
+  ) {
+    const invStr = inventoryNumber ? `№ <code>${escapeHtml(inventoryNumber)}</code>` : '';
+    const serialStr = serialNumber ? ` • Seriya: <code>${escapeHtml(serialNumber)}</code>` : '';
+    const cleanNote = note?.trim() || "Jihoz to'liq sozlandi va sinovdan o'tkazildi.";
+    const usta = performerName ? escapeHtml(performerName) : 'Mas\'ul mutaxassis';
+
+    const message =
+      `<b>${escapeHtml(productName)}</b>\n` +
+      `${invStr}${serialStr}\n\n` +
+      `<blockquote>💬 <b>Usta xulosasi:</b>\n${escapeHtml(cleanNote)}</blockquote>\n\n` +
+      `📍 IT xizmati / Omborxona • ${usta}`;
+
     void this.telegramService.sendUserNotificationAlert(
       targetUserId,
-      `🛠️ Jihoz ta'mirlandi!`,
-      `Sizga biriktirilgan "${productName}"${invText} jihozi ta'mirlandi va soz holatga keltirildi.${noteText}\n\nOmbor/IT bo'limidan olib ketishingiz mumkin.`,
+      `🟢 <b>Jihoz ta'mirlandi</b>`,
+      message,
     );
   }
 }

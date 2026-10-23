@@ -234,23 +234,24 @@ export class TelegramController {
       });
 
       // Foydalanuvchiga Telegram Chat ID ni bog'lash
-      await this.prisma.user.update({
+      const updatedUser = await this.prisma.user.update({
         where: { id: user.id },
         data: { telegramChatId: chatId },
+        include: { department: true },
       });
 
       // Telegram boti orqali muvaffaqiyatli xabarni yuborib menyuni ochamiz
       await this.telegramService.sendMessage(
         `✅ <b>MUVAFFAQIYATLI KIRILDINGIZ!</b>\n\n` +
-        `Xush kelibsiz, <b>${user.fullName}</b>!\n` +
-        `💼 Lavozim: <i>${user.position || user.role}</i>\n` +
-        `🏢 Bo'lim: <b>${user.department?.name || 'Markaziy Boshqarma'}</b>`,
+        `Xush kelibsiz, <b>${updatedUser.fullName}</b>!\n` +
+        `💼 Lavozim: <i>${updatedUser.position || updatedUser.role}</i>\n` +
+        `🏢 Bo'lim: <b>${updatedUser.department?.name || 'Markaziy Boshqarma'}</b>`,
         chatId,
       );
 
-      await this.telegramService.sendMenuWithWelcome(chatId, user);
+      await this.telegramService.sendMenuWithWelcome(chatId, updatedUser);
 
-      return { success: true, user: { fullName: user.fullName } };
+      return { success: true, user: { fullName: updatedUser.fullName } };
     } catch (err) {
       return { success: false, message: 'Tizimda xatolik yuz berdi' };
     }

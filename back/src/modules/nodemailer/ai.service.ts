@@ -4,7 +4,6 @@ import { PrismaService } from '../../prisma';
 const MANAGER_ROLES = [
   'SUPER_ADMIN',
   'VAZIRLIK_OMBORCHI',
-  'OMBORCHI',
   'ORG_ADMIN',
   'ORG_OMBORCHI',
   'KADR',
@@ -20,9 +19,13 @@ export class AiService {
    * WMS AI Server Data Engine — Strict Role-based RBAC
    */
   async askAi(userQuery: string, boundUser: any): Promise<string> {
+    if (boundUser?.role !== 'SUPER_ADMIN') {
+      return `⛔ <b>Ruxsat etilmadi!</b>\n\nAI Assistent bilan muloqot qilish imkoniyati faqat Super Admin uchun ajratilgan.`;
+    }
+
     try {
-      const userRole = boundUser?.role || 'XODIM';
-      const isManager = MANAGER_ROLES.includes(userRole);
+      const userRole = boundUser?.role || 'SUPER_ADMIN';
+      const isManager = true;
 
       // 1. ADAPTIK RUXSAT VA CONTEXT SHAKLLANTIRISH
       if (!isManager) {
@@ -238,8 +241,14 @@ export class AiService {
       `Siz — WMS Ombor Tizimining rasmiy va xolis server assistentisiz ("WMS AI Assistent").\n\n` +
       `QAT'IY QOIDALAR:\n` +
       `1. MUTLAQO SALOMLASHMANG!\n` +
-      `2. AGAR XODIMLAR YOKI OMBOR MAHSULOTLARI BO'YICHA MA'LUMOT SO'RALSA VA RO'YXAT KATTA BO'LSA, MA'LUMOTLARNI 10 TA DAN PAGINATION (SAHIFALAB) TAQDIM ETING!\n` +
-      `3. Foydalanuvchi so'ragan ma'lumotlarni to'g'ridan-to'g'ri server ma'lumotlaridan olib bering.\n\n` +
+      `2. DIZAYN VA FORMAT (APPLE MINIMAL):\n` +
+      `   - Sarlavha: Emojili va qalin bo'lsin: masalan, 📊 <b>Ombor hisoboti</b> yoki 🔍 <b>Qidiruv natijalari</b>\n` +
+      `   - Matn toza, silliq va o'qishli bo'lsin. Ortiqcha qo'pol ramkalar (┌─, ├─) yoki chiziqlar ISHLATMANG!\n` +
+      `   - Raqamlar, kodlar va inventar raqamlariga <code>...</code> tegi qo'llansin.\n` +
+      `   - Asosiy xulosa, tavsiya yoki ta'kidlanuvchi ma'lumotlarni Telegramning <blockquote>...</blockquote> blokida taqdim eting!\n` +
+      `   - Faqat Telegram HTML teglaridan (<b>, <i>, <code>, <blockquote>) foydalaning. Markdown (#, ##, **, \`\`\`) ISHLATMANG!\n` +
+      `3. AGAR XODIMLAR YOKI OMBOR MAHSULOTLARI BO'YICHA MA'LUMOT SO'RALSA VA RO'YXAT KATTA BO'LSA, MA'LUMOTLARNI 10 TA DAN PAGINATION (SAHIFALAB) TAQDIM ETING!\n` +
+      `4. Foydalanuvchi so'ragan ma'lumotlarni to'g'ridan-to'g'ri server ma'lumotlaridan olib bering.\n\n` +
       `Murojaatchi MAS'UL/ADMIN: ${boundUser.fullName} (${boundUser.role})\n` +
       `SERVERDAGI BARCHA AKTUAL MA'LUMOTLAR:\n` +
       `- OMBORDA (${context.productsCount} xil tovar):\n${context.inventoryStr}\n\n` +
@@ -247,7 +256,7 @@ export class AiService {
       `- XODIMLAR VA ULARNING JIHOZLARI (${context.usersCount} ta xodim):\n${context.usersDetailedStr}\n\n` +
       `- BIRIKTIRILGAN AKTUAL ASSETLAR / BRONLAR:\n${context.assignmentsStr}\n\n` +
       `- BO'LIMLAR:\n${context.deptsStr}\n\n` +
-      `FAQAT YAKUNIY MA'LUMOTNI YOZING! HTML teglaridan foydalaning.`;
+      `FAQAT YAKUNIY MA'LUMOTNI YOZING!`;
 
     return this.executeGeminiRequest(systemPrompt, query, apiKey, () =>
       this.smartLocalManagerAiResponse(query, boundUser, context),
@@ -430,11 +439,21 @@ export class AiService {
       );
     }
 
-    const matchedUser = context.allUsers.find((u: any) =>
-      q.includes(u.fullName.toLowerCase()) || (u.username && q.includes(u.username.toLowerCase()))
-    );
+    // 1. Ism-familiya bo'yicha qidiruv (birinchi navbatda xodimni topish)
+    const matchedUsers = context.allUsers.filter((u: any) => {
+      const name = (u.fullName || '').toLowerCase();
+      const uname = (u.username || '').toLowerCase();
+      return (
+        name.includes(q) ||
+        q.includes(name) ||
+        (uname && (uname.includes(q) || q.includes(uname))) ||
+        name.split(/\s+/).some((part: string) => part.length >= 3 && q.includes(part)) ||
+        q.split(/\s+/).some((part: string) => part.length >= 3 && name.includes(part))
+      );
+    });
 
-    if (matchedUser) {
+    if (matchedUsers.length === 1) {
+      const matchedUser = matchedUsers[0];
       const userAssets = matchedUser.assignments.length > 0
         ? matchedUser.assignments
             .map((a: any) => `  • <b>${a.asset.product.name}</b> (Inv №: <code>${a.asset.inventoryNumber}</code>)`)
@@ -449,6 +468,15 @@ export class AiService {
         `• <b>Telefon:</b> ${matchedUser.phone || matchedUser.internalPhone || 'Ko\'rsatilmagan'}\n\n` +
         `📦 <b>Biriktirilgan jihozlari (TMZ):</b>\n${userAssets}`
       );
+    } else if (matchedUsers.length > 1) {
+      let res = `👥 <b>Topilgan xodimlar (${matchedUsers.length} ta):</b>\n\n`;
+      matchedUsers.slice(0, 5).forEach((u: any, i: number) => {
+        const count = u.assignments?.length || 0;
+        res += `${i + 1}. <b>${u.fullName}</b> (${u.position || u.role}) — ${u.department?.name || 'Bo\'limsiz'}\n` +
+               `   📦 Biriktirilgan jihozlar: <b>${count} ta</b>\n`;
+      });
+      res += `\n💡 <i>Batafsil ma'lumot uchun to'liq ism-sharifini yozing.</i>`;
+      return res;
     }
 
     if (q.includes('xodim') || q.includes('user') || q.includes('ishchi')) {
