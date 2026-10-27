@@ -28,6 +28,7 @@ export interface LimitStatusResponse {
   packageSize?: number | null;
   baseLimit: number | null;
   decreeReference?: string | null;
+  fileUrl?: string | null;
   totalExceptions: number;
   totalAllowed: number | null;
   currentMonthSpent: number;
@@ -146,6 +147,49 @@ export const limitsApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data);
+  },
+
+    viewDecree: async (fileUrl: string) => {
+    try {
+      const url = fileUrl.startsWith('/api/v1') ? fileUrl.replace('/api/v1', '') : fileUrl;
+      const res = (await api.get(url, { responseType: 'blob' })) as any;
+      const blob = res instanceof Blob ? res : new Blob([res], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err: any) {
+      console.error('Failed to view decree:', err);
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      const fullUrl = fileUrl + (fileUrl.includes('?') ? '&' : '?') + (token ? `token=${token}` : '');
+      window.open(fullUrl, '_blank');
+    }
+  },
+
+  downloadDecree: async (fileUrl: string, originalFileName?: string) => {
+    try {
+      const url = fileUrl.startsWith('/api/v1') ? fileUrl.replace('/api/v1', '') : fileUrl;
+      const res = (await api.get(url, { responseType: 'blob' })) as any;
+      const blob = res instanceof Blob ? res : new Blob([res]);
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', originalFileName || 'buyruq_hujjati.pdf');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+    } catch (err: any) {
+      console.error('Failed to download decree:', err);
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      const fullUrl = fileUrl + (fileUrl.includes('?') ? '&' : '?') + (token ? `token=${token}` : '');
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.setAttribute('download', originalFileName || 'buyruq_hujjati.pdf');
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   },
 
   deleteLimit: (id: string) =>

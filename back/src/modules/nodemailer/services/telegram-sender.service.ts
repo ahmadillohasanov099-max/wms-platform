@@ -7,6 +7,7 @@ export const STAFF_ROLES = [
   'ORG_ADMIN',
   'ORG_OMBORCHI',
   'KADR',
+  'RAHBAR',
 ];
 
 export const NOTIFICATION_ROLES = [

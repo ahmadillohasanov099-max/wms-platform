@@ -242,7 +242,7 @@ export default function DepartmentDetailView({
               )}
             >
               <Users className="w-4 h-4" />
-              <span>{t('departments.tabEmployees', 'Xodimlar')}</span>
+              <span>{t('departments.tabEmployees') || 'Xodimlar'}</span>
               <span
                 className={cn(
                   'text-[11px] px-2 py-0.5 rounded-full font-bold',
@@ -266,7 +266,7 @@ export default function DepartmentDetailView({
               )}
             >
               <Package className="w-4 h-4" />
-              <span>{t('departments.tabAssets', 'Asosiy vositalar')}</span>
+              <span>{t('departments.tabAssets') || 'Asosiy vositalar'}</span>
               <span
                 className={cn(
                   'text-[11px] px-2 py-0.5 rounded-full font-bold',
@@ -290,7 +290,7 @@ export default function DepartmentDetailView({
               )}
             >
               <Boxes className="w-4 h-4" />
-              <span>{t('departments.tabTmz', 'TMZ mahsulotlari')}</span>
+              <span>{t('departments.tabTmz') || 'TMZ mahsulotlari'}</span>
               <span
                 className={cn(
                   'text-[11px] px-2 py-0.5 rounded-full font-bold',
@@ -314,7 +314,7 @@ export default function DepartmentDetailView({
               )}
             >
               <ClipboardList className="w-4 h-4" />
-              <span>{t('departments.tabRequests', 'Talabnomalar')}</span>
+              <span>{t('departments.tabRequests') || 'Talabnomalar'}</span>
               <span
                 className={cn(
                   'text-[11px] px-2 py-0.5 rounded-full font-bold',

@@ -62,6 +62,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             { command: 'assets_export', description: 'Berilgan jihozlar excel hisobot' },
             { command: 'recent_export', description: 'Tarix excel hisobot' },
             { command: 'requests', description: 'Kutilayotgan talabnomalar' },
+            { command: 'offboarding', description: 'Bo‘shash jarayonlari (HR)' },
+            { command: 'stats', description: 'Umumiy statistika' },
             { command: 'logs', description: 'Server loglarini yuklab olish (.log)' },
           ],
         }),
@@ -190,6 +192,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               const isOrgAdmin = boundUser.role === 'ORG_ADMIN';
               const isWarehouseStaff = boundUser.role === 'VAZIRLIK_OMBORCHI' || boundUser.role === 'ORG_OMBORCHI';
               const isEmployee = boundUser.role === 'XODIM';
+              const isKadr = boundUser.role === 'KADR';
+              const isRahbar = boundUser.role === 'RAHBAR';
               const isStaff = STAFF_ROLES.includes(boundUser.role);
 
               // ========================================================
@@ -632,7 +636,236 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               }
 
               // ========================================================
-              // 👥 5. QOLGAN ROLLAR (Kadrlar, Rahbariyat)
+              // 👥 5. KADR (KADRLAR BO'LIMI / HR) UCHUN MAXSUS QULAY REJIM
+              // ========================================================
+              if (isKadr) {
+                const lower = text.toLowerCase().trim();
+                const orgId = boundUser.organizationId || undefined;
+
+                // Asosiy menyu
+                if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
+                  await this.sendMenuWithWelcome(chatId, boundUser);
+                  continue;
+                }
+
+                // 1. 👥 Excel Xodimlar
+                if (
+                  text === '👥 Excel Xodimlar' ||
+                  lower === 'excel xodimlar' ||
+                  lower === 'excel xodim' ||
+                  text === '/users_export' ||
+                  text === '/users'
+                ) {
+                  await this.sender.sendChatAction('upload_document', chatId);
+                  await this.excelReports.sendUsersExcel(chatId, orgId);
+                  continue;
+                }
+
+                // 2. 🚨 Bo‘shash Jarayonlari (Offboarding)
+                if (
+                  text === '🚨 Bo‘shash Jarayonlari' ||
+                  text === "🚨 Bo'shash Jarayonlari" ||
+                  lower.includes('boshash') ||
+                  lower.includes("bo'shash") ||
+                  lower.includes('offboarding') ||
+                  text === '/offboarding'
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  await this.reports.sendOffboardingReport(chatId, 1, orgId);
+                  continue;
+                }
+
+                // 3. 🏢 Bo‘limlar Ro‘yxati
+                if (
+                  text === '🏢 Bo‘limlar Ro‘yxati' ||
+                  text === "🏢 Bo'limlar Ro'yxati" ||
+                  lower.includes('bolimlar') ||
+                  lower.includes("bo'limlar") ||
+                  text === '/departments' ||
+                  text === '/depts'
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  await this.reports.sendDepartmentsReport(chatId, 1, orgId);
+                  continue;
+                }
+
+                // 4. 🔍 Xodim Qidirish
+                if (
+                  text === '🔍 Xodim Qidirish' ||
+                  lower === 'xodim qidirish' ||
+                  text === '/find_user'
+                ) {
+                  await this.sender.sendMessage(
+                    `🔍 <b>XODIM QIDIRISH (HR)</b>\n\n` +
+                    `Qidirmoqchi bo'lgan xodimingizning <b>F.I.SH</b>, <b>telefon raqami</b> yoki <b>lavozimini</b> yozib yuboring:\n\n` +
+                    `<i>Misol: <code>Aliyev</code> yoki <code>+998901234567</code></i>`,
+                    chatId,
+                  );
+                  continue;
+                }
+
+                // 5. 📱 Mening Jihozlarim
+                if (
+                  text === '📱 Mening Jihozlarim' ||
+                  text === '📱 Mening Jihozlarim 📦' ||
+                  lower.includes('jihozlarim') ||
+                  text === '/myassets' ||
+                  text.startsWith('/myassets')
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
+                  await this.reports.sendMyAssets(chatId, boundUser, page);
+                  continue;
+                }
+
+                // 6. 📜 Mening Tarixim
+                if (
+                  text === '📜 Mening Tarixim' ||
+                  lower.includes('tarixim') ||
+                  text === '/myhistory' ||
+                  text.startsWith('/myhistory')
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  const page = parseInt(text.replace('/myhistory', '').trim(), 10) || 1;
+                  await this.reports.sendUserPersonalHistory(chatId, boundUser, page);
+                  continue;
+                }
+
+                // 7. Xodim F.I.SH yoki telefoni bo'yicha qidirish
+                const foundUser = await this.searchUserByName(text, chatId, boundUser);
+                if (foundUser) {
+                  continue;
+                }
+
+                // 8. Jihoz inventar raqami bo'yicha qidirish
+                const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
+                if (foundAsset) {
+                  continue;
+                }
+
+                // Noma'lum matn yozilganda yo'naltirish
+                await this.sender.sendMessage(
+                  `ℹ️ <b>Hurmatli ${escapeHtml(boundUser.fullName)}!</b>\n\n` +
+                  `Kadrlar xizmati bo'yicha ma'lumotlarni olish uchun menyu tugmalaridan foydalaning yoki xodimning <b>F.I.SH/telefon raqami</b>ni yuboring:`,
+                  chatId,
+                );
+                continue;
+              }
+
+              // ========================================================
+              // 🏛️ 6. RAHBAR (RAHBARIYAT / EXECUTIVE) UCHUN MAXSUS REJIM
+              // ========================================================
+              if (isRahbar) {
+                const lower = text.toLowerCase().trim();
+                const orgId = boundUser.organizationId || undefined;
+
+                // Asosiy menyu
+                if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
+                  await this.sendMenuWithWelcome(chatId, boundUser);
+                  continue;
+                }
+
+                // 1. 📊 Umumiy Statistika
+                if (
+                  text === '📊 Umumiy Statistika' ||
+                  lower === 'umumiy statistika' ||
+                  lower === 'statistika' ||
+                  text === '/stats' ||
+                  text === '/status'
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  await this.reports.sendStatusReport(chatId, orgId);
+                  continue;
+                }
+
+                // 2. 📦 Excel Ombor Holati
+                if (
+                  text === '📦 Excel Ombor Holati' ||
+                  lower === 'excel ombor holati' ||
+                  lower === 'excel ombor' ||
+                  text === '/stock_export' ||
+                  text === '/stock'
+                ) {
+                  await this.sender.sendChatAction('upload_document', chatId);
+                  await this.excelReports.sendStockExcel(chatId, orgId);
+                  continue;
+                }
+
+                // 3. 🏢 Excel Bo‘lim Jihozlari
+                if (
+                  text === '🏢 Excel Bo‘lim Jihozlari' ||
+                  text === "🏢 Excel Bo'lim Jihozlari" ||
+                  lower.includes('bolim jihozlari') ||
+                  lower.includes("bo'lim jihozlari") ||
+                  text === '/assets_export' ||
+                  text === '/depts_export'
+                ) {
+                  await this.sender.sendChatAction('upload_document', chatId);
+                  await this.excelReports.sendAssignmentsExcel(chatId, orgId);
+                  continue;
+                }
+
+                // 4. 👥 Excel Xodimlar
+                if (
+                  text === '👥 Excel Xodimlar' ||
+                  lower === 'excel xodimlar' ||
+                  text === '/users_export' ||
+                  text === '/users'
+                ) {
+                  await this.sender.sendChatAction('upload_document', chatId);
+                  await this.excelReports.sendUsersExcel(chatId, orgId);
+                  continue;
+                }
+
+                // 5. 📜 Excel Tarix
+                if (
+                  text === '📜 Excel Tarix' ||
+                  lower === 'excel tarix' ||
+                  text === '/recent_export' ||
+                  text === '/recent'
+                ) {
+                  await this.sender.sendChatAction('upload_document', chatId);
+                  await this.excelReports.sendOperationsExcel(chatId, orgId);
+                  continue;
+                }
+
+                // 6. 📱 Mening Jihozlarim
+                if (
+                  text === '📱 Mening Jihozlarim' ||
+                  text === '📱 Mening Jihozlarim 📦' ||
+                  lower.includes('jihozlarim') ||
+                  text === '/myassets' ||
+                  text.startsWith('/myassets')
+                ) {
+                  await this.sender.sendChatAction('typing', chatId);
+                  const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
+                  await this.reports.sendMyAssets(chatId, boundUser, page);
+                  continue;
+                }
+
+                // 7. Jihoz inventar raqami bo'yicha qidirish
+                const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
+                if (foundAsset) {
+                  continue;
+                }
+
+                // 8. Xodim F.I.SH bo'yicha qidirish
+                const foundUser = await this.searchUserByName(text, chatId, boundUser);
+                if (foundUser) {
+                  continue;
+                }
+
+                // Noma'lum matn yozilganda yo'naltirish
+                await this.sender.sendMessage(
+                  `ℹ️ <b>Hurmatli ${escapeHtml(boundUser.fullName)}!</b>\n\n` +
+                  `Rahbariyat tahliliy ma'lumotlarini olish uchun quyidagi menyu tugmalaridan foydalaning yoki tekshirmoqchi bo'lgan jihozning <b>Inventar raqamini</b> yuboring:`,
+                  chatId,
+                );
+                continue;
+              }
+
+              // ========================================================
+              // 👥 7. QOLGAN ROLLAR (FALLBACK)
               // ========================================================
               if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                 await this.sendMenuWithWelcome(chatId, boundUser);
@@ -707,7 +940,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const isOrgScoped = boundUser?.role === 'ORG_ADMIN' || boundUser?.role === 'ORG_OMBORCHI';
+      const isOrgScoped = boundUser?.role === 'ORG_ADMIN' || boundUser?.role === 'ORG_OMBORCHI' || ((boundUser?.role === 'KADR' || boundUser?.role === 'RAHBAR') && !!boundUser?.organizationId);
       if (isOrgScoped && !boundUser?.organizationId) {
         await this.sender.sendMessage(
           `⚠️ <b>Xavfsizlik ogohlantirishi!</b>\n\nSizning akkauntingizga biror tashkilot biriktirilmagan. Xavfsizlik qoidalariga binoan ma'lumotlarni ko'rish qat'iyan cheklangan. Bosh administratorga murojaat qiling.`,
@@ -890,7 +1123,57 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // 5. QOLGAN ROLLAR UCHUN ASOSIY MENYU (Kadrlar, Rahbariyat)
+    const isKadr = boundUser.role === 'KADR';
+
+    // 5. KADR (KADRLAR BO'LIMI / HR) UCHUN MAXSUS REJIM
+    if (isKadr) {
+      const kadrReplyKeyboard = {
+        keyboard: [
+          [{ text: '👥 Excel Xodimlar' }, { text: '🚨 Bo‘shash Jarayonlari' }],
+          [{ text: '🏢 Bo‘limlar Ro‘yxati' }, { text: '🔍 Xodim Qidirish' }],
+          [{ text: '📱 Mening Jihozlarim' }, { text: '📜 Mening Tarixim' }],
+          [{ text: '🚪 Tizimdan Chiqish (/logout)' }],
+        ],
+        resize_keyboard: true,
+      };
+
+      await this.sender.sendMessageWithKeyboard(
+        `👥 <b>Kadrlar Bo‘limi (HR) Boshqaruvi</b>\n\n` +
+        `<b>${escapeHtml(boundUser.fullName)}</b>\n` +
+        `Kadrlar xizmati • ${escapeHtml(boundUser.department?.name || 'Kadrlar bo‘limi')}\n\n` +
+        `<blockquote>ℹ️ Xodimlar hisoboti, ishdan bo‘shatish (offboarding) jarayonlarini nazorat qilish uchun quyidagi menyudan foydalaning yoki xodimning F.I.SH/telefon raqamini yuboring.</blockquote>`,
+        kadrReplyKeyboard,
+        chatId,
+      );
+      return;
+    }
+
+    const isRahbar = boundUser.role === 'RAHBAR';
+
+    // 6. RAHBAR (RAHBARIYAT / EXECUTIVE) UCHUN MAXSUS REJIM
+    if (isRahbar) {
+      const rahbarReplyKeyboard = {
+        keyboard: [
+          [{ text: '📊 Umumiy Statistika' }, { text: '📦 Excel Ombor Holati' }],
+          [{ text: '🏢 Excel Bo‘lim Jihozlari' }, { text: '👥 Excel Xodimlar' }],
+          [{ text: '📜 Excel Tarix' }, { text: '📱 Mening Jihozlarim' }],
+          [{ text: '🚪 Tizimdan Chiqish (/logout)' }],
+        ],
+        resize_keyboard: true,
+      };
+
+      await this.sender.sendMessageWithKeyboard(
+        `🏛 <b>Rahbariyat Nazorat Paneli</b>\n\n` +
+        `<b>${escapeHtml(boundUser.fullName)}</b>\n` +
+        `Rahbariyat • ${escapeHtml(boundUser.organization?.name || 'Vazirlik')}\n\n` +
+        `<blockquote>ℹ️ Tizimning umumiy balansi, ombor zaxiralari va bo‘limlar hisobotlarini tahlil qilish uchun quyidagi menyudan foydalaning yoki jihoz inventar raqamini yuboring.</blockquote>`,
+        rahbarReplyKeyboard,
+        chatId,
+      );
+      return;
+    }
+
+    // 7. QOLGAN ROLLAR UCHUN ASOSIY MENYU
     const appUrl = process.env.TELEGRAM_WEBAPP_URL || process.env.APP_URL || `http://localhost:${process.env.APP_PORT || 4000}`;
     const webAppUrl = `${appUrl.replace(/\/$/, '')}/api/telegram/login-page?chatId=${chatId}`;
 
@@ -1117,7 +1400,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const isOrgScoped = boundUser?.role === 'ORG_OMBORCHI' || boundUser?.role === 'ORG_ADMIN';
+      const isOrgScoped = boundUser?.role === 'ORG_OMBORCHI' || boundUser?.role === 'ORG_ADMIN' || ((boundUser?.role === 'KADR' || boundUser?.role === 'RAHBAR') && !!boundUser?.organizationId);
 
       // Qat'iy xavfsizlik: Tashkilot omborchisi yoki admini o'z organizationId siga ega bo'lmasa, hech narsa ko'rsatilmaydi!
       if (isOrgScoped && !boundUser?.organizationId) {
@@ -1211,17 +1494,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     try {
       const isOrgAdmin = boundUser?.role === 'ORG_ADMIN';
       const isSuperAdmin = boundUser?.role === 'SUPER_ADMIN';
+      const isKadr = boundUser?.role === 'KADR';
+      const isRahbar = boundUser?.role === 'RAHBAR';
 
-      if (!isOrgAdmin && !isSuperAdmin) {
+      if (!isOrgAdmin && !isSuperAdmin && !isKadr && !isRahbar) {
         return false;
       }
 
-      // Xavfsizlik: Org Admin faqat o'z tashkilotidagi xodimlarni qidira oladi
+      // Xavfsizlik: Tashkilot miqyosidagi rollar faqat o'z tashkilotidagi xodimlarni qidira oladi
       const orgFilter: any = {};
-      if (isOrgAdmin) {
-        if (!boundUser.organizationId) {
-          return false;
-        }
+      if (boundUser.organizationId && !isSuperAdmin) {
         orgFilter.organizationId = boundUser.organizationId;
       }
 

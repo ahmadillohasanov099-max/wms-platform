@@ -58,7 +58,7 @@ export default function GiveToDeptModal({ open, onClose }: Props) {
 
   const { data: productsData } = useQuery({
     queryKey: ['products-consumable'],
-    queryFn: () => productsApi.getAll({ productType: 'SARFLANADIGAN', limit: 100 }),
+    queryFn: () => productsApi.getAll({ productType: 'SARFLANADIGAN', limit: 1000 }),
     enabled: open,
   });
 

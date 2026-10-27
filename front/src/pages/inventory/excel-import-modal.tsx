@@ -362,7 +362,7 @@ export default function ExcelImportModal({ open, onClose }: Props) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx, .xls, .csv"
+              accept=".xlsx, .xls, .xlsm, .csv"
               onChange={handleFileChange}
               className="hidden"
             />

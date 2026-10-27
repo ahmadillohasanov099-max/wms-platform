@@ -86,6 +86,15 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
     requestedQuantity: 1,
   });
 
+  // Normalize helper for flexible Uzbek text search (apostrophes, case, spaces)
+  const normalizeSearchText = (str: string): string => {
+    return (str || "")
+      .toLowerCase()
+      .replace(/[\u2018\u2019\u02BC\u02BB'`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
   // Fetch Users (server-side search enabled)
   const { data: usersData, isLoading: isUsersLoading } = useQuery({
     queryKey: ["users-all-give-tmz-user", userSearch],
@@ -93,15 +102,15 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
     enabled: open,
   });
 
-  // Fetch Products
+  // Fetch Products (up to 1000 items)
   const { data: productsData } = useQuery({
     queryKey: ["products-consumable-give-tmz-user"],
     queryFn: () =>
-      productsApi.getAll({ productType: "SARFLANADIGAN", limit: 200 }),
+      productsApi.getAll({ productType: "SARFLANADIGAN", limit: 1000 }),
     enabled: open,
   });
 
-  // Fetch Inventory
+  // Fetch Inventory (all warehouse stock for current organization)
   const { data: inventoryData } = useQuery({
     queryKey: ["inventory-all-give-tmz-user"],
     queryFn: () => inventoryApi.getAll(),
@@ -138,28 +147,14 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       ? (inventoryData as any).data
       : [];
 
-  const productList: any[] = [];
-  if (rawProductArray.length > 0) {
-    for (const p of rawProductArray) {
-      if (p.productType && p.productType !== "SARFLANADIGAN") continue;
-      const invMatch = rawInventoryArray.find(
-        (inv: any) => inv.productId === p.id || inv.product?.id === p.id,
-      );
-      const qty = invMatch?.quantity ?? p.inventory?.quantity ?? 0;
-      const pkgSize = p.packageSize || invMatch?.product?.packageSize || null;
-      productList.push({
-        id: p.id,
-        name: p.name,
-        unit: p.unit || "dona",
-        packageSize: pkgSize,
-        quantity: qty,
-      });
-    }
-  } else if (rawInventoryArray.length > 0) {
+  const productMap = new Map<string, any>();
+
+  // 1. Inventorydagi barcha ombor yozuvlarini olish (limit cheklovisiz)
+  if (Array.isArray(rawInventoryArray)) {
     for (const inv of rawInventoryArray) {
       const p = inv.product;
       if (!p || (p.productType && p.productType !== "SARFLANADIGAN")) continue;
-      productList.push({
+      productMap.set(p.id, {
         id: p.id,
         name: p.name,
         unit: p.unit || "dona",
@@ -168,6 +163,32 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
       });
     }
   }
+
+  // 2. Mahsulotlar ro'yxatidan ham to'ldirish
+  if (Array.isArray(rawProductArray)) {
+    for (const p of rawProductArray) {
+      if (p.productType && p.productType !== "SARFLANADIGAN") continue;
+      const existing = productMap.get(p.id);
+      if (existing) {
+        if (!existing.packageSize && p.packageSize) {
+          existing.packageSize = p.packageSize;
+        }
+      } else {
+        const invMatch = rawInventoryArray.find(
+          (inv: any) => inv.productId === p.id || inv.product?.id === p.id,
+        );
+        productMap.set(p.id, {
+          id: p.id,
+          name: p.name,
+          unit: p.unit || "dona",
+          packageSize: p.packageSize || invMatch?.product?.packageSize || null,
+          quantity: invMatch?.quantity ?? p.inventory?.quantity ?? 0,
+        });
+      }
+    }
+  }
+
+  const productList: any[] = Array.from(productMap.values());
 
   // Filtered Users matching userSearch
   const filteredUsers = usersList.filter((u: any) => {
@@ -550,13 +571,26 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
 
             <div className="space-y-2">
               {rows.map((row, idx) => {
+                const cleanQuery = normalizeSearchText(row.searchInput);
                 const matchingProducts = productList.filter((p: any) => {
-                  const q = row.searchInput.toLowerCase().trim();
-                  if (!q) return true;
-                  return String(p.name || "")
-                    .toLowerCase()
-                    .includes(q);
+                  if (!cleanQuery) return true;
+                  const cleanName = normalizeSearchText(p.name || "");
+                  if (cleanName.includes(cleanQuery)) return true;
+                  const queryWords = cleanQuery.split(" ").filter(Boolean);
+                  return (
+                    queryWords.length > 0 &&
+                    queryWords.every((w) => cleanName.includes(w))
+                  );
                 });
+
+                const sortedMatchingProducts = [...matchingProducts].sort(
+                  (a, b) => {
+                    const aInStock = (a.quantity ?? 0) > 0 ? 1 : 0;
+                    const bInStock = (b.quantity ?? 0) > 0 ? 1 : 0;
+                    if (aInStock !== bInStock) return bInStock - aInStock;
+                    return (a.name || "").localeCompare(b.name || "");
+                  },
+                );
 
                 return (
                   <div
@@ -603,13 +637,13 @@ export default function GiveTmzUserModal({ open, onClose }: Props) {
 
                           {activeSearchRowId === row.rowId && (
                             <div className="absolute left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 divide-y divide-gray-100 dark:divide-gray-800">
-                              {matchingProducts.length === 0 ? (
+                              {sortedMatchingProducts.length === 0 ? (
                                 <div className="p-2.5 text-xs text-gray-400 text-center">
                                   {t('operations.materialNotFound')}
                                 </div>
                               ) : (
-                                matchingProducts
-                                  .slice(0, 15)
+                                sortedMatchingProducts
+                                  .slice(0, 30)
                                   .map((p: any) => {
                                     const qty = p.quantity ?? 0;
                                     const isOutOfStock = qty <= 0;

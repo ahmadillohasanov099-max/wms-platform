@@ -23,6 +23,7 @@ export default function InventoryPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const isAdmin =
     user?.role !== 'XODIM' &&
@@ -416,16 +417,18 @@ export default function InventoryPage() {
               >
                 <Edit2 className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => {
-                  setDeleteProduct(row.product);
-                  setDeleteDialog(true);
-                }}
-                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
-                title={t('common.delete')}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {(row.product?.productType === 'SARFLANADIGAN' ? isSuperAdmin : isAdmin) && (
+                <button
+                  onClick={() => {
+                    setDeleteProduct(row.product);
+                    setDeleteDialog(true);
+                  }}
+                  className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
+                  title={t('common.delete')}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -834,7 +837,11 @@ export default function InventoryPage() {
         onClose={() => setDeleteDialog(false)}
         onConfirm={() => removeProduct(deleteProduct?.id)}
         title={t('inventory.deleteConfirmTitle')}
-        description={t('inventory.deleteConfirmDesc', { name: deleteProduct?.name })}
+        description={
+          deleteProduct?.productType === 'SARFLANADIGAN'
+            ? `"${deleteProduct?.name}" TMZ mahsulotini ombordan butunlay o'chirishni tasdiqlaysizmi?`
+            : t('inventory.deleteConfirmDesc', { name: deleteProduct?.name })
+        }
         confirmText={t('common.delete')}
         loading={deleteLoading}
       />

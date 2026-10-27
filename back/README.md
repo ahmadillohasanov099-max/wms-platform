@@ -262,3 +262,40 @@ Loyiha to'liq Docker-ready holatiga keltirilgan.
    ```bash
    npm run dev
    ```
+
+---
+
+## 📁 KORPORATIV FAYLLARNI SAQLASH VA BOSHQARISH ARXITEKTURASI (ENTERPRISE FILE STORAGE ARCHITECTURE)
+
+Katta hajmdagi hujjatlar va buyruqlar (10 000+ fayllar) bilan ishlashda tizimning barqarorligi, xavfsizligi va yuqori tezligini ta'minlash uchun loyihada quyidagi korporativ me'moriy standartlar joriy etilgan:
+
+### 1. Ierarxik saqlash va Partitioning (Directory Sharding)
+Fayllarni bitta yagona papkaga to'plash operatsion tizimning fayllarni qidirish (inode lookup) tezligini keskin pasaytiradi. Shu sababli tizimda tashkilot (boshqarma) va vaqt bo'yicha dinamik ierarxiya qo'llanilgan:
+```text
+uploads/
+  └── decrees/
+       └── {organizationId}/        <-- Viloyat yoki shahar boshqarmasi ID-si
+            └── {year}/             <-- Yil (masalan: 2026)
+                 └── {month}/       <-- Oy (masalan: 10)
+                      └── decree-1729851234-987654.pdf
+```
+* **Natija:** 10 000+ fayl bo'lgan taqdirda ham, har bir quyi papkada ko'pi bilan 50-100 tagacha fayl joylashadi. Natijada fayllarni o'qish/yozish mikrosekundlarda amalga oshadi va fayl tizimi qotmaydi.
+
+### 2. Disk gigiyenasi va Avtomatik tozalash (Lifecycle / Garbage Collection)
+* **Yangi buyruq yuklanganda:** Me'yor (limit) o'zgartirilib, yangi buyruq fayli yuklanganda, tizim avval ushbu limitga biriktirilgan **oldingi faylni diskdan avtomatik ravishda o'chirib tashlaydi** (`fs.unlink`). Diskda faqat eng oxirgi tasdiqlangan buyruq saqlanadi.
+* **Limit o'chirilganda:** Agar ma'lumotlar bazasidan me'yor butunlay o'chirilsa, unga tegishli barcha fizik fayllar ham to'liq tozalanadi.
+* **Natija:** Server diskida "yetim" (orphaned) keraksiz fayllar to'planmaydi, disk xotirasi tejaladi.
+
+### 3. Xotira (RAM) tejamkorligi — Stream (Oqimli) uzatish
+* Fayllarni uzatishda ularni server xotirasiga to'liq yuklovchi `fs.readFileSync` taqiqlangan.
+* Tizim `Node.js Stream` (`fs.createReadStream().pipe(res)`) texnologiyasidan foydalanadi.
+* **Natija:** Bir vaqtning o'zida 100 nafar foydalanuvchi 20 MB lik PDF buyruqni ochgan taqdirda ham, serverning operativ xotirasiga (RAM) og'irlik tushmaydi.
+
+### 4. Xavfsizlik va Multi-tenant himoyasi (Security & RBAC)
+* Fayllar ochiq statik papkada (`public static assets`) EMAS, himoyalangan Controller orqali beriladi.
+* **Autentifikatsiya:** So'rovlar `JwtAuthGuard` orqali tekshiriladi (ham `Bearer Token` sarlavhasi, ham xavfsiz `?token=...` URL parametri qo'llab-quvvatlanadi).
+* **Tashkiliy izolyatsiya:** Har bir boshqarma faqat o'z tashkilotiga tegishli buyruqlarni ko'ra oladi va yuklab oladi.
+
+### 5. S3 / MinIO Klasteriga tayyorlik (Storage Adapter Ready)
+* Fayllarni saqlash va boshqarish logikasi biznes-mantiqdan to'liq ajratilgan (Abstraksiya).
+* Kelgusida butun respublika miqyosida markazlashgan Cloud Object Storage (AWS S3, MinIO yoki Cloudflare R2) joriy etilsa, asosiy biznes-kodni o'zgartirmasdan, faqat `StorageAdapter` orqali bulutli xotiraga o'tish imkoniyati kafolatlangan.

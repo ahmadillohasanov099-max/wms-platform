@@ -286,7 +286,7 @@ export default function HistoryPage() {
     const addressVal = row.user?.address || '';
 
     setModdiyData({
-      documentNumber: row.documentNumber || `MJSH-2026-${row.id?.slice(-4) || '001'}`,
+      documentNumber: row.documentNumber || undefined,
       date: row.createdAt,
       fromUser: "Алиматов Таир Наматуллаевич",
       toRecipient: recipient,

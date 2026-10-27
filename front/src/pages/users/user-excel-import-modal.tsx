@@ -140,7 +140,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx, .xls"
+              accept=".xlsx, .xls, .xlsm"
               onChange={handleFileChange}
               className="hidden"
             />

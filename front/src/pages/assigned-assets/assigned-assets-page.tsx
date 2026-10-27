@@ -23,7 +23,7 @@ import {
   type Column,
 } from '../../components/ui';
 
-import { formatCurrency, formatDate, cn } from '../../lib/utils';
+import { formatCurrency, formatCompactCurrency, formatDate, cn } from '../../lib/utils';
 import { useDebounce } from '../../hooks/useDebounce';
 import { exportToStyledExcel } from '../../lib/export';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -359,7 +359,8 @@ export default function AssignedAssetsPage() {
         />
         <StatCard
           label={t('assignedAssets.totalAssignedValue')}
-          value={isLoading ? '...' : formatCurrency(stats.totalValue)}
+          value={isLoading ? '...' : formatCompactCurrency(stats.totalValue)}
+          title={formatCurrency(stats.totalValue)}
           icon={<Wallet className="w-5 h-5" />}
           color="green"
         />

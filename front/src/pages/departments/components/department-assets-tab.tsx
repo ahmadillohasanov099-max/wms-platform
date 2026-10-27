@@ -166,7 +166,7 @@ export default function DepartmentAssetsTab({
     const recipientAddress = leader?.address || row.user?.address || '';
 
     setModdiyContractData({
-      documentNumber: docNum || `MJSH-2026-${String(row.asset?.inventoryNumber || row.inventoryNumber || '001').slice(-4)}`,
+      documentNumber: docNum || undefined,
       date: row.assignedAt || row.createdAt || new Date(),
       fromUser: 'Алиматов Таир Наматуллаевич',
       toRecipient,

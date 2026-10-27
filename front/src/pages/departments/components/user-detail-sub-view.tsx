@@ -130,7 +130,7 @@ export default function UserDetailSubView({
     const addr = selectedUser?.address || addressVal || '';
 
     setModdiyContractData({
-      documentNumber: batch.documentNumber || `MJSH-2026-${batch.key?.slice(-4) || '001'}`,
+      documentNumber: batch.documentNumber || undefined,
       date: batch.assignedAt,
       fromUser: 'Алиматов Таир Наматуллаевич',
       toRecipient: selectedUser?.fullName,

@@ -1,11 +1,32 @@
 # 📋 Loyiha Rivojlantirish Rejasi va Bajariladigan Vazifalar
 
-**Oxirgi yangilangan sana:** 2026-10-22  
+**Oxirgi yangilangan sana:** 2026-10-26  
 **Loyiha:** WMS Platform (Vazirlik va Quyi Tashkilotlar Ombor Boshqaruv Tizimi)
 
 ---
 
 ## 🚀 ASOSIY AMALGA OSHIRILGAN YANGI BOSQICH:
+
+### ⚡ Buxgalteriya "Aqlli Import" (UzASBO/1C) & Xavfsizlik va Shartnomalar (Bajarildi ✅ - 2026-10-26):
+- [x] **Buxgalteriya UzASBO / 1C fayllarini to'g'ridan-to'g'ri "Aqlli import" qilish:**
+  - Buxgalteriya eksport qilgan `.xlsm` va `.xlsx` fayllari qo'lda qatorlarini o'chirib o'tirmasdan to'g'ridan-to'g'ri tizimga yuklanishi ta'minlandi.
+  - Sarlavhadagi 1-10 qatorlar va oraliqdagi "Итого", "Всего" agregat qatorlari avtomatik filtrlanadi.
+  - O'lchov birliklari (`Штука` -> `DONA`, `Упаковка/Пачка` -> `PACHKA` va b.) avtomatik tarjima qilinadi.
+  - Kvartira / turar-joylar (masalan: `Яшнобод... хонадон`) avtomatik `DONA` birligiga o'giriladi.
+  - Minimal qoldiq (`minLevel`) default `0` qilib belgilandi.
+- [x] **Limitlar va Buyruq (Decree) fayllari xavfsizligi:**
+  - Limit yangilanganda eski buyruq fayli diskdan avtomatik o'chiriladi (server xotirasi to'lib ketishining oldi olindi).
+  - 5 MB hajm cheklovi va ruxsat etilgan formatlar whitelist (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.doc`, `.docx`).
+  - Magic byte tekshiruvi orqali EXE/virus/skriptlar qat'iy bloklandi.
+  - Express 5 / NestJS wildcard route (`@Get('decrees/*path')`) barqarorlashtirildi.
+- [x] **Moddiy javobgarlik shartnomasi (Senior UI & UX):**
+  - Shartnoma raqami (default bo'sh `''`, avtomatik hech qanday son yozilmaydi).
+  - Shartnoma sanasi (kalendar orqali tanlash).
+  - Pasport seriya/raqami va 2-qatorda to'liq kenglikdagi yashash manzili.
+  - Barcha "Например / Masalan" misollari va ortiqcha ichki sarlavhalar olib tashlandi, toza Senior dizayn.
+- [x] **Summalarni yaxlitlash va xunuk tiyinlarni tozalash:**
+  - Barcha valyutalarda tiyinlar (`,43`, `,12`) olib tashlanib, butun so'mga yaxlitlandi.
+  - StatCard-larda summalar ixcham formatda (`mlrd so'm`, `mln so'm`), hover qilinganda aniq yaxlit summa aks etadi.
 
 ### 🏛️ Choraklik (Kvartal / 3 oylik) TMZ Meʼyorlari Tizimi (Bajarildi ✅):
 - [x] **Davlat va budjet standartlariga to'liq moslashtirildi:**
@@ -13,7 +34,7 @@
   - Bo'lim yoki xodim 3 oy davomida xohlagan vaqtida (donada yoki pachkada) me'yor doirasida TMZ olishi mumkin.
   - Agar 3 oylik limit muddatidan oldin (masalan 1-2 oyda) tugasa, tizim avtomatik ravishda qolgan muddat davomida (yangi chorak 1-sanasigacha) TMZ berishni qat'iy bloklaydi.
   - Har chorak boshida (1-yanvar, 1-aprel, 1-iyul, 1-oktyabr) hisoblagichlar avtomatik 0 dan yangilanadi.
-- [x] **Sanalar shaffofligi va ko'rgazmaliligi:**
+- [x] **Sa  nalar shaffofligi va ko'rgazmaliligi:**
   - `limitSetDate`: Me'yor belgilangan aniq sana ko'rsatiladi.
   - `nextResetDate`: Keyingi yangi chorak me'yori ochiladigan sana (masalan, `2027-yil 1-yanvar`) aniq aks etadi.
   - `periodName` & `periodRange`: Masalan, `2026-yil IV chorak (1-oktyabr – 31-dekabr)`.
@@ -117,17 +138,25 @@
 
 ---
 
-### 3. 🤖 Telegram Bot Mantiqi (Tekshirish, To'g'irlash va Takomillashtirish):
-- [ ] **Mavjud Telegram bot arxitekturasini tekshirish va xatolarni tuzatish:**
-  - [ ] Bot ulanishi, webhook / polling holati, avtorizatsiya (/login) va sessiyalar barqarorligini tekshirish.
-  - [ ] Xodimlarni Telegram akkauntiga bog'lash mexanizmini soddalashtirish va xatosiz ishlashini ta'minlash.
-- [ ] **Tezkor xabarnomalar (Notification Service) integratsiyasi:**
-  - [ ] **Omborchiga:** Bo'lim boshlig'i yangi mahsulot yoki ta'mirlash so'rovi yuborganda zudlik bilan Telegram xabar borishi.
-  - [ ] **Bo'lim boshlig'iga:** Omborchi so'rovni tasdiqlaganda yoki rad etganda omborchining izohi (komentariyasi) bilan birga xabar borishi.
-  - [ ] **Xodimga:** Yangi jihoz biriktirilganda "Jihozni qabul qiling" xabari va qabul qilish/rad etish havolasi.
-  - [ ] **Kadrga:** Xodim ishdan bo'shatish jarayonidagi bosqichlar bo'yicha xabarlar.
-- [ ] **Bot komandalarini boyitish:**
-  - [ ] Bo'lim boshliqlari uchun o'z bo'limi so'rovlari holatini ko'rish komandalari.
+### 3. 🤖 Telegram Bot Mantiqi (Barcha 7 ta Rolga To'liq Moslashtirildi ✅ - 2026-10-27):
+- [x] **Telegram Bot barcha rollar iyerarxiyasiga to'liq moslashtirildi:**
+  - [x] **👑 SUPER_ADMIN:** Excel Ombor, Excel Xodimlar, Excel Bo'lim Jihozlari, Excel Operatsiyalar, Excel Tarix, Server loglari (.log).
+  - [x] **🏢 ORG_ADMIN:** Tashkilot ombori, xodimlari, bo'lim jihozlari, operatsiyalar tarixi va talabnomalari monitoringi (Multi-tenancy).
+  - [x] **📦 OMBORCHI (Vazirlik & Tashkilot):** Ombor holati, yangi talabnomalarni ko'rib chiqish, qoldiqlar, tezkor inventar qidiruvi.
+  - [x] **👤 XODIM:** Shaxsiy kabinet, "Mening Jihozlarim", "Mening Tarixim", "Mening Bo'limim", "Mening So'rovlarim", biriktirishni qabul qilish/rad etish.
+  - [x] **👥 KADR (Kadrlar bo'limi / HR):**
+    - [x] *Excel Xodimlar:* To'liq xodimlar bazasi ro'yxatini yuklash;
+    - [x] *Bo'shash jarayonlari (Offboarding):* Ishdan bo'shatilayotgan xodimlar va ulardagi topshirilmagan jihozlar monitoringi;
+    - [x] *Bo'limlar ro'yxati:* Bo'limlar kesimida xodimlar soni va aktivlar hisoboti;
+    - [x] *Xodim qidirish:* F.I.SH, telefon raqami yoki lavozimi orqali xodimning ma'lumotlari va unga biriktirilgan aktivlarini aniqlash;
+    - [x] *Shaxsiy jihozlar va tarix:* Kadrning shaxsiy kabineti.
+  - [x] **🏛️ RAHBAR (Rahbariyat / Boshqaruv kuzatuvi):**
+    - [x] *Umumiy Statistika:* Mahsulotlar, xodimlar, bo'limlar va biriktirilgan aktivlar agregat balansi;
+    - [x] *Excel Ombor Holati & Excel Tarix:* Ombor zaxiralari va so'nggi tovar harakatlari;
+    - [x] *Excel Bo'lim Jihozlari & Excel Xodimlar:* Tashkilot boyliklarining bo'limlar bo'yicha taqsimoti;
+    - [x] *Tezkor qidiruv:* Xohlagan jihoz inventar raqami yoki xodim F.I.SH bo'yicha darhol ma'lumot olish;
+    - [x] *Faqat Read-Only:* Xavfsizlik bo'yicha hech qanday operatsiyalarni o'zgartirmasdan monitoring qilish imkoniyati.
+- [x] **STAFF_ROLES va Xavfsizlik (RBAC):** RAHBAR va KADR xavfsiz callback, hisobotlar va eksport huquqlariga to'liq ulandi.
 
 ---
 

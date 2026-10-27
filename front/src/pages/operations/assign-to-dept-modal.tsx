@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+ import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { operationsApi, departmentsApi, productsApi, inventoryApi } from '../../api';
@@ -57,6 +57,7 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
 
   // Document State
   const [documentNumber, setDocumentNumber] = useState<string>('');
+  const [documentDate, setDocumentDate] = useState<string>('');
   const [moddiyData, setModdiyData] = useState<ModdiyJavobgarlikData | null>(null);
 
   // Fetch Departments
@@ -69,7 +70,7 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
   // Fetch Asset Products
   const { data: assetProductsData, isLoading: isProductsLoading } = useQuery({
     queryKey: ['products-asset-assign-dept'],
-    queryFn: () => productsApi.getAll({ productType: 'BERILADIGAN', limit: 300 }),
+    queryFn: () => productsApi.getAll({ productType: 'BERILADIGAN', limit: 1000 }),
     enabled: open,
   });
 
@@ -148,7 +149,7 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
   const activeSearchQuery = activeSearchRow?.productSearch?.trim() || '';
   const debouncedProductSearch = useDebounce(activeSearchQuery, 250);
 
-  const { data: liveSearchData, isFetching: isLiveSearchFetching } = useQuery({
+  const { data: liveSearchData } = useQuery({
     queryKey: ['assign-dept-live-inventory-search', debouncedProductSearch],
     queryFn: () => inventoryApi.getAll({ search: debouncedProductSearch }),
     enabled: open && debouncedProductSearch.length >= 1,
@@ -306,6 +307,7 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
     setLoadingAssets({});
 
     setDocumentNumber('');
+    setDocumentDate('');
   };
 
   const handleClose = () => {
@@ -325,7 +327,7 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
         throw new Error(t('operations.validationSelectAssetAndInv'));
       }
 
-      const sharedDocNum = documentNumber.trim() || `MJSH-${Date.now().toString().slice(-6)}`;
+      const sharedDocNum = documentNumber.trim() || undefined;
 
       for (const r of validRows) {
         await operationsApi.assignToDept({
@@ -350,8 +352,8 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
       const recipientName = `Bo'lim: ${deptObj?.name || 'Bo‘lim'}`;
 
       const printData: ModdiyJavobgarlikData = {
-        documentNumber: data.sharedDocNum,
-        date: new Date(),
+        documentNumber: data.sharedDocNum || undefined,
+        date: documentDate ? new Date(documentDate) : undefined,
         fromUser: user?.fullName || "Xo'jalik mudiri",
         toRecipient: recipientName,
         recipientDepartment: deptObj?.name,
@@ -723,11 +725,18 @@ export default function AssignToDeptModal({ open, onClose }: Props) {
           </div>
 
           {/* STEP 3: DOCUMENT NUMBER */}
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-gray-200 dark:border-gray-800">
             <Input
               label={t('common.documentNumber')}
+              placeholder="Masalan: MJSH-001"
               value={documentNumber}
               onChange={(e) => setDocumentNumber(e.target.value)}
+            />
+            <Input
+              label={t('common.date')}
+              type="date"
+              value={documentDate}
+              onChange={(e) => setDocumentDate(e.target.value)}
             />
           </div>
         </div>

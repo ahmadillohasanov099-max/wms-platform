@@ -13,4 +13,8 @@ export class UpdateMonthlyLimitDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Buyruq raqami yoki asosi' })
+  @IsOptional()
+  decreeReference?: string;
 }

@@ -227,7 +227,12 @@ export class OperationsPdfService {
                     </td>
                     <td style="vertical-align: top; padding-left: 15px;">
                       <div style="text-align: left; font-weight: normal; line-height: 1.4; min-height: 45px;">
-                        <span style="font-weight: bold;">Манзили:</span> ${data.recipientAddress || '—'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="font-weight: bold;">Паспорт:</span> ${data.recipientPassport || '—'}
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-weight: bold;">Манзили:</span> ${data.recipientAddress || '—'}
+                        </div>
+                        <div>
+                          <span style="font-weight: bold;">Паспорт:</span> ${data.recipientPassport || '—'}
+                        </div>
                       </div>
                     </td>
                   </tr>

@@ -106,11 +106,11 @@ export class StatsService {
     const assignmentsTrend = getPercentageChange(thisMonthAssignmentsCount, lastMonthAssignmentsCount);
 
     const lowStockCount = Number(inventoryStats[0]?.low_stock_count ?? 0);
-    const totalInventoryValue = Number(inventoryStats[0]?.total_value ?? 0);
+    const totalInventoryValue = Math.round(Number(inventoryStats[0]?.total_value ?? 0));
 
-    const totalAssignedValue = Number(assignedAssetsSum[0]?.total ?? 0);
+    const totalAssignedValue = Math.round(Number(assignedAssetsSum[0]?.total ?? 0));
     const totalWriteOffCount = Number(writeOffStats[0]?.count ?? 0);
-    const totalWriteOffLoss = Number(writeOffStats[0]?.total_loss ?? 0);
+    const totalWriteOffLoss = Math.round(Number(writeOffStats[0]?.total_loss ?? 0));
 
     const assetProductsCount = productTypeCounts.find((p) => p.productType === 'BERILADIGAN')?._count.id ?? 0;
     const consumableProductsCount = productTypeCounts.find((p) => p.productType === 'SARFLANADIGAN')?._count.id ?? 0;

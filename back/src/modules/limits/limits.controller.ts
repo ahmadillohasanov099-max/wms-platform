@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -41,6 +42,24 @@ const LIMIT_VIEWERS = [
   UserRole.KADR,
   UserRole.XODIM,
 ];
+
+
+const DECREE_FILE_INTERCEPTOR = FileInterceptor('file', {
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.pdf', '.png', '.jpg', '.jpeg', '.doc', '.docx'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(
+        new BadRequestException(
+          `Ruxsat berilmagan fayl formati (${ext})! Faqat PDF, rasm yoki Word hujjati yuklanishi shart!`,
+        ),
+        false,
+      );
+    }
+  },
+});
 
 const LIMIT_MANAGERS = [
   UserRole.SUPER_ADMIN,
@@ -126,11 +145,7 @@ export class LimitsController {
   })
   @Roles(...LIMIT_MANAGERS)
   @Put(':id')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
-    }),
-  )
+  @UseInterceptors(DECREE_FILE_INTERCEPTOR)
   async updateLimit(
     @Param('id') id: string,
     @Body() dto: UpdateMonthlyLimitDto,
@@ -160,11 +175,7 @@ export class LimitsController {
   })
   @Roles(...LIMIT_MANAGERS)
   @Post('exceptions')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
-    }),
-  )
+  @UseInterceptors(DECREE_FILE_INTERCEPTOR)
   async addException(
     @Body() dto: CreateLimitExceptionDto,
     @UploadedFile() file: any,
@@ -177,21 +188,60 @@ export class LimitsController {
     });
   }
 
-  @ApiOperation({ summary: 'Yuklangan buyruq faylini xavfsiz ko‘rish/yuklab olish' })
+  @ApiOperation({ summary: 'Yuklangan buyruq faylini xavfsiz ko‘rish/yuklab olish (Stream orqali)' })
   @Roles(...LIMIT_VIEWERS)
-  @Get('decrees/:filename')
+  @Get('decrees/*path')
   async getDecreeFile(
-    @Param('filename') filename: string,
+    @Req() req: express.Request,
     @Res() res: express.Response,
   ) {
-    const safeFilename = path.basename(filename);
-    const filePath = path.join(process.cwd(), 'uploads', 'decrees', safeFilename);
+    let rawPath = '';
+    const pathParam = (req.params as any)?.path;
+    if (Array.isArray(pathParam)) {
+      rawPath = pathParam.join('/');
+    } else if (typeof pathParam === 'string') {
+      rawPath = pathParam;
+    } else if ((req.params as any)[0]) {
+      rawPath = (req.params as any)[0];
+    }
 
-    if (!fs.existsSync(filePath)) {
+    if (!rawPath) {
+      const fullUrl = req.url || req.path || '';
+      const marker = '/decrees/';
+      const idx = fullUrl.indexOf(marker);
+      if (idx !== -1) {
+        rawPath = decodeURIComponent(fullUrl.slice(idx + marker.length).split('?')[0]);
+      }
+    }
+
+    const safeRelativePath = path.normalize(rawPath).replace(/^(\.\.[\/\\])+/, '');
+    const filePath = path.join(process.cwd(), 'uploads', 'decrees', safeRelativePath);
+
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
       throw new NotFoundException('Buyruq fayli topilmadi');
     }
 
-    return res.sendFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    const baseName = path.basename(filePath);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(baseName)}"`);
+
+    // Stream orqali xotira (RAM) sarflamasdan oqimli uzatish
+    const stream = fs.createReadStream(filePath);
+    return stream.pipe(res);
   }
 
   @ApiOperation({ summary: 'Oylik meʼyorni o‘chirish' })

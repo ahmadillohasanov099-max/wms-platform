@@ -168,8 +168,9 @@ export class ProductsService {
       select: { id: true, role: true, organizationId: true },
     });
 
+    const isSuperAdmin = deleterUser?.role === 'SUPER_ADMIN';
     const isSuperOrMinistry =
-      deleterUser?.role === 'SUPER_ADMIN' ||
+      isSuperAdmin ||
       deleterUser?.role === 'VAZIRLIK_OMBORCHI';
 
     const product = await this.prisma.product.findFirst({
@@ -184,6 +185,46 @@ export class ProductsService {
       throw new ForbiddenException("Siz faqat o'z tashkilotingiz mahsulotlarini boshqara olasiz");
     }
 
+    // ─── TMZ (SARFLANADIGAN) UCHUN: FAQAT SUPER ADMIN O'CHIRA OLADI ───
+    if (product.productType === 'SARFLANADIGAN') {
+      if (!isSuperAdmin) {
+        throw new ForbiddenException("Ombordan TMZ mahsulotlarini faqat Super Admin o'chira oladi");
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.product.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+
+        if (product.inventory) {
+          await tx.inventory.update({
+            where: { productId: id },
+            data: { quantity: 0 },
+          });
+        }
+
+        await tx.departmentAsset.deleteMany({
+          where: { productId: id },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: deletedBy,
+            action: 'DELETE_PRODUCT',
+            resource: 'Product',
+            resourceId: id,
+            method: 'DELETE',
+            endpoint: `/products/${id}`,
+            oldData: product as any,
+          },
+        });
+
+        return { message: "TMZ mahsuloti ombordan muvaffaqiyatli o'chirildi" };
+      });
+    }
+
+    // ─── BERILADIGAN (ASOSIY VOSITALAR) UCHUN TEKSHIRUVLAR ───
     // 1. Check if assigned to any employees
     const assignedCount = await this.prisma.assignment.count({
       where: {
@@ -209,30 +250,34 @@ export class ProductsService {
     }
 
     // 3. Check warehouse stock balance
-    if (product.inventory && product.inventory.quantity > 0) {
+    if (!isSuperAdmin && product.inventory && product.inventory.quantity > 0) {
       throw new BadRequestException(
         `Mahsulotda ombor qoldig'i mavjud (${product.inventory.quantity} ta)! Uni o'chirishdan avval hisobdan chiqarish (spisanie) qilishingiz kerak.`,
       );
     }
 
     // 4. Check active assets in warehouse
-    const activeAssets = await this.prisma.asset.count({
-      where: { productId: id, status: 'ACTIVE', deletedAt: null },
-    });
-    if (activeAssets > 0) {
-      throw new BadRequestException(
-        "Mahsulotda omborda aktiv jihozlar mavjud! Uni o'chirishdan avval hisobdan chiqarish (spisanie) qilishingiz kerak.",
-      );
+    if (!isSuperAdmin) {
+      const activeAssets = await this.prisma.asset.count({
+        where: { productId: id, status: 'ACTIVE', deletedAt: null },
+      });
+      if (activeAssets > 0) {
+        throw new BadRequestException(
+          "Mahsulotda omborda aktiv jihozlar mavjud! Uni o'chirishdan avval hisobdan chiqarish (spisanie) qilishingiz kerak.",
+        );
+      }
     }
 
     // 5. Check if there are any operations in history
-    const operationsCount = await this.prisma.operation.count({
-      where: { productId: id },
-    });
-    if (operationsCount > 0) {
-      throw new BadRequestException(
-        "Ushbu mahsulot bo'yicha harakatlar tarixi (kirim/chiqim amallari) mavjud! Buxgalteriya va audit hisobotlari yo'qolmasligi uchun uni o'chirish taqiqlanadi. Mahsulot omborda qoldig'i 0 bo'lib saqlanishi kerak.",
-      );
+    if (!isSuperAdmin) {
+      const operationsCount = await this.prisma.operation.count({
+        where: { productId: id },
+      });
+      if (operationsCount > 0) {
+        throw new BadRequestException(
+          "Ushbu mahsulot bo'yicha harakatlar tarixi (kirim/chiqim amallari) mavjud! Buxgalteriya va audit hisobotlari yo'qolmasligi uchun uni o'chirish taqiqlanadi. Mahsulot omborda qoldig'i 0 bo'lib saqlanishi kerak.",
+        );
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -245,6 +290,13 @@ export class ProductsService {
         where: { productId: id, deletedAt: null },
         data: { deletedAt: new Date() },
       });
+
+      if (product.inventory) {
+        await tx.inventory.update({
+          where: { productId: id },
+          data: { quantity: 0 },
+        });
+      }
 
       await tx.auditLog.create({
         data: {

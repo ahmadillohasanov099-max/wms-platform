@@ -8,7 +8,8 @@ import {
   Trash2,
   Pencil,
   User as UserIcon,
-  ExternalLink,
+  Eye,
+  Download,
   UploadCloud,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -49,7 +50,7 @@ export default function LimitsSummaryCard({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [addMode, setAddMode] = useState<'PACHKA' | 'DONA'>('DONA');
   const [rawLimitInput, setRawLimitInput] = useState<number | string>(40);
-  const decreeRef = "Vazirlik ichki me'yoriy qarori";
+  const decreeRef = t('limits.defaultDecreeRef');
 
   // --- Edit Limit Modal State (with Decree) ---
   const [editingLimit, setEditingLimit] = useState<any | null>(null);
@@ -68,7 +69,7 @@ export default function LimitsSummaryCard({
 
   const { data: productsData } = useQuery({
     queryKey: ['products-for-limits'],
-    queryFn: () => productsApi.getAll({ productType: 'SARFLANADIGAN', limit: 200 }),
+    queryFn: () => productsApi.getAll({ productType: 'SARFLANADIGAN', limit: 1000 }),
     enabled: isAddLimitModalOpen || !!editingLimit,
   });
 
@@ -86,14 +87,14 @@ export default function LimitsSummaryCard({
   const addLimitMutation = useMutation({
     mutationFn: (payload: any) => limitsApi.setLimit(payload),
     onSuccess: () => {
-      toast.success("Oylik me'yor muvaffaqiyatli belgilandi");
+      toast.success(t('limits.toastCreated'));
       queryClient.invalidateQueries({ queryKey: ['limits-summary'] });
       setIsAddLimitModalOpen(false);
       setSelectedProductId('');
       setRawLimitInput(40);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Xatolik');
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
@@ -102,13 +103,13 @@ export default function LimitsSummaryCard({
     mutationFn: ({ id, payload }: { id: string; payload: any }) =>
       limitsApi.updateLimit(id, payload),
     onSuccess: (res: any) => {
-      toast.success(res?.message || "Oylik me'yor buyruq asosida yangilandi");
+      toast.success(res?.message || t('limits.toastUpdated'));
       queryClient.invalidateQueries({ queryKey: ['limits-summary'] });
       setEditingLimit(null);
       setEditFile(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Xatolik');
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
@@ -116,11 +117,11 @@ export default function LimitsSummaryCard({
   const deleteLimitMutation = useMutation({
     mutationFn: (id: string) => limitsApi.deleteLimit(id),
     onSuccess: () => {
-      toast.success("Me'yor o'chirildi");
+      toast.success(t('limits.toastDeleted'));
       queryClient.invalidateQueries({ queryKey: ['limits-summary'] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Xatolik');
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
     },
   });
 
@@ -133,12 +134,12 @@ export default function LimitsSummaryCard({
   const handleSaveAddLimit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId) {
-      toast.error('Mahsulotni tanlang');
+      toast.error(t('limits.toastSelectProduct'));
       return;
     }
     const rawVal = Number(rawLimitInput);
     if (!rawVal || rawVal <= 0) {
-      toast.error("Miqdor 0 dan katta bo'lishi kerak");
+      toast.error(t('limits.toastPositiveQuantity'));
       return;
     }
 
@@ -161,13 +162,13 @@ export default function LimitsSummaryCard({
     if (!editingLimit) return;
 
     if (!editFile) {
-      toast.error('Yangi buyruq faylini (PDF yoki rasm) yuklash shart!');
+      toast.error(t('limits.toastDecreeRequired'));
       return;
     }
 
     const rawVal = Number(rawEditInput);
     if (!rawVal || rawVal <= 0) {
-      toast.error("Miqdor 0 dan katta bo'lishi kerak");
+      toast.error(t('limits.toastPositiveQuantity'));
       return;
     }
 
@@ -190,12 +191,12 @@ export default function LimitsSummaryCard({
             </div>
             <div>
               <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base block">
-                Choraklik TMZ isteʼmol meʼyorlari (3 oylik limitlar)
+                {t('limits.cardTitle')}
               </span>
               <span className="text-xs text-muted-foreground block">
                 {targetName
-                  ? `${targetName} uchun belgilangan meʼyorlar va qoldiqlar`
-                  : 'Choraklik meʼyorlar va qoldiqlar nazorati'}
+                  ? t('limits.cardSubtitle', { targetName })
+                  : t('limits.cardSubtitleGeneric')}
               </span>
             </div>
           </div>
@@ -214,7 +215,7 @@ export default function LimitsSummaryCard({
               }}
             >
               <Plus className="w-3.5 h-3.5" />
-              Meʼyor belgilash
+              {t('limits.setLimit')}
             </Button>
           )
         }
@@ -222,25 +223,29 @@ export default function LimitsSummaryCard({
       <CardContent className="p-0">
         {isLoading ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            Yuklanmoqda...
+            {t('common.loading')}
           </div>
         ) : limitsList.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground">
             <AlertCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-            Hozircha ushbu {userId ? 'xodim' : 'bo‘lim'} uchun alohida oylik isteʼmol meʼyori belgilanmagan.
+            {userId
+              ? t('limits.emptyUser')
+              : departmentId
+              ? t('limits.emptyDept')
+              : t('limits.emptyGeneric')}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-gray-200/80 dark:border-white/10 bg-gray-50/75 dark:bg-slate-800/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="py-3 px-4">Mahsulot</th>
-                  <th className="py-3 px-4 text-center">Choraklik meʼyor (3 oylik)</th>
-                  <th className="py-3 px-4 text-center">Choraklik sarf</th>
-                  <th className="py-3 px-4 text-center">Qolgan limit</th>
-                  <th className="py-3 px-4 text-center">Yangilanish sanasi</th>
-                  <th className="py-3 px-4">Asos va Masʼul</th>
-                  {canManage && <th className="py-3 px-4 text-right">Amallar</th>}
+                  <th className="py-3 px-4">{t('limits.colProduct')}</th>
+                  <th className="py-3 px-4 text-center">{t('limits.colQuarterlyLimit')}</th>
+                  <th className="py-3 px-4 text-center">{t('limits.colQuarterlySpent')}</th>
+                  <th className="py-3 px-4 text-center">{t('limits.colRemainingLimit')}</th>
+                  <th className="py-3 px-4 text-center">{t('limits.colResetDate')}</th>
+                  <th className="py-3 px-4">{t('limits.colDecreeAndResponsible')}</th>
+                  {canManage && <th className="py-3 px-4 text-right">{t('limits.colActions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-xs">
@@ -267,13 +272,18 @@ export default function LimitsSummaryCard({
 
                   const latestDecree =
                     item.latestDecree ||
+                    (item.fileUrl ? { fileUrl: item.fileUrl, fileName: item.fileName } : null) ||
                     item.history?.find((h: any) => h.fileUrl) ||
                     item.history?.[0];
                   const lastEditor =
                     latestDecree?.createdBy?.fullName || item.createdBy?.fullName;
                   const lastTimestamp =
                     latestDecree?.createdAt || item.updatedAt || item.createdAt;
-                  const decreeFileUrl = latestDecree?.fileUrl;
+                  const decreeFileUrl = latestDecree?.fileUrl || item.fileUrl;
+
+                  const quarterStr = item.periodCode
+                    ? (item.periodCode.split('-Q')[1] || item.periodCode.split('-')[1] || '4')
+                    : '4';
 
                   return (
                     <tr
@@ -288,13 +298,13 @@ export default function LimitsSummaryCard({
                           </span>
                           {prod?.packageSize && prod.packageSize > 1 && (
                             <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/50 whitespace-nowrap">
-                              1 pachka = {prod.packageSize} dona
+                              {t('limits.perPack', { size: prod.packageSize })}
                             </span>
                           )}
                         </div>
                       </td>
 
-                      {/* Oylik me'yor */}
+                      {/* Choraklik me'yor */}
                       <td className="py-3.5 px-4 text-center font-bold text-sm text-foreground whitespace-nowrap">
                         <span>{formattedLimit}</span>
                         {item.totalExceptions > 0 && (
@@ -304,7 +314,7 @@ export default function LimitsSummaryCard({
                         )}
                       </td>
 
-                      {/* Sarf (Bu oy) */}
+                      {/* Choraklik sarf */}
                       <td className="py-3.5 px-4 text-center font-semibold text-sm text-amber-600 dark:text-amber-400 whitespace-nowrap">
                         {formattedSpent}
                       </td>
@@ -323,7 +333,7 @@ export default function LimitsSummaryCard({
                             {formatSimpleDate(item.nextResetDate) || '01.01.2027'}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
-                            {item.periodCode ? (item.periodCode.split('-')[1] + ' chorak') : (item.periodName || 'IV chorak')}
+                            {t('limits.quarterLabel', { q: quarterStr })}
                           </span>
                         </div>
                       </td>
@@ -332,19 +342,37 @@ export default function LimitsSummaryCard({
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1">
                           {decreeFileUrl ? (
-                            <a
-                              href={decreeFileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 w-fit px-2 py-0.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-colors"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                              <span>Buyruq hujjati</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                <FileText className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                <span className="truncate max-w-[130px]" title={latestDecree?.fileName || t('limits.decreeFile')}>
+                                  {latestDecree?.fileName || t('limits.decreeFile')}
+                                </span>
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => limitsApi.viewDecree(decreeFileUrl)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 rounded transition-colors cursor-pointer"
+                                  title={t('limits.viewInNewTab')}
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>{t('limits.view')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => limitsApi.downloadDecree(decreeFileUrl, latestDecree?.fileName)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 rounded transition-colors cursor-pointer"
+                                  title={t('limits.downloadToComputer')}
+                                >
+                                  <Download className="w-3 h-3" />
+                                  <span>{t('limits.download')}</span>
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <span className="text-[11px] text-muted-foreground">
-                              {item.decreeReference || "Meʼyoriy qaror"}
+                              {item.decreeReference || t('limits.decreeFallback')}
                             </span>
                           )}
                           {lastEditor && (
@@ -366,23 +394,19 @@ export default function LimitsSummaryCard({
                               type="button"
                               onClick={() => handleOpenEdit(item)}
                               className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
-                              title="Tahrirlash"
+                              title={t('common.edit')}
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
                               onClick={() => {
-                                if (
-                                  window.confirm(
-                                    "Rostdan ham ushbu meʼyorni o‘chirmoqchimisiz?"
-                                  )
-                                ) {
+                                if (window.confirm(t('limits.confirmDelete'))) {
                                   deleteLimitMutation.mutate(item.id);
                                 }
                               }}
                               className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                              title="O‘chirish"
+                              title={t('common.delete')}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -402,14 +426,32 @@ export default function LimitsSummaryCard({
       <Modal
         open={isAddLimitModalOpen}
         onClose={() => setIsAddLimitModalOpen(false)}
-        title="Choraklik isteʼmol meʼyorini belgilash (3 oylik)"
+        title={t('limits.modalAddTitle')}
         size="md"
         footer={null}
       >
         <form onSubmit={handleSaveAddLimit} className="space-y-4 py-2">
+          {/* Standart Vazirlik buyrug'i eslatmasi */}
+          <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 text-xs text-sky-800 dark:text-sky-300 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-sky-600 shrink-0" />
+              <div>
+                <span className="font-bold block">{t('limits.stdDecreeLabel')}</span>
+                <span className="text-[11px] text-muted-foreground">{t('limits.defaultDecreeRef')}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => limitsApi.viewDecree('/api/v1/limits/decrees/vazirlik_buyrugi_50.pdf')}
+              className="px-2 py-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 bg-white dark:bg-slate-900 border border-sky-300 dark:border-sky-700 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-800 transition-colors cursor-pointer"
+            >
+              {t('limits.view')}
+            </button>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1">
-              TMZ Mahsulot *
+              {t('limits.productLabel')}
             </label>
             <select
               value={selectedProductId}
@@ -417,10 +459,10 @@ export default function LimitsSummaryCard({
               className="w-full text-xs rounded-lg border border-input bg-background px-3 py-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               required
             >
-              <option value="">-- Mahsulotni tanlang --</option>
+              <option value="">{t('limits.selectProductPlaceholder')}</option>
               {productsList.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} {p.packageSize ? `(1 pachka = ${p.packageSize} dona)` : `(${p.unit || 'dona'})`}
+                  {p.name} {p.packageSize ? `(${t('limits.perPack', { size: p.packageSize })})` : `(${p.unit || t('limits.dona')})`}
                 </option>
               ))}
             </select>
@@ -430,7 +472,7 @@ export default function LimitsSummaryCard({
           {hasAddPackaging && (
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
-                Kiritish birligi
+                {t('limits.inputUnit')}
               </label>
               <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 w-fit">
                 <button
@@ -442,7 +484,7 @@ export default function LimitsSummaryCard({
                       : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                   }`}
                 >
-                  Dona
+                  {t('limits.dona')}
                 </button>
                 <button
                   type="button"
@@ -453,7 +495,7 @@ export default function LimitsSummaryCard({
                       : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                   }`}
                 >
-                  Pachka
+                  {t('limits.pachka')}
                 </button>
               </div>
             </div>
@@ -461,7 +503,9 @@ export default function LimitsSummaryCard({
 
           <div>
             <Input
-              label={`Oylik meʼyor miqdori (${hasAddPackaging && addMode === 'DONA' ? 'Dona' : selectedProduct?.unit || 'Dona'}) *`}
+              label={`${t('limits.limitQuantityLabel', {
+                unit: hasAddPackaging && addMode === 'DONA' ? t('limits.dona') : selectedProduct?.unit || t('limits.dona'),
+              })}`}
               type="number"
               step="any"
               min="0.0001"
@@ -472,8 +516,12 @@ export default function LimitsSummaryCard({
             {hasAddPackaging && selectedProduct?.packageSize && (
               <span className="text-[11px] text-muted-foreground block mt-1">
                 {addMode === 'DONA'
-                  ? `(= ${roundQuantity(Number(rawLimitInput || 0) / selectedProduct.packageSize, 3)} pachka)`
-                  : `(= ${Math.round(Number(rawLimitInput || 0) * selectedProduct.packageSize)} dona)`}
+                  ? t('limits.equivalentPachka', {
+                      count: roundQuantity(Number(rawLimitInput || 0) / selectedProduct.packageSize, 3),
+                    })
+                  : t('limits.equivalentDona', {
+                      count: Math.round(Number(rawLimitInput || 0) * selectedProduct.packageSize),
+                    })}
               </span>
             )}
           </div>
@@ -485,7 +533,7 @@ export default function LimitsSummaryCard({
               size="sm"
               onClick={() => setIsAddLimitModalOpen(false)}
             >
-              Bekor qilish
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -493,7 +541,7 @@ export default function LimitsSummaryCard({
               loading={addLimitMutation.isPending}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
-              Saqlash
+              {t('common.save')}
             </Button>
           </div>
         </form>
@@ -504,20 +552,25 @@ export default function LimitsSummaryCard({
         <Modal
           open={!!editingLimit}
           onClose={() => setEditingLimit(null)}
-          title="Oylik meʼyorni tahrirlash"
+          title={t('limits.modalEditTitle')}
           size="md"
           footer={null}
         >
           <form onSubmit={handleSaveEditLimit} className="space-y-4 py-2">
             <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
               <span className="text-xs text-muted-foreground block">
-                Tanlangan mahsulot:
+                {t('limits.selectedProduct')}
               </span>
               <span className="text-sm font-bold text-foreground block mt-0.5">
                 {editingLimit.product?.name}
               </span>
+              {editingLimit.fileUrl && (
+                <div className="mt-2 pt-2 border-t border-border/40 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+                  ⚠️ <strong>{t('limits.notePrefix')}</strong> {t('limits.editWarningNote')}
+                </div>
+              )}
               <span className="text-xs text-muted-foreground block mt-1">
-                Amaldagi meʼyor:{' '}
+                {t('limits.currentLimit')}{' '}
                 <strong className="text-foreground">
                   {formatProductQuantity(
                     editingLimit.limitQuantity,
@@ -531,7 +584,9 @@ export default function LimitsSummaryCard({
 
             <div>
               <Input
-                label={`Yangi oylik meʼyor miqdori (${editingLimit.product?.unit || 'Dona'}) *`}
+                label={t('limits.newLimitQuantity', {
+                  unit: editingLimit.product?.unit || t('limits.dona'),
+                })}
                 type="number"
                 step="any"
                 min="0.0001"
@@ -543,17 +598,23 @@ export default function LimitsSummaryCard({
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-foreground">
-                Asos bo‘lgan yangi buyruq fayli (PDF yoki rasm) *
+                {t('limits.decreeUploadLabel')}
               </label>
               <div className="relative">
                 <input
                   type="file"
                   id="edit-decree-file"
-                  accept=".pdf,image/*"
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
                   required
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
-                      setEditFile(e.target.files[0]);
+                      const file = e.target.files[0];
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error(t('limits.toastMaxFileSize'));
+                        e.target.value = '';
+                        return;
+                      }
+                      setEditFile(file);
                     }
                   }}
                   className="sr-only"
@@ -565,10 +626,10 @@ export default function LimitsSummaryCard({
                   >
                     <UploadCloud className="w-6 h-6 text-muted-foreground" />
                     <span className="text-xs font-semibold text-primary">
-                      Buyruq faylini yuklash uchun bosing
+                      {t('limits.decreeUploadPrompt')}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      PDF, JPG yoki PNG formatida
+                      {t('limits.decreeUploadFormats')}
                     </span>
                   </label>
                 ) : (
@@ -590,7 +651,7 @@ export default function LimitsSummaryCard({
                       htmlFor="edit-decree-file"
                       className="text-xs font-medium text-primary hover:underline cursor-pointer shrink-0 ml-2"
                     >
-                      Almashtirish
+                      {t('limits.replaceFile')}
                     </label>
                   </div>
                 )}
@@ -604,7 +665,7 @@ export default function LimitsSummaryCard({
                 size="sm"
                 onClick={() => setEditingLimit(null)}
               >
-                Bekor qilish
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -612,7 +673,7 @@ export default function LimitsSummaryCard({
                 loading={updateLimitMutation.isPending}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
               >
-                Saqlash
+                {t('common.save')}
               </Button>
             </div>
           </form>

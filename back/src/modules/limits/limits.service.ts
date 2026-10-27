@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma';
 import * as fs from 'fs';
 import * as path from 'path';
+import { validateDecreeFile } from './utils/file-security.util';
 import {
   CreateLimitExceptionDto,
   QueryLimitsListDto,
@@ -13,6 +14,10 @@ import {
   SetMonthlyLimitDto,
   UpdateMonthlyLimitDto,
 } from './dto';
+
+export const DEFAULT_DECREE_URL = '/api/v1/limits/decrees/vazirlik_buyrugi_50.pdf';
+export const DEFAULT_DECREE_FILENAME = 'Буйруқ №50 (ВМҚ-109 қоғозни тежаш).pdf';
+export const DEFAULT_DECREE_REF = "50-sonli buyruq (VMQ-109 qog'ozni tejash bo'yicha)";
 
 @Injectable()
 export class LimitsService {
@@ -426,8 +431,6 @@ export class LimitsService {
       unit: product.unit,
       packageSize: product.packageSize,
       baseLimit: baseLimitQuantity,
-      fileUrl: activeLimit.fileUrl,
-      fileName: activeLimit.fileName,
       totalExceptions,
       totalAllowed,
       currentMonthSpent,
@@ -443,15 +446,16 @@ export class LimitsService {
       updatedBy: activeLimit.updatedBy,
       createdAt: activeLimit.createdAt,
       updatedAt: activeLimit.updatedAt,
-      latestDecree: activeLimit.fileUrl
-        ? {
-            fileUrl: activeLimit.fileUrl,
-            fileName: activeLimit.fileName,
-            documentNumber: activeLimit.decreeReference,
-            createdAt: activeLimit.updatedAt,
-            createdBy: activeLimit.updatedBy || activeLimit.createdBy,
-          }
-        : null,
+      fileUrl: activeLimit.fileUrl || DEFAULT_DECREE_URL,
+      fileName: activeLimit.fileName || DEFAULT_DECREE_FILENAME,
+      decreeReference: activeLimit.decreeReference || DEFAULT_DECREE_REF,
+      latestDecree: {
+        fileUrl: activeLimit.fileUrl || DEFAULT_DECREE_URL,
+        fileName: activeLimit.fileName || DEFAULT_DECREE_FILENAME,
+        documentNumber: activeLimit.decreeReference || DEFAULT_DECREE_REF,
+        createdAt: activeLimit.updatedAt || activeLimit.createdAt,
+        createdBy: activeLimit.updatedBy || activeLimit.createdBy,
+      },
       exceptions,
     };
   }
@@ -543,7 +547,9 @@ export class LimitsService {
         departmentId: dto.departmentId || null,
         userId: dto.userId || null,
         limitQuantity: newQty,
-        decreeReference: dto.decreeReference,
+        decreeReference: dto.decreeReference || DEFAULT_DECREE_REF,
+        fileUrl: DEFAULT_DECREE_URL,
+        fileName: DEFAULT_DECREE_FILENAME,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
         createdById: performer.id,
       },
@@ -562,6 +568,79 @@ export class LimitsService {
   /**
    * Oylik me'yorni tahrirlash (Buyruq fayli yuklash bilan)
    */
+  /**
+   * Buyruq faylini xavfsiz va ierarxik struktura bo'yicha diskka saqlash:
+   * uploads/decrees/{organizationId}/{year}/{month}/{unique_hash}.pdf
+   */
+  public saveDecreeFile(
+    file: any,
+    organizationId?: string | null,
+  ): { fileUrl: string; fileName: string; filePath: string } {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Fayl topilmadi');
+    }
+
+    const orgFolder = organizationId ? String(organizationId).replace(/[^a-zA-Z0-9_-]/g, '') : 'central';
+    const now = new Date();
+    const year = now.getFullYear().toString();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+
+    const subDir = path.join(orgFolder, year, month);
+    const targetDir = path.join(process.cwd(), 'uploads', 'decrees', subDir);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    // Xavfsizlik: Antivirus, Magic Bytes, Hajm va Kengaytma tekshiruvi
+    const { safeExtension } = validateDecreeFile(file);
+    const storedFileName = `decree-${Date.now()}-${Math.round(Math.random() * 1e6)}${safeExtension}`;
+    const filePath = path.join(targetDir, storedFileName);
+
+    fs.writeFileSync(filePath, file.buffer);
+
+    const relativePath = path.join(subDir, storedFileName).replace(/\\/g, '/');
+    const fileUrl = `/api/v1/limits/decrees/${relativePath}`;
+
+    return {
+      fileUrl,
+      fileName: file.originalname,
+      filePath,
+    };
+  }
+
+  /**
+   * Diskdan eski buyruq faylini xavfsiz o'chirish (Garbage Collection / Disk gigiyenasi)
+   */
+  public deleteDecreeFile(fileUrl?: string | null): boolean {
+    if (!fileUrl) return false;
+    // Standart vazirlik buyrug'ini hech qachon diskdan o'chirmaymiz
+    if (fileUrl.includes('vazirlik_buyrugi_50.pdf')) {
+      return false;
+    }
+    try {
+      const prefix = '/api/v1/limits/decrees/';
+      let relativePath = fileUrl;
+      if (fileUrl.includes(prefix)) {
+        relativePath = fileUrl.substring(fileUrl.indexOf(prefix) + prefix.length);
+      } else if (fileUrl.startsWith('/')) {
+        relativePath = fileUrl.replace(/^\/+/, '');
+      }
+
+      // Xavfsizlik: Directory Traversal (../) bloklash
+      const safeRelative = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+      const fullPath = path.join(process.cwd(), 'uploads', 'decrees', safeRelative);
+
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Eski buyruq faylini o‘chirishda xatolik:', err);
+    }
+    return false;
+  }
+
   async updateMonthlyLimit(
     id: string,
     dto: UpdateMonthlyLimitDto,
@@ -584,18 +663,13 @@ export class LimitsService {
     let fileName: string | null = null;
 
     if (file && file.buffer) {
-      const uploadDir = path.join(process.cwd(), 'uploads', 'decrees');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
+      if (existing.fileUrl) {
+        this.deleteDecreeFile(existing.fileUrl);
       }
-
-      const safeExt = path.extname(file.originalname) || '.pdf';
-      const storedFileName = `decree-edit-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
-      const filePath = path.join(uploadDir, storedFileName);
-
-      fs.writeFileSync(filePath, file.buffer);
-      fileUrl = `/api/v1/limits/decrees/${storedFileName}`;
-      fileName = file.originalname;
+      const targetOrg = existing.organizationId || performer.organizationId;
+      const saved = this.saveDecreeFile(file, targetOrg);
+      fileUrl = saved.fileUrl;
+      fileName = saved.fileName;
     }
 
     const newQty = Math.round(Number(dto.limitQuantity) * 10000) / 10000;
@@ -605,8 +679,9 @@ export class LimitsService {
       where: { id },
       data: {
         limitQuantity: newQty,
-        fileUrl: fileUrl || existing.fileUrl,
-        fileName: fileName || existing.fileName,
+        fileUrl: fileUrl || existing.fileUrl || DEFAULT_DECREE_URL,
+        fileName: fileName || existing.fileName || DEFAULT_DECREE_FILENAME,
+        decreeReference: dto.decreeReference || existing.decreeReference || DEFAULT_DECREE_REF,
         updatedById: performer.id,
         isActive: dto.isActive !== undefined ? dto.isActive : existing.isActive,
       },
@@ -637,18 +712,9 @@ export class LimitsService {
     let fileName: string | null = null;
 
     if (file && file.buffer) {
-      const uploadDir = path.join(process.cwd(), 'uploads', 'decrees');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const safeExt = path.extname(file.originalname) || '.pdf';
-      const storedFileName = `decree-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
-      const filePath = path.join(uploadDir, storedFileName);
-
-      fs.writeFileSync(filePath, file.buffer);
-      fileUrl = `/api/v1/limits/decrees/${storedFileName}`;
-      fileName = file.originalname;
+      const saved = this.saveDecreeFile(file, performer.organizationId);
+      fileUrl = saved.fileUrl;
+      fileName = saved.fileName;
     }
 
     const { yearMonth } = this.getMonthRange();
@@ -864,15 +930,16 @@ export class LimitsService {
         }
 
         const remaining = Math.max(0, Math.round((totalAllowed - spent) * 10000) / 10000);
-        const latestDecree = item.fileUrl
-          ? {
-              fileUrl: item.fileUrl,
-              fileName: item.fileName,
-              documentNumber: item.decreeReference,
-              createdAt: item.updatedAt,
-              createdBy: item.updatedBy || item.createdBy,
-            }
-          : null;
+        const fileUrl = item.fileUrl || DEFAULT_DECREE_URL;
+        const fileName = item.fileName || DEFAULT_DECREE_FILENAME;
+        const decreeReference = item.decreeReference || DEFAULT_DECREE_REF;
+        const latestDecree = {
+          fileUrl,
+          fileName,
+          documentNumber: decreeReference,
+          createdAt: item.updatedAt || item.createdAt,
+          createdBy: item.updatedBy || item.createdBy,
+        };
 
         const qRange = this.getQuarterRange();
         return {
@@ -923,6 +990,10 @@ export class LimitsService {
 
     if (!isSuper && performerOrgId && existing.organizationId && existing.organizationId !== performerOrgId) {
       throw new BadRequestException('Ushbu meʼyorni o‘chirish huquqingiz yo‘q!');
+    }
+
+    if (existing.fileUrl) {
+      this.deleteDecreeFile(existing.fileUrl);
     }
 
     await this.prisma.tmzMonthlyLimit.delete({

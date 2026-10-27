@@ -3,7 +3,7 @@ import html2pdf from 'html2pdf.js';
 import { useRef, useEffect, useState } from 'react';
 import Modal from '../ui/modal';
 import Button from '../ui/button';
-import { Printer, CheckCircle2, Download, Loader2, ShieldCheck, MapPin } from 'lucide-react';
+import { Printer, CheckCircle2, Download, Loader2, ShieldCheck, MapPin, FileText, Calendar } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export interface ModdiyJavobgarlikItem {
@@ -34,60 +34,74 @@ interface Props {
   data: ModdiyJavobgarlikData | null;
 }
 
-function getNextModdiyJavobgarlikNumber(): number {
-  try {
-    const saved = localStorage.getItem('last_moddiy_javobgarlik_seq_num');
-    const current = saved ? parseInt(saved, 10) : 0;
-    const nextNum = current + 1;
-    localStorage.setItem('last_moddiy_javobgarlik_seq_num', nextNum.toString());
-    return nextNum;
-  } catch {
-    return 1;
+
+function formatDateForInput(dateVal?: string | Date): string {
+  if (!dateVal) return '';
+  if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+    return dateVal;
   }
+  const dObj = new Date(dateVal);
+  if (isNaN(dObj.getTime())) return '';
+  const y = dObj.getFullYear();
+  const m = String(dObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
   const { t } = useTranslation();
   const printRef = useRef<HTMLDivElement>(null);
-  const [seqNumber, setSeqNumber] = useState<number>(1);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
 
   // Editable Fields for preview/print
+  const [documentNumber, setDocumentNumber] = useState<string>('');
+  const [documentDate, setDocumentDate] = useState<string>('');
   const [recipientPassport, setRecipientPassport] = useState<string>('');
   const [recipientAddress, setRecipientAddress] = useState<string>('');
   const [toRecipient, setToRecipient] = useState<string>('');
 
   useEffect(() => {
     if (open && data) {
-      if (data.seqNumber) {
-        setSeqNumber(data.seqNumber);
-      } else {
-        const next = getNextModdiyJavobgarlikNumber();
-        setSeqNumber(next);
-      }
       const targetUserStr = data.toRecipient || (data as any).toUser || '';
       const pass = data.recipientPassport || '';
       const addr = data.recipientAddress || '';
+      const initialDate = data.date ? formatDateForInput(data.date) : '';
       setRecipientPassport(pass);
       setRecipientAddress(addr);
       setToRecipient(targetUserStr);
+      setDocumentNumber(''); // Shartnoma raqami default bo'yicha bo'sh bo'ladi
+      setDocumentDate(initialDate);
     }
   }, [open, data]);
 
   if (!data) return null;
 
-  const rawDate = data.date || (data as any).createdAt || (data as any).assignedAt;
-  const docDate = rawDate ? new Date(rawDate) : new Date();
-  const day = docDate.getDate().toString().padStart(2, '0');
   const monthNames = [
     'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
     'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
   ];
-  const monthName = monthNames[docDate.getMonth()];
-  const year = docDate.getFullYear();
-
   const toNameStr = toRecipient || data.toRecipient || '';
-  const docNumStr = data.documentNumber || `MJSH-2026-${String(seqNumber).padStart(3, '0')}`;
+  const docNumStr = documentNumber.trim();
+
+  // If date is not provided, leave blank underline spaces for printing
+  let dateLineHtml = '<div>202__ йил « <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u> » <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></div>';
+
+  if (documentDate && /^\d{4}-\d{2}-\d{2}$/.test(documentDate)) {
+    const [yStr, mStr, dStr] = documentDate.split('-');
+    const mIndex = parseInt(mStr, 10) - 1;
+    const y = parseInt(yStr, 10);
+    const d = dStr;
+    const mName = mIndex >= 0 && mIndex < 12 ? monthNames[mIndex] : '';
+    dateLineHtml = `<div>${y} йил « <u>&nbsp; ${d} &nbsp;</u> » <u>&nbsp;&nbsp;&nbsp; ${mName} &nbsp;&nbsp;&nbsp;</u></div>`;
+  } else if (data.date) {
+    const dObj = new Date(data.date);
+    if (!isNaN(dObj.getTime())) {
+      const y = dObj.getFullYear();
+      const d = String(dObj.getDate()).padStart(2, '0');
+      const mName = monthNames[dObj.getMonth()];
+      dateLineHtml = `<div>${y} йил « <u>&nbsp; ${d} &nbsp;</u> » <u>&nbsp;&nbsp;&nbsp; ${mName} &nbsp;&nbsp;&nbsp;</u></div>`;
+    }
+  }
   const passportInfoStr = [recipientPassport || data.recipientPassport, recipientAddress || data.recipientAddress].filter(Boolean).join(', ');
 
   const renderAgreementHtml = () => `
@@ -99,12 +113,12 @@ export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
         </div>
         <!-- Title 2 (NORMAL & UNDERLINE) -->
         <div style="text-align: center; font-size: 12pt; font-weight: normal; margin-bottom: 14px; color: #000;">
-          <u>&nbsp; ${docNumStr} &nbsp;</u>- сонли шартнома
+          <u>&nbsp; ${docNumStr || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} &nbsp;</u>- сонли шартнома
         </div>
 
         <!-- Date & Location -->
         <div style="display: flex; justify-content: space-between; font-size: 11pt; margin-bottom: 14px; font-weight: normal;">
-          <div>${year} йил « <u>&nbsp; ${day} &nbsp;</u> » <u>&nbsp;&nbsp;&nbsp; ${monthName} &nbsp;&nbsp;&nbsp;</u></div>
+          ${dateLineHtml}
           <div>Тошкент шаҳри</div>
         </div>
 
@@ -210,7 +224,12 @@ export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
               </td>
               <td style="vertical-align: top; padding-left: 15px;">
                 <div style="text-align: left; font-weight: normal; line-height: 1.4; min-height: 45px;">
-                  <span style="font-weight: bold;">Манзили:</span> ${recipientAddress || data.recipientAddress || '—'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="font-weight: bold;">Паспорт:</span> ${recipientPassport || data.recipientPassport || '—'}
+                  <div style="margin-bottom: 5px;">
+                    <span style="font-weight: bold;">Манзили:</span> ${recipientAddress || data.recipientAddress || '—'}
+                  </div>
+                  <div>
+                    <span style="font-weight: bold;">Паспорт:</span> ${recipientPassport || data.recipientPassport || '—'}
+                  </div>
                 </div>
               </td>
             </tr>
@@ -339,7 +358,7 @@ export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
     
     const opt = {
       margin: [12, 15, 12, 20],
-      filename: `moddiy_javobgarlik_shartnomasi_${docNumStr}.pdf`,
+      filename: docNumStr ? `moddiy_javobgarlik_shartnomasi_${docNumStr}.pdf` : 'moddiy_javobgarlik_shartnomasi.pdf',
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -371,7 +390,7 @@ export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
         <div className="flex items-center justify-between w-full flex-wrap gap-2">
           <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
             <CheckCircle2 className="w-4 h-4" />
-            {t('moddiyModal.saved', { docNo: docNumStr })}
+            {docNumStr ? t('moddiyModal.saved', { docNo: docNumStr }) : t('moddiyModal.title')}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={onClose} disabled={isPdfGenerating}>
@@ -402,36 +421,63 @@ export default function ModdiyJavobgarlikModal({ open, onClose, data }: Props) {
         </div>
       }
     >
-      {/* Quick Edit/Fill Fields for Passport and Address */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xs">
-        <div>
-          <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
-            <span>{t('userView.passportSeriesNo')}</span>
-          </label>
-          <input
-            type="text"
-            value={recipientPassport}
-            onChange={(e) => {
-              setRecipientPassport(e.target.value);
-            }}
-            placeholder={t('moddiyModal.passportPlaceholder')}
-            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500/40 font-medium"
-          />
+      {/* Quick Edit/Fill Fields */}
+      <div className="bg-slate-50/90 dark:bg-slate-900/90 p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs mb-3 space-y-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {/* 1. Shartnoma raqami */}
+          <div>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{t('moddiyModal.contractNumber')}</span>
+            </label>
+            <input
+              type="text"
+              value={documentNumber}
+              onChange={(e) => setDocumentNumber(e.target.value)}
+              className="w-full h-9 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs transition-all"
+            />
+          </div>
+
+          {/* 2. Shartnoma sanasi */}
+          <div>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              <span>{t('moddiyModal.contractDate')}</span>
+            </label>
+            <input
+              type="date"
+              value={documentDate}
+              onChange={(e) => setDocumentDate(e.target.value)}
+              className="w-full h-9 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-2xs transition-all"
+            />
+          </div>
+
+          {/* 3. Pasport seriyasi va raqami */}
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
+              <span>{t('userView.passportSeriesNo')}</span>
+            </label>
+            <input
+              type="text"
+              value={recipientPassport}
+              onChange={(e) => setRecipientPassport(e.target.value)}
+              className="w-full h-9 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-2xs transition-all uppercase font-mono"
+            />
+          </div>
         </div>
+
+        {/* 4. Yashash / Ro'yxatdan o'tgan manzili (Full width) */}
         <div>
-          <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 text-emerald-500" />
             <span>{t('userView.address')}</span>
           </label>
           <input
             type="text"
             value={recipientAddress}
-            onChange={(e) => {
-              setRecipientAddress(e.target.value);
-            }}
-            placeholder={t('moddiyModal.addressPlaceholder')}
-            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500/40 font-medium"
+            onChange={(e) => setRecipientAddress(e.target.value)}
+            className="w-full h-9 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-2xs transition-all"
           />
         </div>
       </div>
