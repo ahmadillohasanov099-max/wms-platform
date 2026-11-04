@@ -101,6 +101,8 @@ export class UsersService {
           warehouseApprovedBy: { select: { id: true, fullName: true, username: true } },
           offboardingCompletedAt: true,
           offboardingCompletedBy: { select: { id: true, fullName: true, username: true } },
+          failedLoginAttempts: true,
+          lockedUntil: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -143,6 +145,8 @@ export class UsersService {
         warehouseApprovedBy: { select: { id: true, fullName: true, username: true } },
         offboardingCompletedAt: true,
         offboardingCompletedBy: { select: { id: true, fullName: true, username: true } },
+        failedLoginAttempts: true,
+        lockedUntil: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -608,7 +612,10 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id },
-        data: { isActive: newStatus },
+        data: {
+          isActive: newStatus,
+          ...(newStatus ? { failedLoginAttempts: 0, lockedUntil: null } : {}),
+        },
         select: {
           id: true,
           fullName: true,
@@ -639,6 +646,59 @@ export class UsersService {
 
       return updated;
     });
+  }
+
+  async unlockUser(id: string, updatedBy: string) {
+    const updaterUser = await this.prisma.user.findUnique({
+      where: { id: updatedBy },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    const isSuperAdmin = updaterUser?.role === UserRole.SUPER_ADMIN;
+    const user = await this.findOne(id);
+
+    if (
+      !isSuperAdmin &&
+      updaterUser?.organizationId &&
+      user.organizationId &&
+      user.organizationId !== updaterUser.organizationId
+    ) {
+      throw new ForbiddenException(
+        "Siz faqat o'z tashkilotingiz xodimlarini boshqara olasiz!",
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        failedLoginAttempts: true,
+        lockedUntil: true,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: updatedBy,
+        action: 'UPDATE_USER_STATUS',
+        resource: 'User',
+        resourceId: id,
+        method: 'PATCH',
+        endpoint: `/users/${id}/unlock`,
+        newData: { failedLoginAttempts: 0, lockedUntil: null },
+      },
+    });
+
+    return {
+      message: "Xodim blokdan muvaffaqiyatli chiqarildi",
+      user: updated,
+    };
   }
 
   async remove(id: string, deletedBy: string) {

@@ -16,8 +16,8 @@ function getNestedValue(obj: any, keys: string[]) {
 export function useTranslation() {
   const language = useUiStore((state) => state.language);
 
-  const t = (key: string, replacements?: Record<string, string | number>): string => {
-    if (!key) return '';
+  const t = (key: string, replacements?: Record<string, string | number>, defaultVal?: string): string => {
+    if (!key) return defaultVal || '';
     const keys = key.split('.');
 
     // 1. Try selected language
@@ -39,7 +39,7 @@ export function useTranslation() {
     }
 
     if (val === undefined) {
-      return key;
+      return defaultVal !== undefined ? defaultVal : key;
     }
 
     if (typeof val === 'string' && replacements) {

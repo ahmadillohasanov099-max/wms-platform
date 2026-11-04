@@ -64,7 +64,9 @@ export class OperationsPdfService {
 
     const toNameStr = escapeHtml(data.toRecipient || '');
     const docNumStr = escapeHtml(data.documentNumber || `MJSH-${year}-${String(Date.now()).slice(-4)}`);
-    const passportInfoStr = escapeHtml([data.recipientPassport, data.recipientAddress].filter(Boolean).join(', '));
+    const passportInfoStr = data.recipientPassport
+      ? escapeHtml([data.recipientPassport, data.recipientAddress].filter(Boolean).join(', '))
+      : '';
     const orgName = escapeHtml(data.orgName || 'Ўзбекистон Республикаси Қурилиш ва уй-жой коммунал хўжалиги вазирлиги');
 
     const itemsHtml = data.items
@@ -113,10 +115,9 @@ export class OperationsPdfService {
               color: #000;
               box-sizing: border-box;
               width: 100%;
-              min-height: 260mm;
               padding: 0;
-              line-height: 1.45;
-              font-size: 11pt;
+              line-height: 1.4;
+              font-size: 10.5pt;
             }
           </style>
         </head>
@@ -135,8 +136,8 @@ export class OperationsPdfService {
                 <div>Тошкент шаҳри</div>
               </div>
 
-              <div style="text-align: justify; font-size: 11pt; margin-bottom: 12px; line-height: 1.45;">
-                Ўзбекистон Республикаси Мехнат Кодексининг 203-моддасига асосан бир томондан Ўзбекистон Республикаси Қурилиш ва уй-жой коммунал ҳўжалиги вазирлиги вазири ўринбосари <strong style="font-weight: bold; color: #000;">Алиматов Таир Наматуллаевич</strong>, кейинги ўринларда “Иш берувчи” деб юритилади, иккинчи томондан <strong style="font-weight: bold; color: #000;">${toNameStr}</strong>${
+              <div style="text-align: justify; text-indent: 35px; font-size: 11pt; margin-bottom: 12px; line-height: 1.45;">
+                Ўзбекистон Республикаси Мехнат Кодексининг 203-моддасига асосан бир томондан Ўзбекистон Республикаси Қурилиш ва уй-жой коммунал хўжалиги вазирлиги вазири ўринбосари <strong style="font-weight: bold; color: #000; white-space: nowrap;">Адилов Даврон Кабилджанович</strong>, кейинги ўринларда “Иш берувчи” деб юритилади, иккинчи томондан <strong style="font-weight: bold; color: #000; white-space: nowrap;">${toNameStr}</strong>${
       passportInfoStr ? ` (${passportInfoStr})` : ''
     }, кейинги ўринларда “Ходим” деб юритилади, мазкур шартномани қуйидагича туздилар:
               </div>
@@ -202,49 +203,54 @@ export class OperationsPdfService {
               </div>
             </div>
 
-            <div style="margin-top: 20px; font-size: 11pt; page-break-inside: avoid;">
-              <div style="text-align: center; font-weight: bold; margin-bottom: 14px; color: #000;">
+            <div style="margin-top: 16px; font-size: 10.5pt; page-break-inside: avoid;">
+              <div style="text-align: center; font-weight: bold; margin-bottom: 34px; color: #000;">
                 7. Томонлар манзили ва имзолари:
               </div>
 
-              <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10.5pt;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
                 <thead>
                   <tr>
-                    <th style="width: 50%; text-align: center; font-weight: bold; padding-bottom: 8px; vertical-align: top; color: #000;">
+                    <th style="width: 50%; text-align: center; padding-right: 20px; font-weight: bold; padding-bottom: 14px; vertical-align: top; color: #000;">
                       “ИШ БЕРУВЧИ”
                     </th>
-                    <th style="width: 50%; text-align: center; font-weight: bold; padding-bottom: 8px; vertical-align: top; color: #000;">
+                    <th style="width: 50%; text-align: center; padding-right: 20px; font-weight: bold; padding-bottom: 14px; vertical-align: top; color: #000;">
                       “ХОДИМ”
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td style="vertical-align: top; padding-right: 15px;">
-                      <div style="text-align: center; font-weight: bold; line-height: 1.4; min-height: 45px;">
-                        ${orgName}
+                    <!-- Ish beruvchi matni -->
+                    <td style="width: 50%; vertical-align: top; text-align: center; padding-right: 30px;">
+                      <div style="line-height: 1.45; font-weight: bold; color: #000; max-width: 270px; margin: 0 auto;">
+                        Қурилиш ва уй-жой коммунал<br/>хўжалиги вазирлиги вазири ўринбосари
                       </div>
                     </td>
-                    <td style="vertical-align: top; padding-left: 15px;">
-                      <div style="text-align: left; font-weight: normal; line-height: 1.4; min-height: 45px;">
-                        <div style="margin-bottom: 5px;">
-                          <span style="font-weight: bold;">Манзили:</span> ${data.recipientAddress || '—'}
+
+                    <!-- Xodim matni -->
+                    <td style="width: 50%; vertical-align: top; text-align: left; padding-left: 30px;">
+                      <div style="line-height: 1.45; color: #000;">
+                        <div style="margin-bottom: 6px;">
+                          <span style="font-weight: bold;">Манзили:</span> ${data.recipientAddress ? escapeHtml(data.recipientAddress) : '____________________________________<br/><span style="display: inline-block; margin-top: 4px;">________________________________________________</span>'}
                         </div>
                         <div>
-                          <span style="font-weight: bold;">Паспорт:</span> ${data.recipientPassport || '—'}
+                          <span style="font-weight: bold;">Паспорт:</span> ${data.recipientPassport ? escapeHtml(data.recipientPassport) : '____________________________________'}
                         </div>
                       </div>
                     </td>
                   </tr>
+
+                  <!-- Imzolar -->
                   <tr>
-                    <td style="vertical-align: bottom; padding-top: 30px; padding-right: 15px;">
-                      <div style="text-align: left; font-weight: bold; white-space: nowrap;">
-                        ______________Т. Алиматов
+                    <td style="width: 50%; vertical-align: bottom; padding-top: 40px; text-align: center; padding-right: 30px;">
+                      <div style="font-weight: bold; white-space: nowrap; color: #000;">
+                        ___________ Д.Адилов
                       </div>
                     </td>
-                    <td style="vertical-align: bottom; padding-top: 30px; padding-left: 15px;">
-                      <div style="text-align: left; font-weight: bold; white-space: nowrap;">
-                        _____________ ${toNameStr}
+                    <td style="width: 50%; vertical-align: bottom; padding-top: 40px; text-align: left; padding-left: 50px;">
+                      <div style="font-weight: bold; white-space: nowrap; color: #000;">
+                        ___________ ${toNameStr}
                       </div>
                     </td>
                   </tr>

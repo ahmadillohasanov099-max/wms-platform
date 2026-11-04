@@ -188,6 +188,13 @@ export class UsersController {
     return this.usersService.toggleStatus(id, user.id);
   }
 
+  @ApiOperation({ summary: "Bloklangan xodimni blokdan chiqarish (Rate limit / Lockout reset)" })
+  @Roles(...USER_MANAGE_ROLES)
+  @Patch(':id/unlock')
+  unlockUser(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.usersService.unlockUser(id, user.id);
+  }
+
   @ApiOperation({ summary: "Xodimni o'chirish (soft delete)" })
   @Roles(...USER_DELETE_ROLES)
   @Delete(':id')

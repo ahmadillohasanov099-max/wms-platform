@@ -89,7 +89,7 @@ const navItems: NavItem[] = [
     path: '/requests',
     labelKey: 'requests',
     icon: <Bell className="w-4 h-4" />,
-    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR'],
+    roles: ['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI'],
   },
   {
     path: '/audit-logs',

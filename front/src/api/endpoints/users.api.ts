@@ -1,5 +1,6 @@
-import type { CreateUserDto,UpdateUserDto,  User } from '../../types';
+import type { CreateUserDto, UpdateUserDto, User } from '../../types';
 import api from '../axios';
+
 export interface UserQuery {
   page?: number;
   limit?: number;
@@ -9,6 +10,7 @@ export interface UserQuery {
   employmentStatus?: string;
   organizationId?: string;
 }
+
 export interface PaginatedUsers {
   items: User[];
   total: number;
@@ -16,6 +18,7 @@ export interface PaginatedUsers {
   limit: number;
   totalPages: number;
 }
+
 export const usersApi = {
   getAll: (query?: UserQuery) =>
     api.get<PaginatedUsers>('/users', { params: query }).then((r) => r.data),
@@ -33,6 +36,8 @@ export const usersApi = {
     api.put<User>(`/users/${id}`, dto).then((r) => r.data),
   toggleStatus: (id: string) =>
     api.patch(`/users/${id}/status`).then((r) => r.data),
+  unlock: (id: string) =>
+    api.patch<{ message: string; user: any }>(`/users/${id}/unlock`).then((r) => r.data),
   remove: (id: string) =>
     api.delete(`/users/${id}`).then((r) => r.data),
   bulkReturn: (id: string) =>

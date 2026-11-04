@@ -56,7 +56,6 @@ export class RequestsController {
     UserRole.VAZIRLIK_OMBORCHI,
     UserRole.ORG_ADMIN,
     UserRole.ORG_OMBORCHI,
-    UserRole.KADR,
   )
   @Get()
   findAll(

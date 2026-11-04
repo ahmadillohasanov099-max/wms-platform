@@ -118,7 +118,7 @@ export default function App() {
           <Route
             path="/requests"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'XODIM']}>
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'XODIM']}>
                 <RequestsPage />
               </RequireRole>
             }
@@ -127,7 +127,7 @@ export default function App() {
           <Route
             path="/deletion-requests"
             element={
-              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'KADR', 'XODIM']}>
+              <RequireRole roles={['SUPER_ADMIN', 'VAZIRLIK_OMBORCHI', 'ORG_ADMIN', 'ORG_OMBORCHI', 'XODIM']}>
                 <RequestsPage />
               </RequireRole>
             }

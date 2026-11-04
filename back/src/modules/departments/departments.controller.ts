@@ -53,7 +53,9 @@ export class DepartmentsController {
     return this.departmentsService.findAll(targetOrgId, user);
   }
 
-  @ApiOperation({ summary: "Bo'limlarni Excel (.xlsx) formatida eksport qilish" })
+  @ApiOperation({
+    summary: "Bo'limlarni Excel (.xlsx) formatida eksport qilish",
+  })
   @Roles(...MANAGERS)
   @Get('export')
   async exportExcel(
@@ -62,8 +64,11 @@ export class DepartmentsController {
     @Res() res: express.Response,
   ) {
     const targetOrgId = enforceTenantOrgId(user, organizationId);
-    const { buffer, organizationName } = await this.departmentsService.exportExcel(targetOrgId);
-    const safeOrgName = encodeURIComponent((organizationName || 'boshqarma').replace(/[\s/\\:*?"<>|]+/g, '_'));
+    const { buffer, organizationName } =
+      await this.departmentsService.exportExcel(targetOrgId);
+    const safeOrgName = encodeURIComponent(
+      (organizationName || 'boshqarma').replace(/[\s/\\:*?"<>|]+/g, '_'),
+    );
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

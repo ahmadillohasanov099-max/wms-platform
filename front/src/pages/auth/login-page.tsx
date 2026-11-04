@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +18,52 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const { language, setLanguage } = useUiStore();
   const [showPassword, setShowPassword] = useState(false);
+  const [lockedUsername, setLockedUsername] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("auth_lockout_username") || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [lockoutSeconds, setLockoutSeconds] = useState<number | null>(() => {
+    try {
+      const savedUntil = localStorage.getItem("auth_lockout_until");
+      if (savedUntil) {
+        const diff = Math.ceil((Number(savedUntil) - Date.now()) / 1000);
+        return diff > 0 ? diff : null;
+      }
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    if (lockoutSeconds === null || lockoutSeconds <= 0) return;
+
+    const interval = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev === null || prev <= 1) {
+          localStorage.removeItem("auth_lockout_until");
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockoutSeconds]);
+
+  const formatCountdown = (totalSecs: number) => {
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const isLocked = Boolean(lockoutSeconds && lockoutSeconds > 0);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
@@ -32,10 +78,52 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    getValues,
+    reset,
+    clearErrors,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // Admin tizimdan blokdan chiqarsa, timer darhol to'xtaydi va xatolar 0 holatiga qaytadi
+  useEffect(() => {
+    if (!isLocked || !lockedUsername) return;
+
+    let isMounted = true;
+    const checkServerStatus = async () => {
+      try {
+        const res = await authApi.checkLockoutStatus(lockedUsername);
+        const data = res?.data || res;
+        if (isMounted && data && !data.isLocked) {
+          setLockoutSeconds(null);
+          setLockedUsername(null);
+          localStorage.removeItem("auth_lockout_until");
+          localStorage.removeItem("auth_lockout_username");
+          clearErrors();
+          toast.success(t("login.adminUnlockedNotice", {}, "Hisobingiz administrator tomonidan blokdan chiqarildi. Tizimga kirishingiz mumkin."), {
+            duration: 6000,
+            icon: "🔓",
+            style: {
+              maxWidth: "460px",
+              padding: "14px 18px",
+              lineHeight: "1.5",
+              fontSize: "13.5px",
+              fontWeight: 500,
+              borderRadius: "14px",
+            },
+          });
+        }
+      } catch {}
+    };
+
+    checkServerStatus();
+    const interval = setInterval(checkServerStatus, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isLocked, lockedUsername, clearErrors]);
 
   const { mutate: login, isPending } = useMutation({
     mutationFn: authApi.login,
@@ -44,9 +132,81 @@ export default function LoginPage() {
       setAuth(user, accessToken, refreshToken);
       toast.success(t("login.welcome", { name: user.fullName }));
       navigate(getDefaultRouteForRole(user.role));
-    },
-    onError: (err: any) => {
-      toast.error(err?.message || t("login.invalidCredentials"));
+    },    onError: (err: any) => {
+      const serverMessage =
+        err?.message ||
+        err?.response?.data?.message ||
+        t("login.invalidCredentials");
+
+      const remainingSecs =
+        err?.remainingSeconds ||
+        err?.response?.data?.remainingSeconds ||
+        (err?.lockedUntil ? Math.ceil((new Date(err.lockedUntil).getTime() - Date.now()) / 1000) : null) ||
+        (err?.response?.data?.lockedUntil ? Math.ceil((new Date(err.response.data.lockedUntil).getTime() - Date.now()) / 1000) : null);
+
+      const errorCode = err?.errorCode || err?.response?.data?.errorCode;
+      const remainingAttempts = err?.remainingAttempts ?? err?.response?.data?.remainingAttempts;
+      const remainingMinutes =
+        err?.remainingMinutes ||
+        err?.response?.data?.remainingMinutes ||
+        (remainingSecs ? Math.max(1, Math.ceil(remainingSecs / 60)) : 1);
+
+      if (remainingSecs && remainingSecs > 0) {
+        const attemptedUsername = getValues("username") || "";
+        setLockoutSeconds(remainingSecs);
+        setLockedUsername(attemptedUsername);
+        localStorage.setItem("auth_lockout_until", String(Date.now() + remainingSecs * 1000));
+        if (attemptedUsername) {
+          localStorage.setItem("auth_lockout_username", attemptedUsername);
+        }
+      }
+
+      // Dynamic localization for security messages
+      let displayMessage = typeof serverMessage === "string" ? serverMessage : t("login.invalidCredentials");
+      if (errorCode === "LOGIN_FAILED_ATTEMPTS" && remainingAttempts !== undefined) {
+        displayMessage = t("login.failedAttemptsNotice", { count: remainingAttempts }, displayMessage);
+      } else if (errorCode === "LOGIN_WARN_LAST_ATTEMPT") {
+        displayMessage = t("login.warnLastAttempt", {}, displayMessage);
+      } else if (errorCode === "LOGIN_LOCKED_15M") {
+        displayMessage = t("login.locked15mNotice", {}, displayMessage);
+      } else if (errorCode === "LOGIN_LOCKED_1H") {
+        displayMessage = t("login.locked1hNotice", {}, displayMessage);
+      } else if (errorCode === "LOGIN_CURRENTLY_LOCKED") {
+        displayMessage = t("login.currentlyLockedNotice", { minutes: remainingMinutes }, displayMessage);
+      } else {
+        if (displayMessage.includes("15 daqiqa") && (displayMessage.includes("ketma-ket") || displayMessage.includes("3 marta"))) {
+          displayMessage = t("login.locked15mNotice", {}, displayMessage);
+        } else if (displayMessage.includes("1 soat")) {
+          displayMessage = t("login.locked1hNotice", {}, displayMessage);
+        } else if (displayMessage.includes("Yana 1 ta") || displayMessage.includes("1 ta xato")) {
+          displayMessage = t("login.warnLastAttempt", {}, displayMessage);
+        } else if (displayMessage.includes("tiklanishiga") && remainingMinutes) {
+          displayMessage = t("login.currentlyLockedNotice", { minutes: remainingMinutes }, displayMessage);
+        }
+      }
+
+      const isSecurityNotice =
+        Boolean(remainingSecs) ||
+        Boolean(errorCode) ||
+        displayMessage.includes("urinish") ||
+        displayMessage.includes("blok") ||
+        displayMessage.includes("xavfsizlik") ||
+        displayMessage.includes("попыт") ||
+        displayMessage.includes("блок") ||
+        displayMessage.includes("attempt") ||
+        displayMessage.includes("locked");
+
+      toast.error(displayMessage, {
+        duration: isSecurityNotice ? 8500 : 4000,
+        style: {
+          maxWidth: "480px",
+          padding: "14px 18px",
+          lineHeight: "1.5",
+          fontSize: "13.5px",
+          fontWeight: 500,
+          borderRadius: "14px",
+        },
+      });
     },
   });
 
@@ -171,8 +331,10 @@ export default function LoginPage() {
                 <input
                   type="text"
                   placeholder="username"
+                  disabled={isLocked || isPending}
                   className={cn(
                     "w-full rounded-xl border bg-transparent backdrop-blur-sm text-sm text-white font-extrabold border-white/30 placeholder:text-slate-300 pl-10 pr-4 py-2.5 transition-all shadow-inner focus:outline-none focus:ring-1 focus:ring-white focus:border-white",
+                    isLocked && "opacity-50 cursor-not-allowed bg-slate-900/40",
                     errors.username && "border-rose-500 focus:ring-rose-500/40"
                   )}
                   {...register("username")}
@@ -194,15 +356,18 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••"
+                  disabled={isLocked || isPending}
                   className={cn(
                     "w-full rounded-xl border bg-transparent backdrop-blur-sm text-sm text-white font-extrabold border-white/30 placeholder:text-slate-300 pl-10 pr-10 py-2.5 transition-all shadow-inner focus:outline-none focus:ring-1 focus:ring-white focus:border-white",
+                    isLocked && "opacity-50 cursor-not-allowed bg-slate-900/40",
                     errors.password && "border-rose-500 focus:ring-rose-500/40"
                   )}
                   {...register("password")}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => !isLocked && setShowPassword(!showPassword)}
+                  disabled={isLocked}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white transition-colors"
                 >
                   {showPassword ? (
@@ -221,12 +386,41 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full mt-3 rounded-xl py-3.5 text-sm font-black bg-gradient-to-r from-slate-100 to-white hover:from-white hover:to-slate-100 text-slate-950 shadow-xl shadow-white/10 active:scale-[0.98] transition-all duration-200 border-none"
+              disabled={isLocked || isPending}
+              className={cn(
+                "w-full mt-3 rounded-xl py-3.5 text-sm font-black bg-gradient-to-r from-slate-100 to-white hover:from-white hover:to-slate-100 text-slate-950 shadow-xl shadow-white/10 active:scale-[0.98] transition-all duration-200 border-none",
+                isLocked && "opacity-40 cursor-not-allowed pointer-events-none"
+              )}
               loading={isPending}
               size="md"
             >
               {t("login.button")}
             </Button>
+            {isLocked && lockoutSeconds !== null && (
+              <div className="flex flex-col items-center gap-1.5 mt-2.5">
+                <p className="text-xs text-red-400 font-semibold text-center tracking-wide">
+                  {t(
+                    "login.lockoutCountdown",
+                    { time: formatCountdown(lockoutSeconds) },
+                    `Parol ko‘p marotaba xato kiritildi. ${formatCountdown(lockoutSeconds)} dan keyin qayta urinib ko'ring`
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLockoutSeconds(null);
+                    setLockedUsername(null);
+                    localStorage.removeItem("auth_lockout_until");
+                    localStorage.removeItem("auth_lockout_username");
+                    clearErrors();
+                    reset();
+                  }}
+                  className="text-[11px] text-slate-300 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+                >
+                  {t("login.switchAccount", {}, "Boshqa login bilan kirish")}
+                </button>
+              </div>
+            )}
           </form>
         </div>
 

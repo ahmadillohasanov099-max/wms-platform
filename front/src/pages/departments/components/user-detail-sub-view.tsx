@@ -18,10 +18,13 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
+    KeyRound,
   Building2,
   Layers,
   FileText,
   Wrench,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import Card, { CardContent } from '../../../components/ui/card';
 import Button from '../../../components/ui/button';
@@ -51,6 +54,29 @@ export default function UserDetailSubView({
   const pinflVal = selectedUser?.pinfl || '';
   const addressVal = selectedUser?.address || '';
 
+  const [showSensitive, setShowSensitive] = useState({
+    passport: false,
+    pinfl: false,
+    address: false,
+    phone: false,
+  });
+
+  const allVisible = showSensitive.passport && showSensitive.pinfl && showSensitive.address && showSensitive.phone;
+
+  const toggleField = (field: keyof typeof showSensitive) => {
+    setShowSensitive((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const toggleAll = () => {
+    const nextState = !allVisible;
+    setShowSensitive({
+      passport: nextState,
+      pinfl: nextState,
+      address: nextState,
+      phone: nextState,
+    });
+  };
+
   const [tab, setTab] = useState<'assets' | 'tmz' | 'history'>('assets');
   const [bulkReturnModalOpen, setBulkReturnModalOpen] = useState(false);
   const [moddiyModalOpen, setModdiyModalOpen] = useState(false);
@@ -70,6 +96,19 @@ export default function UserDetailSubView({
       queryClient.invalidateQueries({ queryKey: ['my-deletion-requests'] });
       queryClient.invalidateQueries({ queryKey: ['deletion-requests'] });
       setSelectedRepairAsset(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || t('common.error'));
+    },
+  });
+
+  const { mutate: unlockUser, isPending: unlockLoading } = useMutation({
+    mutationFn: () => usersApi.unlock(selectedUserId),
+    onSuccess: () => {
+      toast.success(t('users.unlockSuccess', {}, 'Xodim blokdan muvaffaqiyatli chiqarildi!'));
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-detail', selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || err?.message || t('common.error'));
@@ -241,16 +280,28 @@ export default function UserDetailSubView({
                   {selectedUser.fullName}
                 </h3>
                 <RoleBadge role={selectedUser.role} />
-                <span
-                  className={cn(
-                    'px-2.5 py-0.5 rounded-md text-[11px] font-semibold border',
-                    selectedUser.isActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
-                  )}
-                >
-                  {selectedUser.isActive ? t('users.active') : t('users.blocked')}
-                </span>
+                {selectedUser.lockedUntil && new Date(selectedUser.lockedUntil) > new Date() ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    {(() => {
+                      const diffMins = Math.max(1, Math.ceil((new Date(selectedUser.lockedUntil).getTime() - Date.now()) / (60 * 1000)));
+                      const timeStr = diffMins > 45 ? t('users.lock1Hour', {}, '1 soat') : t('users.lockMinutes', { minutes: diffMins }, `${diffMins} daqiqa`);
+                      return t('users.tempLockBadge', { time: timeStr }, `Vaqtincha blok (${timeStr})`);
+                    })()}
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold border',
+                      selectedUser.isActive
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                    )}
+                  >
+                    <span className={cn('w-1.5 h-1.5 rounded-full', selectedUser.isActive ? 'bg-emerald-500' : 'bg-rose-500')} />
+                    {selectedUser.isActive ? t('users.active') : t('users.blocked')}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
                 <span className="font-medium text-slate-700 dark:text-slate-300">@{selectedUser.username}</span>
@@ -264,12 +315,51 @@ export default function UserDetailSubView({
                     <span className="text-slate-300 dark:text-slate-700">•</span>
                     <span className="flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-slate-300">
                       <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                      {t('userView.passportLabel', { value: passportVal })}
+                      {t('userView.passportLabel', {
+                        value: showSensitive.passport ? passportVal : '•••••••••',
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => toggleField('passport')}
+                        className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                        title={showSensitive.passport ? t('common.hide', {}, 'Yashirish') : t('common.show', {}, "Ko'rsatish")}
+                      >
+                        {showSensitive.passport ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
                     </span>
                   </>
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {selectedUser.lockedUntil && new Date(selectedUser.lockedUntil) > new Date() && (isAdmin || loggedInUser?.role === 'SUPER_ADMIN' || loggedInUser?.role === 'ORG_ADMIN' || loggedInUser?.role === 'KADR') && (
+              <button
+                type="button"
+                onClick={() => unlockUser()}
+                disabled={unlockLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-200 shadow-2xs cursor-pointer bg-white/90 dark:bg-slate-900/90 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                title={t('users.unlockTooltip', {}, 'Parol blokini yechish (Unlock)')}
+              >
+                <KeyRound className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>{t('users.unlockButton', {}, 'Blokdan chiqarish')}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleAll}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-200 shadow-2xs cursor-pointer',
+                allVisible
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'bg-white/90 dark:bg-slate-900/90 text-teal-700 dark:text-teal-300 border-teal-200/80 dark:border-teal-800/80 hover:bg-teal-50 dark:hover:bg-teal-950/40'
+              )}
+              title={allVisible ? t('common.hide', {}, "Yashirish") : t('common.show', {}, "Ko'rsatish")}
+            >
+              {allVisible ? <EyeOff className="w-3.5 h-3.5 text-slate-500" /> : <Eye className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+              <span>{allVisible ? t('common.hideData', {}, "Ma'lumotlarni yashirish") : t('common.showData', {}, "Ma'lumotlarni ko'rsatish")}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -290,18 +380,32 @@ export default function UserDetailSubView({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
-          <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl border border-teal-200/50 dark:border-teal-800/40">
-            <Phone className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl border border-teal-200/50 dark:border-teal-800/40 shrink-0">
+              <Phone className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('profile.phone')}
+              </p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 truncate font-mono">
+                {selectedUser.phone
+                  ? (showSensitive.phone ? selectedUser.phone : '••••••••••••')
+                  : '—'}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('profile.phone')}
-            </p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 truncate">
-              {selectedUser.phone ?? '—'}
-            </p>
-          </div>
+          {selectedUser.phone && (
+            <button
+              type="button"
+              onClick={() => toggleField('phone')}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+              title={showSensitive.phone ? t('common.hide', {}, 'Yashirish') : t('common.show', {}, "Ko'rsatish")}
+            >
+              {showSensitive.phone ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          )}
         </div>
 
         <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
@@ -333,48 +437,90 @@ export default function UserDetailSubView({
         </div>
 
         {/* PASSPORT CARD */}
-        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40">
-            <ShieldCheck className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('userView.passportSeriesNo')}
+              </p>
+              <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5 truncate">
+                {passportVal
+                  ? (showSensitive.passport ? passportVal : '•••••••••')
+                  : '—'}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('userView.passportSeriesNo')}
-            </p>
-            <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5 truncate">
-              {passportVal || '—'}
-            </p>
-          </div>
+          {passportVal && (
+            <button
+              type="button"
+              onClick={() => toggleField('passport')}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+              title={showSensitive.passport ? t('common.hide', {}, 'Yashirish') : t('common.show', {}, "Ko'rsatish")}
+            >
+              {showSensitive.passport ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          )}
         </div>
 
         {/* PINFL CARD */}
-        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40">
-            <ShieldCheck className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('userView.pinfl')}
+              </p>
+              <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5 truncate">
+                {pinflVal
+                  ? (showSensitive.pinfl ? pinflVal : '••••••••••••••')
+                  : '—'}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('userView.pinfl')}
-            </p>
-            <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5 truncate">
-              {pinflVal || '—'}
-            </p>
-          </div>
+          {pinflVal && (
+            <button
+              type="button"
+              onClick={() => toggleField('pinfl')}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+              title={showSensitive.pinfl ? t('common.hide', {}, 'Yashirish') : t('common.show', {}, "Ko'rsatish")}
+            >
+              {showSensitive.pinfl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          )}
         </div>
 
         {/* ADDRESS CARD */}
-        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5 sm:col-span-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40">
-            <Building2 className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-900/60 dark:backdrop-blur-xl border border-gray-200/90 dark:border-white/15 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 sm:col-span-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40 shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('userView.address')}
+              </p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 truncate">
+                {addressVal
+                  ? (showSensitive.address ? addressVal : '••••••••••••••••••••')
+                  : '—'}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('userView.address')}
-            </p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 truncate">
-              {addressVal || '—'}
-            </p>
-          </div>
+          {addressVal && (
+            <button
+              type="button"
+              onClick={() => toggleField('address')}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+              title={showSensitive.address ? t('common.hide', {}, 'Yashirish') : t('common.show', {}, "Ko'rsatish")}
+            >
+              {showSensitive.address ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          )}
         </div>
       </div>
 

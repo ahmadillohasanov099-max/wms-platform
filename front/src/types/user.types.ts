@@ -23,6 +23,8 @@ export interface User {
   role: UserRole;
   employmentStatus?: EmploymentStatus;
   isActive: boolean;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
   departmentId?: string;
   department?: { id: string; name: string; code?: string; leaderId?: string };
   isDepartmentLeader?: boolean;

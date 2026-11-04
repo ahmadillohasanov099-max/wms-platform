@@ -1,512 +1,700 @@
-# 🏢 WMS Platform — Yagona Ombor va Moddiy Aktivlarni Boshqarish Tizimi
+# 🏛️ WMS Platform — Yagona Moddiy-Tovar Boyliklari va Asosiy Vositalar Nazorati Tizimi
+### 🛠️ Texnik Arxitektura, Dastur Kodi, Maʼlumotlar Bazasi va To‘liq REST API Pasporti
 
-> **Holati:** Ishlab chiqishda
-> **Versiya:** 1.0.0 (Multi-Tenant Enterprise Edition)  
-> **Backend:** NestJS 11 + Prisma 6 + PostgreSQL + WebSockets (Socket.io)  
-> **Frontend:** React 19 + Vite + TypeScript + Tailwind CSS  
-> **Boshqaruv darajasi:** Vazirlik, Agentliklari va Quyi Tashkilotlari uchun  
+> **Loyiha darajasi:** O‘zbekiston Respublikasi Vazirliklari, Davlat Agentliklari va Quyi Tashkilotlari uchun Enterprise WMS  
+> **Backend:** NestJS 10+ (TypeScript) + Prisma ORM 6.16 + PostgreSQL  
+> **Frontend:** React 19 + Vite 8 + TypeScript + Tailwind CSS + TanStack Query v5 + Zustand  
+> **Hujjat turi:** Dasturchilar (Backend & Frontend), DevOps muhandislari, Tizim administratorlari va Texnik auditorlar uchun kengaytirilgan texnik pasport.
 
 ---
 
 ## 📑 Mundarija
 
-1. [Loyiha Haqida Umumiy Tavsif](#-1-loyiha-haqida-umumiy-tavsif)
-2. [Multi-Tenant Arxitekturasi va Tashkilotlar Iyerarxiyasi](#-2-multi-tenant-arxitekturasi-va-tashkilotlar-iyerarxiyasi)
-3. [Texnologiyalar Steki](#-3-texnologiyalar-steki)
-4. [Rollar va Ruxsatlar Tizimi (RBAC)](#-4-rollar-va-ruxsatlar-tizimi-rbac)
-5. [Asosiy Biznes Mantiqlari va Jarayonlar Reglamenti](#-5-asosiy-biznes-mantiqlari-va-jarayonlar-reglamenti)
-6. [Ma'lumotlar Bazasi Sxemasi (ER Diagram & Modellar)](#-6-malumotlar-bazasi-sxemasi-er-diagram--modellar)
-7. [Frontend Sahifalari va Foydalanuvchi Interfeysi](#-7-frontend-sahifalari-va-foydalanuvchi-interfeysi)
-8. [Backend API Modullari va Endpointlar Katalogi](#-8-backend-api-modullari-va-endpointlar-katalogi)
-9. [Xavfsizlik va Kiber-himoya Mexanizmlari](#-9-xavfsizlik-va-kiber-himoya-mexanizmlari)
-10. [Mahalliy O'rnatish va Ishga Tushirish (Local Setup)](#-10-mahalliy-ornatish-va-ishga-tushirish-local-setup)
-11. [Vaqtinchalik Prezentatsiya va Serverga O'rnatish (Deployment)](#-11-vaqtinchalik-prezentatsiya-va-serverga-ornatish-deployment)
-12. [Foydali Buyruqlar va Skriptlar](#-12-foydali-buyruqlar-va-skriptlar)
+1. [Loyiha Pasporti va Arxitektura Printsiplari](#1-loyiha-pasporti-va-arxitektura-printsiplari)
+2. [Loyiha Papkalar Strukturasi (Directory Structure)](#2-loyiha-papkalar-strukturasi-directory-structure)
+3. [Texnologik Stak va Kutubxonalar](#3-texnologik-stak-va-kutubxonalar)
+4. [Tizim Arxitekturasi va Multi-Tenant Izolyatsiyasi](#4-tizim-arxitekturasi-va-multi-tenant-izolyatsiyasi)
+5. [Maʼlumotlar Bazasi Modeli (Prisma ERD & Schema)](#5-malumotlar-bazasi-modeli-prisma-erd--schema)
+6. [To‘liq REST API Katalogi va Endpointlar Pasporti](#6-toliq-rest-api-katalogi-va-endpointlar-pasporti)
+   - 6.1. [Auth Moduli (`/auth`)](#61-auth-moduli-auth)
+   - 6.2. [Users & HR Moduli (`/users`)](#62-users--hr-moduli-users)
+   - 6.3. [Departments Moduli (`/departments`)](#63-departments-moduli-departments)
+   - 6.4. [Products & Katalog Moduli (`/products`)](#64-products--katalog-moduli-products)
+   - 6.5. [Inventory & Zaxira Moduli (`/inventory`)](#65-inventory--zaxira-moduli-inventory)
+   - 6.6. [Operations & Harakatlar Moduli (`/operations`)](#66-operations--harakatlar-moduli-operations)
+   - 6.7. [Limits & Meʼyorlar Moduli (`/limits`)](#67-limits--meyorlar-moduli-limits)
+   - 6.8. [Requests & Talabnomalar Moduli (`/requests`)](#68-requests--talabnomalar-moduli-requests)
+   - 6.9. [Audit Logs Moduli (`/audit-logs`)](#69-audit-logs-moduli-audit-logs)
+   - 6.10. [Stats & Tahlil Moduli (`/stats`)](#610-stats--tahlil-moduli-stats)
+7. [Axborot Xavfsizligi va Kiber-Himoya Mexanizmlari](#7-axborot-xavfsizligi-va-kiber-himoya-mexanizmlari)
+   - 2-Bosqichli Progressiv Rate Limiting & Account Lockout
+   - Real-Vaqtda Admin Unlock & 0-Reset Sinxronizatsiyasi
+   - JWT Token Rotatsiyasi va Guardlar
+   - Rol va Ruxsatlar (RBAC) Nazorati
+8. [Frontend Arxitekturasi va Holat Boshqaruvi](#8-frontend-arxitekturasi-va-holat-boshqaruvi)
+9. [Hujjat Generatsiyasi Dvigateli (Puppeteer & ExcelJS)](#9-hujjat-generatsiyasi-dvigateli-puppeteer--exceljs)
+10. [Ko‘p Tilli Tizim Arxitekturasi (i18n)](#10-kop-tilli-tizim-arxitekturasi-i18n)
+11. [O‘rnatish, Sozlash va Ishga Tushirish (DevOps)](#11-ornatish-sozlash-va-ishga-tushirish-devops)
+12. [Avtomatlashtirilgan Testlar va Sifat Nazorati](#12-avtomatlashtirilgan-testlar-va-sifat-nazorati)
 
 ---
 
-## 🌟 1. LOYIHA HAQIDA UMUMIY TAVSIF
+## 1. Loyiha Pasporti va Arxitektura Printsiplari
 
-**WMS Platform** — bu davlat organlari, vazirliklar, departamentlar va ularning tizimidagi barcha quyi tashkilotlar (viloyat va tuman boshqarmalari) uchun mo'ljallangan yagona avtomatlashtirilgan axborot tizimi.
+WMS (Warehouse Management System) — O‘zbekiston Respublikasi davlat idoralari va korporativ tashkilotlarida moddiy-tovar boyliklari (TMZ) hamda asosiy vositalar harakatini 100% raqamlashtirish, qog‘ozbozlik va noqonuniy chiqimlarni bartaraf etish uchun mo‘ljallangan markazlashgan tizimdir.
 
-### Mazkur tizim qanday amaliy muammolarni hal etadi?
-* **1C va Qog'ozbozlikdan voz kechish:** Moddiy javobgarlik shartnomalari, qabul qilish-topshirish dalolatnomalari va buyruqlar elektron formatga o'tkaziladi.
-* **Haqiqiy Asosiy Vositalar (Jihozlar) Nazorati:** Kompyuterlar, monitorlar, mebellar va texnikalar har bir dona alohida unikal inventar raqam bilan qayd etiladi.
-* **Xodimlar zimmisidagi aktivlar shaffofligi:** Xodim ishga kirganda jihozlar unga topshiriladi, o'z kabinetida tasdiqlaydi. Ishdan bo'shaganda (Offboarding) esa barcha jihozlar omborga qaytarilmaguncha tizim uni bo'shatishga ruxsat bermaydi.
-* **Avtonomiya va Vazirlik Monitoringi:** Viloyat boshqarmalari o'z balansidagi tovarlar bilan erkin va mustaqil ishlaydi, Markaziy Vazirlik esa butun respublika bo'yicha real vaqtda audit va hisobotlarni kuzatib turadi.
+### Asosiy arxitektura tamoyillari:
+* **Yaxlit Audit va Daxlsizlik:** Har bir asosiy vosita (`Asset`) o‘zining unikal inventar raqamiga ega bo‘ladi. Biriktirilgan jihozlar bo‘yicha harakatlar orqaga qaytarilmas (immutable) audit loglariga yozib boriladi.
+* **Ko‘p Birlikli Aniq Hisob:** Pachka va dona o‘rtasida erkin avtomatik konvertatsiya (`packageSize`), kasrli o‘lchov birliklari (`LITR`, `KG`, `METR`) 4 xonali aniqlikda yaxlitlanib, suzuvchi nuqta (floating-point) driftlaridan 100% himoyalangan.
+* **3 Oylik Davlat Meʼyorlari:** Sarflanadigan materiallar uchun kvartallik (I, II, III, IV chorak) limit tizimi joriy etilgan. Limit oshganda tizim qatʼiy bloklaydi va faqat tasdiqlangan Vazir buyrug‘i fayli ilova qilingandagina qo‘shimcha berishga ruxsat beradi.
+* **Xavfsiz Offboarding Zanjiri:** Xodim ishdan bo‘shayotganda uning bo‘ynida topshirilmagan davlat mulki bo‘lsa, tizim uni ishdan bo‘shatishni taqiqlaydi. Jihozlar omborga qaytarilib, omborchi tasdiqlaganidan keyingina Davlat Gerbli rasmiy A4 Topshirish Akti generatsiya qilinadi.
 
 ---
 
-## 🏛️ 2. MULTI-TENANT ARXITEKTURASI VA TASHKILOTLAR IYERARXIYASI
+## 2. Loyiha Papkalar Strukturasi (Directory Structure)
 
-Tizim ko'p tarmoqli (Multi-Tenant) tuzilishga ega:
+```
+loyha/
+├── back/                             # NestJS Backend API
+│   ├── prisma/
+│   │   ├── schema.prisma             # Baza modeli, jadvallar va aloqalar
+│   │   └── seed.ts                   # Dastlabki Super Admin va ma'lumotlar seed skripti
+│   ├── scripts/
+│   │   ├── test-login-rate-limit.ts  # 30 ta integratsion login rate limiting testi
+│   │   └── test-admin-unlock-reset.ts# 12 ta admin unlock va 0-reset testi
+│   ├── src/
+│   │   ├── app.module.ts             # Asosiy ildiz moduli
+│   │   ├── main.ts                   # NestJS bootstrap, Helmet, Throttler, Global Validation
+│   │   ├── prisma/                   # PrismaClient xizmati va tranzaksiyalar
+│   │   └── modules/
+│   │       ├── auth/                 # Login, JWT, Refresh, Rate Limiting, Lockout tekshiruvi
+│   │       ├── users/                # Foydalanuvchilar, Onboarding, Offboarding, Unlock
+│   │       ├── departments/          # Bo'limlar, rahbarlar, Excel eksport
+│   │       ├── products/             # Mahsulotlar katalogi, packageSize konvertatsiyasi
+│   │       ├── inventory/            # Ombor qoldiqlari, zaxira balansi
+│   │       ├── operations/           # Berish, qaytarish, spisaniye, ta'mir, PDF generatsiya
+│   │       ├── limits/               # Kvartallik 3 oylik limitlar, Vazir buyrug'i ilovasi
+│   │       ├── requests/             # Xodim va bo'lim talabnomalari zanjiri
+│   │       ├── audit/                # Xavfsizlik auditi jurnali va tahlili
+│   │       ├── stats/                # Dashboard KPI va moliya statistikasi
+│   │       └── nodemailer/           # Telegram Bot va pochta bildirishnomalari
+├── front/                            # React 19 + Vite Frontend
+│   ├── public/
+│   │   ├── gerb.svg                  # O'zbekiston Respublikasi rasmiy Davlat Gerbi
+│   │   └── vaz-logo.png              # Vazirlik rasmiy logotipi
+│   ├── src/
+│   │   ├── api/                      # Axios instansiyasi, API endpoint metodlari
+│   │   ├── components/               # UI kutubxonasi (Button, Modal, Input, Badge, Gerbli Aktlar)
+│   │   ├── hooks/                    # Maxsus hooklar (useTranslation, useDebounce va h.k.)
+│   │   ├── lib/
+│   │   │   ├── translations.ts       # 3 tildagi (UZ, RU, EN) to'liq tarjimalar lug'ati
+│   │   │   └── utils.ts              # Konvertatsiya, summa formatlash, vaqt hisobi
+│   │   ├── pages/
+│   │   │   ├── auth/login-page.tsx   # Login, 2-bosqichli qizil jonli taymer, 3s server sync
+│   │   │   ├── departments/          # Bo'limlar va xodim kartochkasi (Unlock tugmasi)
+│   │   │   ├── inventory/            # Ombor balansi (Pachka va dona, Litr, Kg)
+│   │   │   ├── operations/           # Berish, Qaytarish, Ta'mir, Spisaniye oynalari
+│   │   │   ├── requests/             # Talabnomalar boshqaruvi
+│   │   │   ├── history/              # Operatsiyalar tarixi va PDF hujjatlar ko'rish
+│   │   │   ├── audit/                # Xavfsizlik auditi sahifasi
+│   │   │   └── stats/                # Grafiklar va analitika
+│   │   └── store/                    # Zustand do'konlari (auth.store.ts, ui.store.ts)
+├── README.md                         # Ushbu to'liq texnik pasport
+├── QOLLANMA.md                       # Foydalanuvchi va biznes jarayonlar qo'llanmasi
+└── TODO.md                           # Loyihaning rivojlanish tarixi va yo'l xaritasi
+```
+
+---
+
+## 3. Texnologik Stak va Kutubxonalar
+
+### ⚙️ Backend (Server Tomoni)
+| Texnologiya | Versiya | Maqsadi va Vazifasi |
+|---|---|---|
+| **Node.js** | `v20+` / `v24+` | Yuqori unumdor server muhiti |
+| **NestJS** | `^10.3.0` | Modulli, sinovdan o‘tgan Enterprise backend arxitekturasi |
+| **Prisma ORM** | `^6.16.0` | Turlar bilan qatʼiy himoyalangan (Type-safe) maʼlumotlar bazasi abstraksiyasi |
+| **PostgreSQL** | `15+` / `16+` | Relyatsion, ACID talablariga to‘liq javob beruvchi MBBT |
+| **Passport & JWT** | `@nestjs/jwt`, `@nestjs/passport` | Access Token va Refresh Token rotatsiyasi |
+| **Bcrypt** | `^5.1.1` | Parollarni xesh-tuz (salt rounds 10) bilan bir tomonlama shifrlash |
+| **NestJS Throttler**| `@nestjs/throttler ^5.1.0` | Brute-force va DDoS hujumlariga qarshi tarmoq tezligini cheklovchi |
+| **Puppeteer** | `^22.0.0` | Rasmiy A4 PDF dalolatnomalarni Chromium orqali 3.5x masshtabli vektor shaklda generatsiya qilish |
+| **ExcelJS** | `^4.4.0` | Ko‘p qatorli, avto-kengayadigan, imzolar bloki birlashtirilgan `.xlsx` eksport |
+| **Telegram Bot** | Maxsus HTTP client | Ishdan bo‘shatish va zaxira kamayganda masʼullarga tezkor bildirishnoma yuborish |
+
+### 🖥️ Frontend (Mijoz Tomoni)
+| Texnologiya | Versiya | Maqsadi va Vazifasi |
+|---|---|---|
+| **React** | `^19.0.0` | Eng zamonaviy reaktiv UI kutubxonasi |
+| **Vite** | `^8.0.0` | Rolldown/ESBuild asosidagi o‘ta tezkor loyiha yig‘uvchisi |
+| **TypeScript** | `^5.7.0` | Statik tiplash va kod xavfsizligi |
+| **Tailwind CSS** | `^3.4.0` | Modern, responsive va Dark/Light moslashuvchan dizayn tizimi |
+| **TanStack Query**| `^5.60.0` | Server holatini keshlovchi, avto-sinxronlovchi asinxron holat boshqaruvchisi |
+| **Zustand** | `^5.0.0` | Yengil, tezkor global mijoz holati (Auth, UI, Til sozlamalari) |
+| **React Hook Form**| `^7.54.0` | Minimal qayta chizilishli (re-render) shakllar boshqaruvi |
+| **Zod** | `^3.24.0` | Form validation va turlar mosligini tekshirish sxemasi |
+| **Framer Motion** | `^12.0.0` | Yumshoq UI animatsiyalari va modallar o‘tishi |
+| **Lucide React** | `^0.470.0` | 1000+ vektorli piktogrammalar to‘plami |
+
+---
+
+## 4. Tizim Arxitekturasi va Multi-Tenant Izolyatsiyasi
+
+Tizim ierarxik ko‘p tashkilotli (Multi-Tenant) tuzilishga ega:
 
 ```mermaid
 flowchart TD
-    MINISTRY["🏛️ VAZIRLIK (MINISTRY)<br/>Markaziy Boshqarma<br/>(Barcha tizimni nazorat qiladi, audit yuritadi)"]
+    SUPER["🏛️ VAZIRLIK MARKAZIY APPARATI<br/>(SUPER_ADMIN / VAZIRLIK_OMBORCHI)<br/>Barcha respublika bo'yicha to'liq nazorat va audit"]
     
-    SUB1["🏢 Toshkent shahar Boshqarmasi (SUB_ORG)<br/>Avtonom balans, o'z ombori va xodimlari"]
-    SUB2["🏢 Samarqand viloyat Boshqarmasi (SUB_ORG)<br/>Avtonom balans, o'z ombori va xodimlari"]
-    SUB3["🏢 Farg'ona viloyat Boshqarmasi (SUB_ORG)<br/>Avtonom balans, o'z ombori va xodimlari"]
-
-    MINISTRY --> SUB1
-    MINISTRY --> SUB2
-    MINISTRY --> SUB3
+    SUPER --> ORG1["🏢 Toshkent shahar Boshqarmasi<br/>(ORG_ADMIN / ORG_OMBORCHI)<br/>Avtonom balans, o'z ombori va xodimlari"]
+    SUPER --> ORG2["🏢 Samarqand viloyat Boshqarmasi<br/>(ORG_ADMIN / ORG_OMBORCHI)<br/>Avtonom balans, o'z ombori va xodimlari"]
+    SUPER --> ORG3["🏢 Farg'ona viloyat Boshqarmasi<br/>(ORG_ADMIN / ORG_OMBORCHI)<br/>Avtonom balans, o'z ombori va xodimlari"]
 ```
 
-### Izolyatsiya qoidalari:
-1. **To'liq ma'lumotlar ajratilishi:** Har bir tashkilot (`Organization`) faqat o'zining bo'limlari, xodimlari, tovarlari va amallarini ko'radi.
-2. **Mustaqillik:** Boshqarmalar o'z omboriga mustaqil kirim qiladi, xodimlariga jihoz biriktiradi va hisobdan chiqaradi. Vazirlikdan ruxsat so'rab o'tirish shart emas.
-3. **Vazirlik nazorati:**
-   * Markaziy Vazirlik xodimlari quyi tashkilotlar ro'yxatini, ularning ombor qoldiqlarini va operatsiyalar tarixini audit rejimida ko'ra oladi.
-   * Xato kiritilgan tovarlar yoki yozuvlarni o'chirish uchun quyi tashkilotlar Vazirlikka **O'chirish so'rovi (DeletionRequest)** yuboradi.
+### Izolyatsiya va xavfsizlik qoidalari:
+1. **Tashkilotlar chegarasi (`organizationId`):** Har bir so‘rov `JwtAuthGuard` orqali tekshirilganda, foydalanuvchining tashkiloti aniqlanadi. `SUPER_ADMIN`dan tashqari hech bir xodim boshqa tashkilotning maʼlumotlarini ko‘ra olmaydi yoki tahrirlay olmaydi.
+2. **Bo‘lim va Xodim ierarxiyasi:** Xodimlar tegishli bo‘limlarga (`Department`), bo‘limlar esa tashkilotga bog‘langan.
+3. **Audit Shaffofligi:** Quyi boshqarmalar o‘z amaliyotlarini mustaqil bajarsa-da, Markaziy Vazirlik real vaqtda respublika bo‘yicha to‘liq audit jurnali (`AuditLog`) va hisobotlarni kuzatib boradi.
 
 ---
 
-## 🛠️ 3. TEXNOLOGIYALAR STEKI
+## 5. Maʼlumotlar Bazasi Modeli (Prisma ERD & Schema)
 
-### ⚙️ Backend (Server tomoni)
-* **Asosiy freymvork:** [NestJS 11](https://nestjs.com/) (TypeScript)
-* **Ma'lumotlar bazasi & ORM:** [PostgreSQL 15+](https://www.postgresql.org/) + [Prisma ORM 6](https://www.prisma.io/)
-* **Real-vaqt aloqasi (WebSockets):** `@nestjs/websockets` + `Socket.io 4.8` (bildirishnomalar, jonli status yangilanishlari)
-* **Autentifikatsiya:** Passport.js (JWT Access Token + Refresh Token Rotation mexanizmi), bcrypt
-* **Eksport va Hisobotlar:** `ExcelJS` (haqiqiy formatlangan `.xlsx` jadvallari), `Puppeteer` (rasmiy PDF dalolatnomalar)
-* **Xavfsizlik:** `Helmet` (HTTP xavfsizlik sarlavhalari), `@nestjs/throttler` (DDoS va brute-force dan himoya qiluvchi Rate Limiter), `compression` (Gzip/Brotli)
-* **Xabarnomalar:** `nodemailer` (kam qolgan tovarlar bo'yicha email xabarnoma) va Telegram Bot integratsiyasi
-* **Ko'p tillilik (i18n):** `nestjs-i18n` (xatoliklar va PDF hujjatlar uchun UZ, RU, EN)
-
-### 🖥️ Frontend (Mijoz tomoni)
-* **Kutubxona & Build Tool:** [React 19](https://react.dev/) + [Vite 8](https://vitejs.dev/) + TypeScript
-* **Stillashtirish:** [Tailwind CSS 3](https://tailwindcss.com/) + Dark / Light temalar qo'llab-quvvatlashi
-* **Holat boshqaruvi (State Management):**
-  * `Zustand` — Mijoz holatlari (Auth, Foydalanuvchi ma'lumotlari, UI sozlamalari)
-  * `TanStack React Query v5` — Server ma'lumotlarini keshlash va sinxronizatsiya
-* **Tarmoq so'rovlari:** `Axios` (Token Mutex Queue — bir nechta parallel so'rovlarda tokenni takroriy yangilanishining oldini oladi)
-* **Forma va Validatsiya:** `React Hook Form` + `Zod`
-* **Vizual grafika va Ikonkalar:** `Recharts` (Dashboard tahlillari), `Lucide React`
-* **Real-vaqt:** `socket.io-client`
-* **Hujjatlar:** `html2pdf.js`, `exceljs`, `xlsx`
-
----
-
-## 👥 4. ROLLAR VA RUXSATLAR TIZIMI (RBAC)
-
-Tizimda 7 ta aniq chegaralangan foydalanuvchi roli mavjud:
-
-| № | Rol kodi | Rol nomi | Tavsifi va vakolatlari |
-|---|---|---|---|
-| 1 | `SUPER_ADMIN` | Tizim Bosh Administratori | Barcha tashkilotlar, foydalanuvchilar, audit loglari va tizim sozlamalariga to'liq 100% cheklovsiz kirish huquqiga ega. |
-| 2 | `RAHBAR` | Vazirlik Rahbariyati | **Faqat kuzatuv (Read-only)**. Butun respublika va quyi tashkilotlar statistikasi, harakatlar tarixi va hisobotlarini ko'radi. Ma'lumotlarni o'zgartirish yoki tovar biriktirish huquqi cheklangan. |
-| 3 | `VAZIRLIK_OMBORCHI` | Markaziy Ombor Mudiri | Vazirlik markaziy ombori tovarlarini kiritish, saqlash, boshqarish, vazirlik xodimlariga jihoz biriktirish va qabul qilish. |
-| 4 | `ORG_ADMIN` | Boshqarma Administratori | Quyi tashkilot (viloyat boshqarmasi) admini. O'z tashkilotiga yangi bo'limlar, `KADR`, `ORG_OMBORCHI` va `XODIM`larni qo'sha oladi. |
-| 5 | `ORG_OMBORCHI` | Boshqarma Omborchisi | Quyi tashkilot omboridagi barcha kirim, chiqim, xodimga jihoz berish va qaytarish operatsiyalarini amalga oshiruvchi moddiy javobgar shaxs. |
-| 6 | `KADR` | Kadrlar Bo'limi Mutaxassisi | Xodimlarni ishga qabul qilish, tahrirlash va ishdan bo'shatish (Offboarding) jarayonlarini rasmiylashtirish. |
-| 7 | `XODIM` | Oddiy Xodim | O'z kabinetida faqat o'z zimmisidagi jihozlarni ko'rish, yangi biriktirilgan jihozlarni qabul qilish yoki rad etish, va o'z profilini ko'rish huquqi. |
-
-### Rollar bo'yicha ruxsatlar matritsasi:
-
-| Sahifa / Modul | SUPER_ADMIN | RAHBAR | VAZIRLIK_OMBORCHI | ORG_ADMIN | ORG_OMBORCHI | KADR | XODIM |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Dashboard / Statistika | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Ombor (Zaxiralar) | ✅ | ✅ (Ko'rish) | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Mahsulotlar Katalogi | ✅ | ✅ (Ko'rish) | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Bo'limlar Boshqaruvi | ✅ | ✅ (Ko'rish) | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Xodimlar Boshqaruvi | ✅ | ✅ (Ko'rish) | ❌ | ✅ | ❌ | ✅ | ❌ |
-| Operatsiyalar (Kirim/Chiqim) | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Offboarding (Ishdan bo'shatish)| ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
-| Omborchi Offboarding Tasdig'i| ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| So'rovlar (Requests) | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| O'chirish So'rovlari (Deletion)| ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Audit Jurnali (AuditLog) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Xodim Shaxsiy Kabineti | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
----
-
-## ⚡ 5. ASOSIY BIZNES MANTIQLARI VA JARAYONLAR REGLAMENTI
-
-### 5.1. Mahsulot Turlari (ProductType)
-1. **`BERILADIGAN` (Asosiy vositalar va Jihozlar):**
-   * Masalan: noutbuk, stol, monitor, printer, xizmat mashinasi.
-   * Har bir dona jismoniy jihoz alohida `Asset` sifatida yaratiladi va takrorlanmas **Inventar raqam** oladi.
-   * Xodimlarga yoki bo'limlarga topshirilganda `Assignment` orqali zimmaga yoziladi va qaytarib olinmaguncha xodim nomida turadi.
-2. **`SARFLANADIGAN` (TMZ va Materiallar):**
-   * Masalan: A4 qog'oz, ruchka, batareya, tozalash vositalari.
-   * Zaxirasi faqat miqdor (son/pachka) sifatida hisoblanadi.
-   * Bo'limga berilganda sarflangan deb hisoblanadi va ombor qoldig'idan ayirilib, bo'lim qoldig'iga o'tadi.
-
-### 5.2. Jihoz Biriktirish va Tasdiqlash Zanjiri (Ikki tomonlama ishonch)
-* **O'zi berib o'zi tasdiqlash QAT'IYAN TAQIQLANGAN:** Omborchi xodimga jihoz berganda, tizim avtomatik tarzda `status: 'PENDING'` (kutilmoqda) qilib yaratadi.
-* **Xodim tasdig'i:** Xodim o'z shaxsiy profiliga yoki "So'rovlar" bo'limiga kirib, o'ziga berilgan jihozning rusumi, holati va inventar raqamini ko'radi.
-* Xodim **"Qabul qildim"** tugmasini bossa — `ACCEPTED` bo'ladi va moddiy javobgarlik rasman unga yuklanadi.
-* Agar jihoz sinik bo'lsa yoki xodim uni olmagan bo'lsa — sababini yozib **"Rad etish"** tugmasini bosadi (`REJECTED`).
-
-### 5.3. Xodimni Ishdan Bo'shatish (Offboarding) Reglamenti
-Xodim ishdan bo'shayotganda davlat mulki yo'qolib ketmasligi uchun 4 bosqichli nazorat tizimi o'rnatilgan:
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Kadr as 👤 Kadrlar Bo'limi
-    actor Ombor as 📦 Omborchi
-    actor User as 👨‍💼 Bo'shayotgan Xodim
-    participant Sys as 💻 Tizim (WMS)
-
-    Kadr->>Sys: Ishdan bo'shatish jarayonini boshlaydi (POST /users/:id/offboarding/start)
-    Sys-->>User: Xodim statusi 'OFFBOARDING_PENDING' ga o'tadi
-    Note over User,Ombor: Xodim omborga borib barcha jihozlarni topshiradi
-    Ombor->>Sys: Jihozlarni qabul qilib oladi va tasdiqlaydi (POST /users/:id/offboarding/warehouse-approve)
-    Sys->>Sys: Xodimda 0 ta faol jihoz qolganini avtomatik tekshiradi
-    Sys-->>Kadr: Rasmiy Qabul-Topshirish Dalolatnomasi (PDF Akt) tayyor
-    Kadr->>Sys: Jarayonni yakunlaydi (POST /users/:id/offboarding/complete)
-    Sys-->>Sys: Xodim statusi 'OFFBOARDED' qilinadi va tizimdan chiqariladi
-```
-
-### 5.4. Ma'lumotlarni O'chirish So'rovlari (DeletionRequest)
-* Quyi tashkilotlar muhim tovarlar, operatsiyalar yoki xodimlarni to'g'ridan-to'g'ri o'chirib yubora olmaydi (korrupsiya va ma'lumotlar buzilishining oldini olish uchun).
-* Agar xatolik tufayli tovar kiritilgan bo'lsa, quyi admin Vazirlikka sababini ko'rsatib so'rov yuboradi.
-* Vazirlik tekshirib, ma'qullasa (`APPROVED`), tovar xavfsiz tarzda soft-delete qilinadi.
-
-### 5.5. To'liq Xavfsizlik Auditi (AuditLog)
-Tizimdagi har bir o'zgartirish (`CREATE`, `UPDATE`, `DELETE`) alohida AuditLog jadvaliga tushadi:
-* Amaliyotni bajargan foydalanuvchi ID, F.I.Sh va roli;
-* IP-manzil va User-Agent;
-* O'zgarishdan oldingi holat (`oldData`) va o'zgarishdan keyingi holat (`newData`);
-* So'rov bajarilish vaqti va HTTP status kodi.
-
----
-
-## 🗄️ 6. MA'LUMOTLAR BAZASI SXEMASI (ER DIAGRAM & MODELLAR)
+### Entity-Relationship Diagrammasi:
 
 ```mermaid
 erDiagram
-    ORGANIZATION ||--o{ DEPARTMENT : "has"
-    ORGANIZATION ||--o{ USER : "employs"
-    ORGANIZATION ||--o{ PRODUCT : "owns"
-    ORGANIZATION ||--o{ ASSET : "tracks"
-    ORGANIZATION ||--o{ OPERATION : "logs"
-    ORGANIZATION ||--o{ DELETION_REQUEST : "receives"
-    ORGANIZATION ||--o{ AUDIT_LOG : "monitors"
+    ORGANIZATION ||--o{ USER : employs
+    ORGANIZATION ||--o{ DEPARTMENT : contains
+    ORGANIZATION ||--o{ PRODUCT : catalogs
+    ORGANIZATION ||--o{ ASSET : owns
+    ORGANIZATION ||--o{ OPERATION : logs
+    ORGANIZATION ||--o{ AUDIT_LOG : tracks
 
-    DEPARTMENT ||--o{ USER : "members"
-    DEPARTMENT ||--o{ DEPARTMENT_ASSET : "supplies"
-    DEPARTMENT ||--o{ ASSIGNMENT : "shared-assets"
+    DEPARTMENT ||--o{ USER : members
+    DEPARTMENT ||--o{ DEPARTMENT_ASSET : supplies
+    DEPARTMENT ||--o{ MONTHLY_LIMIT : limits
 
-    USER ||--o{ ASSIGNMENT : "assigned-assets"
-    USER ||--o{ REFRESH_TOKEN : "tokens"
-    USER ||--o{ OPERATION : "performs"
+    USER ||--o{ ASSIGNMENT : holds
+    USER ||--o{ REFRESH_TOKEN : authenticates
+    USER ||--o{ OPERATION : operates
+    USER ||--o{ SUPPLY_REQUEST : requests
 
-    PRODUCT ||--o| INVENTORY : "stock"
-    PRODUCT ||--o{ ASSET : "physical-items"
-    PRODUCT ||--o{ DEPARTMENT_ASSET : "allocated"
-    PRODUCT ||--o{ OPERATION : "history"
+    PRODUCT ||--o| INVENTORY : balances
+    PRODUCT ||--o{ ASSET : physical_units
+    PRODUCT ||--o{ DEPARTMENT_ASSET : allocated
+    PRODUCT ||--o{ MONTHLY_LIMIT : regulated
 
-    ASSET ||--o{ ASSIGNMENT : "history"
-    ASSET ||--o{ OPERATION : "movements"
+    MONTHLY_LIMIT ||--o{ OVER_LIMIT_ORDER : overrides
 ```
 
-### Asosiy Jadvallar (Modellar):
-1. **`Organization`** — Tashkilotlar (Vazirlik yoki viloyat boshqarmalari).
-2. **`Department`** — Bo'limlar (Boshqarma ichidagi bo'lim va xizmatlar).
-3. **`User`** — Foydalanuvchilar (7 xil roldagi barcha xodimlar).
-4. **`Product`** — Tovar va materiallar yagona katalogi.
-5. **`Inventory`** — Ombor qoldig'i, minimal xavfli miqdor (`minLevel`), narxlar.
-6. **`Asset`** — Har bir jismoniy jihoz (inventar raqam, seriya raqam, kafolat muddati, narxi).
-7. **`Assignment`** — Jihozning xodimga yoki bo'limga biriktirilish tarixi va tasdiq statusi.
-8. **`DepartmentAsset`** — Bo'limga berilgan sarflanadigan materiallar balansi.
-9. **`Operation`** — Tizimdagi 8 turdagi barcha operatsiyalar tarixi.
-10. **`DeletionRequest`** — Vazirlikka yuborilgan o'chirish so'rovlari.
-11. **`RefreshToken`** — Xavfsiz avtorizatsiya sessiyalari (hashlangan holda).
-12. **`AuditLog`** — Xavfsizlik va nazorat amallari jurnali.
+### Prisma Sxemasi Kalit Modellari:
 
----
+```prisma
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  VAZIRLIK_OMBORCHI
+  ORG_OMBORCHI
+  KADR
+  BOSH_BUXGALTER
+  BUXGALTER
+  BOLIM_BOSHLIGI
+  XODIM
+}
 
-## 🖥️ 7. FRONTEND SAHIFALARI VA FOYDALANUVCHI INTERFEYSI
+enum ProductType {
+  BERILADIGAN    // Asosiy vositalar (noutbuk, mebel, texnika - butun musbat son, alohida Asset)
+  SARFLANADIGAN  // TMZ va sarf materiallari (qog'oz, ruchka, kimyoviy vosita - miqdoriy limitli)
+}
 
-Loyiha frontend qismi 15 ta to'liq funksional sahifadan iborat:
+enum UnitType {
+  DONA
+  PACHKA
+  KOMPLEKT
+  LITR
+  KG
+  METR
+}
 
-| № | URL manzili | Sahifa nomi | Asosiy imkoniyatlari |
-|---|---|---|---|
-| 1 | `/login` | Kirish sahifasi | Zamonaviy fon rasmiga ega forma, til tanlash (UZ/RU/EN), xavfsiz JWT login. |
-| 2 | `/dashboard` | Boshqaruv paneli | Asosiy ko'rsatkichlar kartalari, Recharts grafiklari, so'nggi harakatlar va tezkor amallar. |
-| 3 | `/inventory` | Ombor zaxiralari | Qoldiqlarni ko'rish, tovar qidirish, minimal qoldiq ogohlantirishlari, Excel import/eksport. |
-| 4 | `/products` | Mahsulotlar katalogi | Tovar turlari (`BERILADIGAN` / `SARFLANADIGAN`), filtrlar va inventar raqamlarni ko'rish. |
-| 5 | `/departments` | Bo'limlar | Bo'limlar ro'yxati, rahbar tayinlash, bo'lim xodimlari va bo'lim jihozlari balansi. |
-| 6 | `/users` | Xodimlar | Xodimlar ro'yxati, yangi xodim qo'shish, rol tayinlash, Excel eksport va Offboarding. |
-| 7 | `/operations` | Harakatlar markazi | Kirim qilish (`STOCK_IN`), xodimga berish, qaytarish, o'tkazish, hisobdan chiqarish (`WRITE_OFF`). |
-| 8 | `/assigned-assets` | Biriktirilgan jihozlar | Barcha xodimlardagi faol jihozlar ro'yxati, holati va qidiruv tizimi. |
-| 9 | `/requests` | So'rov va Bildirishnomalar | Berilgan jihozlarni qabul qilish / rad etish va statuslarni kuzatish. |
-| 10 | `/deletion-requests` | O'chirish so'rovlari | Xato ma'lumotlarni o'chirish bo'yicha Vazirlikka yuborilgan so'rovlar jurnali. |
-| 11 | `/history` | Harakatlar tarixi | Barcha operatsiyalar arxivi, sana va tovar bo'yicha filtr, CSV/Excel yuklab olish. |
-| 12 | `/stats` | Tahliliy statistika | Oylik dinamika, tovar turlari ulushi, bo'limlar yuklamasi va o'sish ko'rsatkichlari. |
-| 13 | `/audit` | Xavfsizlik auditi | Admin uchun tizimdagi har bir foydalanuvchi qadami (IP, usul, ma'lumotlar) jurnali. |
-| 14 | `/organizations` | Tashkilotlar | (Faqat Super Admin) Quyi boshqarmalar va vazirlik tuzilmasini boshqarish. |
-| 15 | `/profile` | Shaxsiy kabinet | Xodimning o'z zimmisidagi jihozlar ro'yxati, qabul qilingan dalolatnomalar, parol o'zgartirish. |
+model User {
+  id                  String               @id @default(uuid())
+  username            String               @unique
+  fullName            String
+  passwordHash        String
+  role                UserRole             @default(XODIM)
+  status              UserStatus           @default(ACTIVE)
+  employmentStatus    EmploymentStatus     @default(ACTIVE)
+  failedLoginAttempts Int                  @default(0)
+  lockedUntil         DateTime?
+  organizationId      String?
+  departmentId        String?
+  assignments         Assignment[]
+  operations          Operation[]
+  refreshTokens       RefreshToken[]
+  supplyRequests      SupplyRequest[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
 
----
+model Product {
+  id             String            @id @default(uuid())
+  name           String
+  code           String            @unique
+  productType    ProductType       @default(BERILADIGAN)
+  unit           UnitType          @default(DONA)
+  packageSize    Int?              // Masalan: 1 pachkada 500 dona
+  inventory      Inventory?
+  assets         Asset[]
+  monthlyLimits  MonthlyLimit[]
+  organizationId String?
+  createdAt      DateTime          @default(now())
+}
 
-## 🔌 8. BACKEND API MODULLARI VA ENDPOINTLAR KATALOGI
+model Asset {
+  id              String         @id @default(uuid())
+  productId       String
+  inventoryNumber String         @unique
+  serialNumber    String?
+  status          AssetStatus    @default(IN_STOCK)
+  assignments     Assignment[]
+  organizationId  String?
+  createdAt       DateTime       @default(now())
+}
 
-API prefiksi: `/api/v1`
-
-### 8.1. Auth Moduli (`/auth`)
-* `POST /auth/login` — Tizimga kirish (Access va Refresh token olish)
-* `POST /auth/refresh` — Tokenni yangilash
-* `POST /auth/logout` — Tizimdan chiqish (Sessiyani bekor qilish)
-* `GET /auth/me` — Joriy kirgan foydalanuvchi ma'lumotlari
-* `PUT /auth/change-password` — Parolni yangilash
-
-### 8.2. Users Moduli (`/users`)
-* `GET /users` — Xodimlar ro'yxati (Rol, bo'lim, tashkilot va qidiruv filtrlari bilan)
-* `GET /users/export` — Xodimlarni Excelga eksport qilish
-* `GET /users/:id` — Bitta xodim ma'lumotlari
-* `POST /users` — Yangi xodim yaratish (Iyerarxik rol tekshiruvi bilan)
-* `PUT /users/:id` — Xodim ma'lumotlarini tahrirlash
-* `DELETE /users/:id` — Xodimni o'chirish (agar zimmasida faol jihoz bo'lmasa)
-* `GET /users/:id/assignments` — Xodim zimmisidagi barcha jihozlar
-* `PATCH /users/:id/status` — Xodimni bloklash / faollashtirish
-* `GET /users/offboarding/pending` — Bo'shash jarayonidagi xodimlar
-* `POST /users/:id/offboarding/start` — Ishdan bo'shatish jarayonini boshlash
-* `POST /users/:id/offboarding/warehouse-approve` — Omborchi jihozlarni qabul qilib imzolashi
-* `POST /users/:id/offboarding/complete` — Ishdan bo'shatishni yakunlash
-* `GET /users/:id/offboarding/akt` — Bo'shash dalolatnomasini (PDF) yuklab olish
-
-### 8.3. Departments Moduli (`/departments`)
-* `GET /departments` — Bo'limlar ro'yxati
-* `GET /departments/export` — Bo'limlarni Excelga eksport qilish
-* `GET /departments/:id` — Bo'lim tafsilotlari
-* `GET /departments/:id/stats` — Bo'lim yuklamasi statistikasi
-* `POST /departments` — Yangi bo'lim qo'shish
-* `PUT /departments/:id` — Bo'limni tahrirlash
-* `DELETE /departments/:id` — Bo'limni o'chirish (agar xodimlari yoki jihozlari bo'lmasa)
-
-### 8.4. Products Moduli (`/products`)
-* `GET /products` — Mahsulotlar katalogi
-* `GET /products/:id` — Bitta tovar ma'lumotlari va inventar raqamlari
-* `PUT /products/:id` — Tovarni tahrirlash
-* `DELETE /products/:id` — Tovarni o'chirish (omborda qoldig'i bo'lmasa)
-
-### 8.5. Inventory Moduli (`/inventory`)
-* `GET /inventory` — Ombor zaxiralari qoldiqlari
-* `GET /inventory/export` — Zaxiralarni Excelga eksport qilish
-* `POST /inventory/bulk-stock-in` — Ommaviy Excel fayli orqali kirim qilish
-* `PUT /inventory/:id/min-level` — Minimal xavfli miqdor chegarasini belgilash
-
-### 8.6. Operations Moduli (`/operations`)
-* `POST /operations/stock-in` — Omborga tovar kirim qilish
-* `POST /operations/give-to-user` — Xodimga jihoz biriktirish (`PENDING`)
-* `POST /operations/return-from-user` — Xodimdan jihozni qaytarib olish
-* `POST /operations/transfer-user` — Jihozni bir xodimdan boshqasiga o'tkazish
-* `POST /operations/give-to-dept` — Bo'limga sarflanadigan material berish
-* `POST /operations/return-from-dept` — Bo'limdan materialni omborga qaytarish
-* `POST /operations/assign-to-dept` — Bo'limga umumiy foydalanish uchun jihoz biriktirish
-* `POST /operations/write-off` — Yaroqsiz tovarlarni hisobdan chiqarish
-* `GET /operations/:id/pdf` — Har qanday operatsiya uchun rasmiy Qabul-Topshirish Dalolatnomasini (PDF) olish
-
-### 8.7. Requests Moduli (`/requests`)
-* `GET /requests/my` — Xodimga biriktirilgan va tasdiqlanishi kutilayotgan jihozlar
-* `POST /requests/:id/accept` — Jihozni qabul qilishni tasdiqlash
-* `POST /requests/:id/reject` — Jihozni qabul qilishni rad etish (sababi bilan)
-
-### 8.8. Deletion Requests Moduli (`/deletion-requests`)
-* `GET /deletion-requests` — O'chirish so'rovlari ro'yxati
-* `POST /deletion-requests` — Yangi o'chirish so'rovi yuborish
-* `POST /deletion-requests/:id/review` — So'rovni ko'rib chiqish (`APPROVED` yoki `REJECTED`)
-
-### 8.9. Organizations Moduli (`/organizations`)
-* `GET /organizations` — Tashkilotlar ro'yxati va iyerarxiyasi
-* `POST /organizations` — Yangi quyi tashkilot qo'shish
-* `PUT /organizations/:id` — Tashkilotni tahrirlash
-
-### 8.10. History, Audit va Stats Modullari
-* `GET /history` — Operatsiyalar tarixi arxivi
-* `GET /history/export` — Tarixni Excel / CSV eksport qilish
-* `GET /audit` — Xavfsizlik auditi jurnali
-* `GET /stats/overview` — Dashboard statistikasi
-* `GET /stats/monthly` — Oylik harakatlar dinamikasi
-
----
-
-## 🔒 9. XAVFSIZLIK VA KIBER-HIMOYA MEXANIZMLARI
-
-1. **Token Mutex & Rotation (O(1) Token Rotation):**
-   * Har bir login sessiyasi uchun unikal RefreshToken bazada saqlanadi. Token yangilanganda eskisining muddati darhol bekor qilinadi.
-   * Agar foydalanuvchi bloklansa, uning barcha tokenlari 1 soniyada bekor qilinadi.
-2. **Null-Byte Injection & Fuzzing Himoyasi:**
-   * PostgreSQL va Node.js o'rtasida ma'lumotlar almashinuvida `\0` (null-byte) hujumlari global sanitization filtri orqali to'liq tozalanadi.
-3. **DDoS & Brute-Force Himoyasi (`Throttler`):**
-   * Har bir IP-manzil uchun so'rovlar chegarasi o'rnatilgan (Login urinishlari cheklangan).
-4. **HTTP Xavfsizlik Sarlavhalari (`Helmet`):**
-   * XSS, Clickjacking, MIME-sniffing hujumlarining oldi olingan.
-5. **Parollar Kriptografiyasi:**
-   * Barcha parollar `bcrypt` (10 rounds tuzlash) orqali saqlanadi.
-
----
-
-## 💻 10. MAHALLIY O'RNATISH VA ISHGA TUSHIRISH (LOCAL SETUP)
-
-### Talablar:
-* **Node.js:** v20.x yoki v22.x
-* **PostgreSQL:** v14 yoki undan yuqori
-* **Git**
-
-### 1-qadam: Repozitoriyani yuklab olish
-```bash
-git clone https://github.com/ahmadillohasanov099-max/wms-platform.git
-cd wms-platform
+model MonthlyLimit {
+  id              String            @id @default(uuid())
+  departmentId    String
+  productId       String
+  limit           Float             // Kvartallik 3 oylik umumiy me'yor
+  orders          OverLimitOrder[]  // Vazir buyrug'i ilova qilingan hollar
+  createdAt       DateTime          @default(now())
+}
 ```
 
-### 2-qadam: Backendni sozlash va ishga tushirish
+---
+
+## 6. To‘liq REST API Katalogi va Endpointlar Pasporti
+
+Barcha API so‘rovlari `application/json` formatida yuboriladi va qabul qilinadi. Himoyalangan endpointlar uchun `Authorization: Bearer <accessToken>` sarlavhasi talab etiladi.
+
+### 6.1. Auth Moduli (`/auth`)
+
+#### `POST /auth/login`
+Foydalanuvchini tizimga kiritish va xavfsizlik tokenlarini berish. 2-bosqichli brute-force himoyasi bilan taʼminlangan.
+* **Huquq:** Ommaviy (Public)
+* **Throttler cheklovi:** 10 soniyada 5 ta, 1 daqiqada 15 ta urinish.
+* **Request Body:**
+```json
+{
+  "username": "alisher01",
+  "password": "Password123!"
+}
+```
+* **Muvaffaqiyatli Response (200 OK):**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI...",
+  "refreshToken": "a8f9c1b2-...",
+  "user": {
+    "id": "e4b6c8a1-...",
+    "username": "alisher01",
+    "fullName": "Alisher Karimov",
+    "role": "SUPER_ADMIN",
+    "organizationId": null,
+    "departmentId": null
+  }
+}
+```
+* **Xatolik Response (401 Unauthorized — 1-urinish):**
+```json
+{
+  "statusCode": 401,
+  "message": "Kiritilgan login yoki parol noto'g'ri. Xavfsizlik talablariga muvofiq, yana 2 ta urinish imkoniyati mavjud.",
+  "remainingAttempts": 2,
+  "errorCode": "LOGIN_FAILED_ATTEMPTS"
+}
+```
+* **Xatolik Response (401 Unauthorized — 3-urinishda 15 daqiqaga bloklanish):**
+```json
+{
+  "statusCode": 401,
+  "message": "Parol ketma-ket 3 marta noto'g'ri kiritildi. Tizim xavfsizligini ta'minlash maqsadida hisobingiz 15 daqiqaga vaqtincha bloklandi.",
+  "isLocked": true,
+  "lockedUntil": "2026-11-04T12:00:00.000Z",
+  "remainingSeconds": 900,
+  "errorCode": "LOGIN_LOCKED_15M"
+}
+```
+
+#### `GET /auth/lockout-status`
+Foydalanuvchining login blok holatini real vaqtda tekshirish (Admin ochganini darhol aniqlash uchun).
+* **Huquq:** Ommaviy (Public)
+* **Query Parameters:** `?username=alisher01`
+* **Response (200 OK):**
+```json
+{
+  "isLocked": false,
+  "remainingSeconds": 0,
+  "lockedUntil": null
+}
+```
+
+#### `POST /auth/refresh`
+Eski Access token muddati tugaganda yangi token juftligini olish (Refresh Token Rotation).
+* **Headers:** `Authorization: Bearer <refreshToken>`
+* **Response (200 OK):** `{ "accessToken": "...", "refreshToken": "..." }`
+
+---
+
+### 6.2. Users & HR Moduli (`/users`)
+
+#### `GET /users`
+Tashkilot xodimlari ro‘yxatini sahifalash, qidirish va filtrlash bilan olish.
+* **Huquq:** `SUPER_ADMIN`, `ORG_ADMIN`, `KADR`, `VAZIRLIK_OMBORCHI`, `ORG_OMBORCHI`
+* **Query Parameters:** `?page=1&limit=20&search=Alisher&departmentId=...&role=XODIM&status=ACTIVE`
+* **Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "id": "u-01",
+      "fullName": "Alisher Karimov",
+      "username": "alisher01",
+      "role": "XODIM",
+      "status": "ACTIVE",
+      "employmentStatus": "ACTIVE",
+      "failedLoginAttempts": 0,
+      "lockedUntil": null,
+      "department": { "id": "d-01", "name": "Axborot texnologiyalari boshqarmasi" }
+    }
+  ],
+  "meta": { "total": 145, "page": 1, "limit": 20, "totalPages": 8 }
+}
+```
+
+#### `PATCH /users/:id/unlock`
+Parolni ko‘p marta xato terib bloklangan xodimni muddatidan oldin blokdan chiqarish va xatolarini 0 ga tushirish.
+* **Huquq:** `SUPER_ADMIN`, `ORG_ADMIN`, `KADR`
+* **Response (200 OK):**
+```json
+{
+  "message": "Xodim blokdan muvaffaqiyatli chiqarildi",
+  "user": {
+    "id": "u-01",
+    "username": "alisher01",
+    "failedLoginAttempts": 0,
+    "lockedUntil": null
+  }
+}
+```
+
+#### `POST /users/:id/offboarding/start`
+Xodimni ishdan bo‘shatish jarayonini boshlash (Kadr tomonidan).
+* **Huquq:** `SUPER_ADMIN`, `ORG_ADMIN`, `KADR`
+* **Xavfsizlik qoidasi:** Agar xodimda topshirilmagan biriktirilgan jihozlar bo‘lsa, tizim `400 Bad Request` qaytaradi va topshirilishi shart bo‘lgan aktivlar ro‘yxatini ko‘rsatadi.
+
+#### `POST /users/:id/offboarding/warehouse-approve`
+Omborchi tomonidan barcha jihozlar to‘liq omborga topshirilganini tasdiqlash.
+* **Huquq:** `SUPER_ADMIN`, `VAZIRLIK_OMBORCHI`, `ORG_OMBORCHI`
+
+#### `POST /users/:id/offboarding/complete`
+Kadr xodimi tomonidan ishdan bo‘shatishni yakunlash (`OFFBOARDED` statusi, tokenlar bekor qilinadi, rasmiy Davlat Gerbli A4 Topshirish Akti generatsiya qilinadi).
+
+---
+
+### 6.3. Departments Moduli (`/departments`)
+
+#### `GET /departments`
+Tashkilotdagi barcha bo‘limlar, ularning rahbarlari va xodimlar sonini olish.
+* **Huquq:** Barcha tizim xodimlari
+
+#### `POST /departments`
+Yangi bo‘lim tashkil qilish.
+* **Huquq:** `SUPER_ADMIN`, `ORG_ADMIN`
+* **Request Body:**
+```json
+{
+  "name": "Moliya-iqtisod boshqarmasi",
+  "code": "FIN-01",
+  "leaderId": "user-uuid-123"
+}
+```
+
+#### `GET /departments/:id/excel`
+Bo‘limga tegishli barcha aktivlar va hisobotlarni rasmiy Excel formatida yuklab olish.
+* **Response:** Binary Stream (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`)
+
+---
+
+### 6.4. Products & Katalog Moduli (`/products`)
+
+#### `GET /products`
+Mahsulotlar katalogi ro‘yxati (Qidiruv va tur bo‘yicha filtrlash bilan).
+* **Query Parameters:** `?search=qog'oz&type=SARFLANADIGAN`
+
+#### `POST /products`
+Yangi mahsulot kartochkasini yaratish.
+* **Request Body:**
+```json
+{
+  "name": "A4 Qog'oz (SvetoCopy Classic)",
+  "code": "TMZ-A4-001",
+  "productType": "SARFLANADIGAN",
+  "unit": "PACHKA",
+  "packageSize": 500
+}
+```
+
+---
+
+### 6.5. Inventory & Zaxira Moduli (`/inventory`)
+
+#### `GET /inventory`
+Ombor zaxirasidagi tovarlar qoldig‘i (Pachka/Dona, Litr, Kg, Metr hisobida).
+* **Response (200 OK):**
+```json
+[
+  {
+    "id": "inv-01",
+    "productId": "prod-01",
+    "quantity": 19.6,
+    "product": {
+      "name": "A4 Qog'oz",
+      "unit": "PACHKA",
+      "packageSize": 500
+    },
+    "displayStock": "19 pachka, 300 dona"
+  }
+]
+```
+
+#### `POST /inventory/stock-in`
+Omborga tovar kirim qilish.
+* **Request Body:**
+```json
+{
+  "productId": "prod-01",
+  "quantity": 20,
+  "unitPrice": 45000,
+  "supplier": "Davlat Ta'minot MCHJ",
+  "documentNumber": "KIRIM-2026-089"
+}
+```
+
+---
+
+### 6.6. Operations & Harakatlar Moduli (`/operations`)
+
+#### `POST /operations/give-to-user`
+Asosiy vositani xodimga biriktirish (MJSH shartnomasi bilan).
+* **Request Body:**
+```json
+{
+  "userId": "u-01",
+  "assetId": "asset-uuid-123",
+  "documentNumber": "MJSH-2026-004",
+  "note": "Xizmat vazifalarini bajarish uchun topshirildi"
+}
+```
+
+#### `POST /operations/return-from-user`
+Xodimdan jihozni omborga qaytarib qabul qilish va Qaytarish Dalolatnomasini tuzish.
+* **Request Body:**
+```json
+{
+  "assignmentId": "asg-01",
+  "condition": "SOZ",
+  "documentNumber": "QAYT-2026-012",
+  "note": "Xodim o'z xohishi bilan topshirdi"
+}
+```
+
+#### `POST /operations/repair/start` & `POST /operations/repair/complete`
+Jihozni taʼmirga yuborish va taʼmirlanib qaytganini qabul qilish.
+
+#### `POST /operations/write-off`
+Yaroqsiz tovarlarni komissiya xulosasi asosida hisobdan chiqarish (Spisaniye).
+
+---
+
+### 6.7. Limits & Meʼyorlar Moduli (`/limits`)
+
+#### `GET /limits?departmentId=...`
+Bo‘limning joriy kvartaldagi (3 oylik) TMZ sarflash meʼyorlari va qolgan limitlari.
+* **Response (200 OK):**
+```json
+{
+  "periodName": "2026-yil IV chorak (1-oktyabr – 31-dekabr)",
+  "limits": [
+    {
+      "productId": "prod-01",
+      "productName": "A4 Qog'oz",
+      "totalQuarterLimit": 30,
+      "consumedQuarter": 12,
+      "remainingQuarter": 18
+    }
+  ]
+}
+```
+
+#### `POST /limits/order`
+Vazir yoki rahbariyat buyrug‘i faylini (PDF/JPG) ilova qilib meʼyordan ortiqcha TMZ ajratish ruxsatnomasi.
+
+---
+
+### 6.8. Requests & Talabnomalar Moduli (`/requests`)
+
+#### `POST /requests`
+Xodim yoki bo‘lim tomonidan omborga material so‘rab talabnoma yuborish.
+
+#### `PATCH /requests/:id/approve` & `PATCH /requests/:id/reject`
+Omborchi tomonidan talabnomani tasdiqlash yoki sababini ko‘rsatib rad etish.
+
+---
+
+### 6.9. Audit Logs Moduli (`/audit-logs`)
+
+#### `GET /audit-logs`
+Barcha foydalanuvchilar harakatlari arxivi (`SUPER_ADMIN` uchun).
+* Har bir qatorda: IP manzil, Latency (ms), User-Agent, HTTP Metod, Endpoint, `oldData` va `newData` JSON diffi mavjud.
+
+---
+
+### 6.10. Stats & Tahlil Moduli (`/stats`)
+
+#### `GET /stats/dashboard`
+Boshqaruv panelining umumiy statistikasi (jami jihozlar qiymati, taʼmirdagi jihozlar, eng ko‘p sarflangan materiallar, bo‘limlar balansi).
+
+---
+
+## 7. Axborot Xavfsizligi va Kiber-Himoya Mexanizmlari
+
+### 7.1. 2-Bosqichli Progressiv Login Rate Limiting
+Tizim O‘zbekiston Respublikasi kiberxavfsizlik talablariga mos ravishda 2 bosqichli intellektual akkaunt bloklash mexanizmiga ega:
+1. **1-Bosqich (Ogohlantirish va 15 daqiqalik blok):**
+   - 1-xato urinish $\rightarrow$ "Kiritilgan login yoki parol noto'g'ri. Yana 2 ta urinish qoldi."
+   - 2-xato urinish $\rightarrow$ "Diqqat! Yana 1 ta xatodan so'ng hisobingiz 15 daqiqaga bloklanadi."
+   - 3-xato urinish $\rightarrow$ Hisob qatʼiy **15 daqiqaga** vaqtincha bloklanadi (`lockedUntil = now() + 15 min`).
+2. **2-Bosqich (1 soatlik qatʼiy jazo bloki):**
+   - 15 daqiqalik blok muddati tugab, akkaunt ochilgach, agar foydalanuvchi yana **1 marta xato kiritsa** $\rightarrow$ hisob darhol **1 soatga (60 daqiqa)** qatʼiy bloklanadi (`lockedUntil = now() + 60 min`).
+3. **Muvaffaqiyatli tozalash (Clean Reset):**
+   - To‘g‘ri parol kiritilishi bilanoq `failedLoginAttempts: 0` va `lockedUntil: null` holatiga to‘liq qaytariladi.
+
+### 7.2. Real-Vaqtda Admin Unlock & 0-Reset
+* Masʼul xodim (`SUPER_ADMIN`, `ORG_ADMIN`, `KADR`) xodim detallarida `[ 🔑 Blokdan chiqarish ]` tugmasini bosishi bilanoq, login oynasida turgan foydalanuvchining ekrani **3 soniya ichida** `GET /auth/lockout-status` tekshiruvi orqali avtomatik ochiladi.
+* Taymer to‘xtaydi, qizil xatolar tozalanadi, maydonlar faollashadi va yashil bildirishnoma chiqadi. Akkaunt xatolari 0 dan boshlanadi.
+
+---
+
+## 8. Frontend Arxitekturasi va Holat Boshqaruvi
+
+1. **Mijoz Holati (Zustand):**
+   - `useAuthStore` — Joriy foydalanuvchi obyekti, Access Token va Refresh Tokenni saqlaydi hamda kirish/chiqish amallarini sinxronlashtiradi.
+   - `useUiStore` — Til (`uz`, `ru`, `en`) va tema (Dark/Light) parametrlarini brauzer xotirasi bilan bog‘laydi.
+2. **Server Holati (TanStack Query v5):**
+   - `queryKey: ['users']`, `['departments']`, `['inventory']`, `['limits']` kabi standart kesh kalitlari orqali tarmoq trafigini 80% ga qisqartiradi.
+   - Tranzaksiyalar bajarilgach (`invalidateQueries`), tegishli ro‘yxatlar orqa fonda avtomatik yangilanadi.
+3. **Formalar va Validatsiya:**
+   - `React Hook Form` va `Zod` sxemalari orqali xato maʼlumotlar kiritilishining oldi olinadi.
+
+---
+
+## 9. Hujjat Generatsiyasi Dvigateli (Puppeteer & ExcelJS)
+
+1. **Rasmiy Vektorli A4 PDF (Puppeteer):**
+   - O‘zbekiston Respublikasi Davlat Gerbi (SVG vektor formatda) yuqori qismida joylashgan.
+   - 3.5x Ultra-HD masshtablash va CSS paged-media qoidalari (`@page { size: A4 portrait; margin: 15mm; }`).
+   - Jadval qatorlari hech qachon varoq o‘rtasida yorilib ketmaydi (`page-break-inside: avoid`).
+2. **Dinamik Kassetali Excel (ExcelJS):**
+   - Matn hajmiga qarab avtomatik qator balandligini moslash (`row.height = Math.max(25, lines * 18)`).
+   - Pastki qismda Moddiy javobgar shaxs, Bo‘lim boshlig‘i va Bosh buxgalter imzolari bloki avtomatik birlashtiriladi.
+
+---
+
+## 10. Ko‘p Tilli Tizim Arxitekturasi (i18n)
+
+Frontend va Backend 100% 3 ta tilda ishlaydi:
+* `uz` — O‘zbek tili (Lotin alifbosi, davlat idoralari rasmiy uslubi);
+* `ru` — Rus tili (Русский язык);
+* `en` — Ingliz tili (English).
+
+Barcha xatoliklar, xavfsizlik ogohlantirishlari, badjlar va modallar til o‘zgarganda bir zumda mijoz xotirasida qayta xaritlanadi.
+
+---
+
+## 11. O‘rnatish, Sozlash va Ishga Tushirish (DevOps)
+
+### Tizim talablari:
+* Node.js: `v20.x` yoki `v22.x` (LTS)
+* PostgreSQL: `v15` yoki undan yuqori
+* Operatsion tizim: Linux (Ubuntu 22.04+ tavsiya etiladi), Windows Server yoki macOS
+
+### 1. Repozitoriyni klonlash va bog‘liqliklarni o‘rnatish:
 ```bash
+# Backend bog'liqliklari
 cd back
 npm install
 
-# .env faylini yarating
-cp .env.example .env
-```
-
-`back/.env` faylini o'zingizning PostgreSQL bazangizga moslang:
-```env
-PORT=4000
-NODE_ENV=development
-DATABASE_URL="postgresql://postgres:parol@localhost:5432/wms_db?schema=public"
-JWT_SECRET="super-secret-jwt-key-wms-2026"
-JWT_EXPIRES_IN="1d"
-CORS_ORIGIN="http://localhost:5173"
-```
-
-Baza jadvallarini yaratish va boshlang'ich Super Admin ma'lumotlarini yuklash:
-```bash
-npx prisma generate
-npx prisma db push
-npm run prisma:seed
-```
-
-Backendni ishlab chiqish rejimida ishga tushirish:
-```bash
-npm run dev
-```
-> Backend API: `http://localhost:4000/api/v1`  
-> Swagger Hujjatlari: `http://localhost:4000/docs`
-
-### 3-qadam: Frontendni sozlash va ishga tushirish
-Yangi terminalda:
-```bash
-cd front
+# Frontend bog'liqliklari
+cd ../front
 npm install
-
-# .env faylini tekshiring (agar yo'q bo'lsa yarating)
-# VITE_API_URL=http://localhost:4000/api/v1
-
-npm run dev
 ```
-> Frontend interfeysi: `http://localhost:5173`
 
----
+### 2. Konfiguratsiya fayllari (`.env`):
+**`back/.env`:**
+```env
+PORT=3000
+DATABASE_URL="postgresql://postgres:parol@localhost:5432/wms_db?schema=public"
+JWT_ACCESS_SECRET="enterprise-jwt-access-secret-key-2026"
+JWT_REFRESH_SECRET="enterprise-jwt-refresh-secret-key-2026"
+JWT_ACCESS_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
+TELEGRAM_BOT_TOKEN="optional_bot_token"
+TELEGRAM_CHAT_ID="optional_chat_id"
+```
 
-## 🔑 Dastlabki Kirish Ma'lumotlari (Default Seed Credentials)
+**`front/.env`:**
+```env
+VITE_API_URL="http://localhost:3000/api"
+```
 
-Tizim o'rnatilgandan so'ng quyidagi hisoblar orqali darhol kirishingiz mumkin:
-
-| Foydalanuvchi | Login | Parol | Roli |
-|---|---|---|---|
-| **Bosh Administrator** | `ahmadillohasanov099@gmail.com` | `333053334aa` | `SUPER_ADMIN` |
-| **Qulay Test Admin** | `superadmin` | `test12345` | `SUPER_ADMIN` |
-
----
-
-## 🌐 11. VAQTINCHALIK PREZENTATSIYA VA SERVERGA O'RNATISH (DEPLOYMENT)
-
-### Variant 1: O'z kompyuteringizdan tezkor Taqdimot (Cloudflare Tunnel)
-Agar server sotib olmasdan noutbukingizdagi loyihani masofadan ko'rsatmoqchi bo'lsangiz:
-1. `cloudflared` dasturini yuklab oling.
-2. Backend va Frontendni yoqing.
-3. Terminalda quyidagi buyruqni bering:
-   ```bash
-   cloudflared tunnel --url http://localhost:5173
-   ```
-4. Sizga berilgan bepul vaqtinchalik `https://xxx.trycloudflare.com` havolasini mijozga yoki taqdimotga berishingiz mumkin!
-
-### Variant 2: Docker Compose orqali ishga tushirish (1 buyruq bilan)
-`back` papkasida:
+### 3. Maʼlumotlar bazasini tayyorlash:
 ```bash
-docker-compose up -d --build
+cd back
+npx prisma db push
+npx ts-node prisma/seed.ts
 ```
-Bu buyruq PostgreSQL va Backend konteynerlarini avtomatik ko'taradi.
 
-### Variant 3: Haqiqiy Linux VPS (Ubuntu) Serverga O'rnatish
-1. Serverda Node.js, PostgreSQL va Nginx o'rnating.
-2. Backendni PM2 klaster rejimida ishga tushiring:
-   ```bash
-   cd /var/www/wms-platform/back
-   npm run build
-   pm2 start ecosystem.config.js
-   pm2 save
-   ```
-3. Frontendni build qilib Nginx ga yo'naltiring:
-   ```bash
-   cd /var/www/wms-platform/front
-   npm run build
-   # Chiqqan dist/ papkasi Nginx root papkasi sifatida ko'rsatiladi
-   ```
-4. Bepul Let's Encrypt SSL sertifikatini o'rnating:
-   ```bash
-   sudo certbot --nginx -d sizning-domeningiz.uz
-   ```
+### 4. Ishga tushirish (Development & Production):
+```bash
+# Backend yurgizish
+cd back
+npm run start:dev     # Dev rejim
+npm run build && npm run start:prod # Production
 
----
-
-## ⚡ 12. FOYDALI BUYRUQLAR VA SKRIPTLAR
-
-### Backend buyruqlari:
-* `npm run build` — TypeScript kodini ishlab chiqarish uchun kompilyatsiya qilish (`dist/`)
-* `npm run dev` — Ishlab chiqish rejimida jonli kuzatuv bilan ishga tushirish
-* `npm run start:prod` — Kompilyatsiya qilingan loyihani ishga tushirish
-* `npx prisma studio` — Ma'lumotlar bazasini brauzerda vizual ko'rish va tahrirlash
-* `npx prisma db push` — Prisma sxemasidagi o'zgarishlarni bazaga qo'llash
-
-### Frontend buyruqlari:
-* `npm run dev` — Vite dev-serverni ishga tushirish
-* `npm run build` — Loyihani to'liq tekshirish va production to'plamini yig'ish (`dist/`)
-* `npm run preview` — Yig'ilgan `dist/` to'plamini lokal tekshirib ko'rish
-
----
-
-## 📄 Litsenziya va Mualliflik Huquqi
-Mazkur loyiha **O'zbekiston Respublikasi Qurilish va Uy-Joy Kommunal Xo'jaligi Vazirligi** va uning quyi tizimlari uchun maxsus arxitektura asosida yaratilgan. Barcha mualliflik huquqlari himoyalangan.
-
-
----
-
-## 📁 KORPORATIV FAYLLARNI SAQLASH VA BOSHQARISH ARXITEKTURASI (ENTERPRISE FILE STORAGE ARCHITECTURE)
-
-Katta hajmdagi hujjatlar va buyruqlar (10 000+ fayllar) bilan ishlashda tizimning barqarorligi, xavfsizligi va yuqori tezligini ta'minlash uchun loyihada quyidagi korporativ me'moriy standartlar joriy etilgan:
-
-### 1. Ierarxik saqlash va Partitioning (Directory Sharding)
-Fayllarni bitta yagona papkaga to'plash operatsion tizimning fayllarni qidirish (inode lookup) tezligini keskin pasaytiradi. Shu sababli tizimda tashkilot (boshqarma) va vaqt bo'yicha dinamik ierarxiya qo'llanilgan:
-```text
-uploads/
-  └── decrees/
-       └── {organizationId}/        <-- Viloyat yoki shahar boshqarmasi ID-si
-            └── {year}/             <-- Yil (masalan: 2026)
-                 └── {month}/       <-- Oy (masalan: 10)
-                      └── decree-1729851234-987654.pdf
+# Frontend yurgizish
+cd front
+npm run dev           # Dev rejim (Vite)
+npm run build         # Production yig'ish (dist)
 ```
-* **Natija:** 10 000+ fayl bo'lgan taqdirda ham, har bir quyi papkada ko'pi bilan 50-100 tagacha fayl joylashadi. Natijada fayllarni o'qish/yozish mikrosekundlarda amalga oshadi va fayl tizimi qotmaydi.
 
-### 2. Disk gigiyenasi va Avtomatik tozalash (Lifecycle / Garbage Collection)
-* **Yangi buyruq yuklanganda:** Me'yor (limit) o'zgartirilib, yangi buyruq fayli yuklanganda, tizim avval ushbu limitga biriktirilgan **oldingi faylni diskdan avtomatik ravishda o'chirib tashlaydi** (`fs.unlink`). Diskda faqat eng oxirgi tasdiqlangan buyruq saqlanadi.
-* **Limit o'chirilganda:** Agar ma'lumotlar bazasidan me'yor butunlay o'chirilsa, unga tegishli barcha fizik fayllar ham to'liq tozalanadi.
-* **Natija:** Server diskida "yetim" (orphaned) keraksiz fayllar to'planmaydi, disk xotirasi tejaladi.
+---
 
-### 3. Xotira (RAM) tejamkorligi — Stream (Oqimli) uzatish
-* Fayllarni uzatishda ularni server xotirasiga to'liq yuklovchi `fs.readFileSync` taqiqlangan.
-* Tizim `Node.js Stream` (`fs.createReadStream().pipe(res)`) texnologiyasidan foydalanadi.
-* **Natija:** Bir vaqtning o'zida 100 nafar foydalanuvchi 20 MB lik PDF buyruqni ochgan taqdirda ham, serverning operativ xotirasiga (RAM) og'irlik tushmaydi.
+## 12. Avtomatlashtirilgan Testlar va Sifat Nazorati
 
-### 4. Xavfsizlik va Multi-tenant himoyasi (Security & RBAC)
-* Fayllar ochiq statik papkada (`public static assets`) EMAS, himoyalangan Controller orqali beriladi.
-* **Autentifikatsiya:** So'rovlar `JwtAuthGuard` orqali tekshiriladi (ham `Bearer Token` sarlavhasi, ham xavfsiz `?token=...` URL parametri qo'llab-quvvatlanadi).
-* **Tashkiliy izolyatsiya:** Har bir boshqarma faqat o'z tashkilotiga tegishli buyruqlarni ko'ra oladi va yuklab oladi.
+Loyihada integratsion va xavfsizlik testlari alohida mustaqil skriptlar ko‘rinishida mavjud:
 
-### 5. S3 / MinIO Klasteriga tayyorlik (Storage Adapter Ready)
-* Fayllarni saqlash va boshqarish logikasi biznes-mantiqdan to'liq ajratilgan (Abstraksiya).
-* Kelgusida butun respublika miqyosida markazlashgan Cloud Object Storage (AWS S3, MinIO yoki Cloudflare R2) joriy etilsa, asosiy biznes-kodni o'zgartirmasdan, faqat `StorageAdapter` orqali bulutli xotiraga o'tish imkoniyati kafolatlangan.
+1. **Login Rate Limiting & Lockout Testi (30 ta test):**
+   ```bash
+   cd back
+   npx ts-node -r tsconfig-paths/register scripts/test-login-rate-limit.ts
+   ```
+2. **Admin Real-Vaqtda Unlock & 0-Reset Testi (12 ta test):**
+   ```bash
+   cd back
+   npx ts-node -r tsconfig-paths/register scripts/test-admin-unlock-reset.ts
+   ```
+
+*Barcha testlar 100% muvaffaqiyatli o‘tishi kafolatlangan.*

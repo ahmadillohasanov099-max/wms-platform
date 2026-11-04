@@ -160,9 +160,20 @@
 
 ---
 
-### 4. Rate limiting qoyish
-
-login parolni 3 marta notogri terilsa 1 soatga bloklash 
+### 4. 🛡️ Login Rate Limiting va Progressiv Akkaunt Lockout Himoyasi (Bajarildi ✅ - 2026-11-04):
+- [x] **2 Bosqichli Progressiv Lockout Siyosati (Progressive Lockout Policy):**
+  - **1-bosqich:** 3 marta ketma-ket noto'g'ri parol kiritilganda hisob **15 daqiqaga** vaqtincha bloklanadi.
+  - **2-bosqich:** 15 daqiqalik blok muddati tugagach, agar xodim YANA 1 marta xato kiritsa, tizim xavfsizligi yuzasidan hisob qat'iy **1 soatga (60 daqiqa)** to'liq bloklanadi.
+  - To'g'ri parol bilan kirilganda barcha urinishlar va blok holati to'liq `0` ga tushadi (Reset).
+- [x] **Frontendda Qat'iy Qulflash va Jonli Taymer (Countdown):**
+  - Bloklangan vaqtda Login va Parol inputlari hamda Kirish tugmasi `disabled` (o'zgartirib bo'lmaydigan, xiralashgan) bo'ladi.
+  - Kirish tugmasi ostida kichik qizil yozuvda jonli orqaga sanash ko'rinib turadi:  
+    *"Parol ko‘p marotaba xato kiritildi. 14:52 dan keyin qayta urinib ko'ring"*.
+  - Brauzer xotirasi (`localStorage`) orqali sahifa yangilansa (F5) ham taymer va qulf yo'qolmaydi.
+  - Taymer 00:00 ga yetganda forma va tugma avtomatik qayta faollashadi.
+- [x] **Admin uchun Unlock (Blokdan chiqarish) funksiyasi:**
+  - `PATCH /users/:id/unlock`: Agar xodim parolini unutib bloklanib qolsa, mas'ul admin (`SUPER_ADMIN`, `ORG_ADMIN`, `KADR`) uni xodim profilidan muddatidan oldin blokdan chiqarishi mumkin.
+- [x] **30 ta avtomatlashtirilgan integratsion testdan 100% muvaffaqiyatli o'tdi (`scripts/test-login-rate-limit.ts`).** 
 
 ---
 
@@ -223,4 +234,23 @@ login parolni 3 marta notogri terilsa 1 soatga bloklash
   - Bo'limga berilgan materiallar bo'lim hisobiga (`departmentAsset`) to'g'ri o'tishi va bo'limdan omborga qaytarish mexanizmi ta'minlandi.
 - [x] **Senior darajadagi Bildirishnomalar Dvigateli (Notification Engine):**
   - 7 kunlik vaqt gorizonti, user-scoped storage va "Barchasini o'qildi qilish" (`markAllAsRead`) integratsiya qilindi.
+
+### 🛡️ 6. 2-Bosqichli Progressiv Login Rate Limiting & Real-Vaqtda Admin Unlock Sinxronizatsiyasi (2026-11-04 ✅):
+- [x] **2-Bosqichli Progressiv Bloklash Mantiqi:**
+  - 1-bosqich: Parol ketma-ket 3 marta xato kiritilsa -> hisob 15 daqiqaga vaqtincha bloklanadi.
+  - 2-bosqich: 15 daqiqalik blok muddati o'tib ochilgach, agar foydalanuvchi yana 1 marta xato kiritsa -> hisob qat'iy 1 soatga (60 daqiqa) bloklanadi.
+  - Parol to'g'ri kiritilganda barcha xatoliklar va blok holatlari to'liq 0 ga tushirilib to tozalanadi.
+- [x] **Vazirlik darajasidagi Toast va Kirish Interfeysi:**
+  - Har bir xatoda rasmiy, hurmatli va tushunarli matn (qolgan urinishlar soni haqida xabardor qilish, 8.5 soniya yetarli o'qish vaqti).
+  - Bloklanganda: login va parol maydonlari, shuningdek "Kirish" tugmasi avtomatik qulflanadi (`disabled`, tahrirlab bo'lmaydi).
+  - Tugma ostida kichik qizil yozuvda jonli taymer: `"Parol ko‘p marotaba xato kiritildi. {MM:SS} dan keyin qayta urinib ko'ring"`.
+  - Taymer tugagach (00:00) maydonlar va tugma avtomatik qayta faollashadi.
+  - Boshqa xodim foydalanishi uchun "Boshqa login bilan kirish" tugmasi kiritildi.
+- [x] **Real-vaqtda Admin Unlock Sinxronizatsiyasi & To'liq 0-Reset:**
+  - Mas'ul admin (`SUPER_ADMIN`, `ORG_ADMIN`, `KADR`) xodim detallarida (`user-detail-sub-view.tsx`) `[ 🔑 Blokdan chiqarish ]` tugmasini bosganda yoki statusni faollashtirganda:
+    1. Bazada `failedLoginAttempts: 0` va `lockedUntil: null` qilinadi.
+    2. Login sahifasi `GET /auth/lockout-status` orqali 3 soniyalik real-vaqt sinxronizatsiyasida admin yechganini darhol aniqlaydi.
+    3. Login sahifasidagi taymer shu zahotiyoq to'xtaydi, qizil xatoliklar o'chiriladi (`clearErrors`), maydonlar ochiladi va "Hisobingiz administrator tomonidan blokdan chiqarildi. Tizimga kirishingiz mumkin." deb xabardor qilinadi.
+    4. Keyingi kirish urinishlari to'liq 0 dan (1-urinish sifatida) boshlanadi.
+  - Avtomatlashtirilgan 12 ta integratsion testdan 100% muvaffaqiyatli o'tdi.
 

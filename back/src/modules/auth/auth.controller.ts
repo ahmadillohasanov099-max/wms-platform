@@ -4,6 +4,7 @@ import {
   Get,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,13 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @ApiOperation({ summary: 'Foydalanuvchining login blok holatini tekshirish' })
+  @Throttle({ short: { limit: 20, ttl: 10000 }, long: { limit: 60, ttl: 60000 } })
+  @Get('lockout-status')
+  checkLockout(@Query('username') username?: string) {
+    return this.authService.checkLockoutStatus(username);
   }
 
   @ApiOperation({ summary: 'Token yangilash' })

@@ -1,6 +1,10 @@
 export const translations = {
   "uz": {
     "common": {
+      "show": "Ko'rsatish",
+      "hide": "Yashirish",
+      "showData": "Ma'lumotlarni ko'rsatish",
+      "hideData": "Ma'lumotlarni yashirish",
       "actions": "Amallar",
       "save": "Saqlash",
       "cancel": "Bekor qilish",
@@ -463,7 +467,13 @@ export const translations = {
       "clickToBlock": "Xodimni bloklash uchun bosing",
       "clickToActivate": "Xodimni aktivlashtirish uchun bosing",
       "blockUser": "Xodimni bloklash",
-      "activateUser": "Xodimni aktivlashtirish"
+      "activateUser": "Xodimni aktivlashtirish",
+      "tempLockBadge": "Vaqtincha blok ({time})",
+      "unlockButton": "Blokdan chiqarish",
+      "unlockTooltip": "Parol blokini yechish (Unlock)",
+      "unlockSuccess": "Xodim blokdan muvaffaqiyatli chiqarildi!",
+      "lock1Hour": "1 soat",
+      "lockMinutes": "{minutes} daqiqa"
     },
     "operations": {
       "title": "Operatsiyalar",
@@ -959,7 +969,15 @@ export const translations = {
       "usernameLabel": "Foydalanuvchi nomi",
       "passwordLabel": "Parol",
       "button": "Kirish",
-      "footer": "© 2026 WMS. Barcha huquqlar himoyalangan."
+      "footer": "© 2026 WMS. Barcha huquqlar himoyalangan.",
+      "lockoutCountdown": "Parol ko‘p marotaba xato kiritildi. {time} dan keyin qayta urinib ko'ring",
+      "switchAccount": "Boshqa login bilan kirish",
+      "adminUnlockedNotice": "Hisobingiz administrator tomonidan blokdan chiqarildi. Tizimga kirishingiz mumkin.",
+      "failedAttemptsNotice": "Kiritilgan login yoki parol noto'g'ri. Xavfsizlik talablariga muvofiq, yana {count} ta urinish imkoniyati mavjud.",
+      "warnLastAttempt": "Diqqat, parol qayta noto'g'ri kiritildi! Yana 1 ta xato urinishdan so'ng hisobingiz 15 daqiqaga bloklanadi.",
+      "locked15mNotice": "Parol ketma-ket 3 marta noto'g'ri kiritildi. Tizim xavfsizligini ta'minlash maqsadida hisobingiz 15 daqiqaga vaqtincha bloklandi.",
+      "locked1hNotice": "Parol qayta xato kiritildi! Tizim xavfsizligini ta'minlash maqsadida hisobingiz 1 soat muddatga bloklandi. Zarurat tug'ilganda tashkilot ma'muriga murojaat qiling.",
+      "currentlyLockedNotice": "Ushbu hisob xavfsizlik talablariga muvofiq vaqtincha bloklangan. Kirish huquqi tiklanishiga {minutes} daqiqa qoldi. Zarur hollarda mas'ul adminga murojaat qiling."
     },
     "auditLogs": {
       "title": "Audit Loglar",
@@ -1308,6 +1326,10 @@ export const translations = {
   },
   "ru": {
     "common": {
+      "show": "Показать",
+      "hide": "Скрыть",
+      "showData": "Показать данные",
+      "hideData": "Скрыть данные",
       "actions": "Действия",
       "save": "Сохранить",
       "cancel": "Отмена",
@@ -1770,7 +1792,13 @@ export const translations = {
       "clickToBlock": "Нажмите, чтобы заблокировать сотрудника",
       "clickToActivate": "Нажмите, чтобы активировать сотрудника",
       "blockUser": "Заблокировать сотрудника",
-      "activateUser": "Активировать сотрудника"
+      "activateUser": "Активировать сотрудника",
+      "tempLockBadge": "Временная блокировка ({time})",
+      "unlockButton": "Разблокировать",
+      "unlockTooltip": "Разблокировать пароль сотрудника (Unlock)",
+      "unlockSuccess": "Сотрудник успешно разблокирован!",
+      "lock1Hour": "1 час",
+      "lockMinutes": "{minutes} мин"
     },
     "operations": {
       "title": "Операции",
@@ -2266,7 +2294,15 @@ export const translations = {
       "usernameLabel": "Имя пользователя",
       "passwordLabel": "Пароль",
       "button": "Войти",
-      "footer": "© 2026 WMS. Все права защищены."
+      "footer": "© 2026 WMS. Все права защищены.",
+      "lockoutCountdown": "Пароль введен неверно несколько раз. Повторите попытку через {time}",
+      "switchAccount": "Войти под другим логином",
+      "adminUnlockedNotice": "Ваш аккаунт разблокирован администратором. Вы можете войти в систему.",
+      "failedAttemptsNotice": "Неверный логин или пароль. В целях безопасности осталось попыток: {count}.",
+      "warnLastAttempt": "Внимание! После еще одной неверной попытки аккаунт будет заблокирован на 15 минут.",
+      "locked15mNotice": "Пароль введен неверно 3 раза подряд. В целях безопасности аккаунт временно заблокирован на 15 минут.",
+      "locked1hNotice": "Пароль снова введен неверно! В целях безопасности аккаунт заблокирован на 1 час. Обратитесь к администратору.",
+      "currentlyLockedNotice": "Данный аккаунт временно заблокирован в целях безопасности. До восстановления доступа осталось {minutes} мин. При необходимости обратитесь к администратору."
     },
     "auditLogs": {
       "title": "Журнал Аудита",
@@ -2615,6 +2651,10 @@ export const translations = {
   },
   "en": {
     "common": {
+      "show": "Show",
+      "hide": "Hide",
+      "showData": "Show data",
+      "hideData": "Hide data",
       "actions": "Actions",
       "save": "Save",
       "cancel": "Cancel",
@@ -3077,7 +3117,13 @@ export const translations = {
       "clickToBlock": "Click to block employee",
       "clickToActivate": "Click to activate employee",
       "blockUser": "Block employee",
-      "activateUser": "Activate employee"
+      "activateUser": "Activate employee",
+      "tempLockBadge": "Temporary Lock ({time})",
+      "unlockButton": "Unlock Account",
+      "unlockTooltip": "Unlock employee password (Unlock)",
+      "unlockSuccess": "Employee successfully unlocked!",
+      "lock1Hour": "1 hour",
+      "lockMinutes": "{minutes} mins"
     },
     "operations": {
       "title": "Operations",
@@ -3573,7 +3619,15 @@ export const translations = {
       "usernameLabel": "Username",
       "passwordLabel": "Password",
       "button": "Sign In",
-      "footer": "© 2026 WMS. All rights reserved."
+      "footer": "© 2026 WMS. All rights reserved.",
+      "lockoutCountdown": "Too many failed password attempts. Please try again after {time}",
+      "switchAccount": "Sign in with another account",
+      "adminUnlockedNotice": "Your account has been unlocked by administrator. You can now sign in.",
+      "failedAttemptsNotice": "Invalid username or password. For security reasons, {count} attempts remaining.",
+      "warnLastAttempt": "Warning! After 1 more incorrect attempt, your account will be locked for 15 minutes.",
+      "locked15mNotice": "Password entered incorrectly 3 times. For security reasons, your account is temporarily locked for 15 minutes.",
+      "locked1hNotice": "Password entered incorrectly again! For security reasons, your account is locked for 1 hour. Please contact your administrator.",
+      "currentlyLockedNotice": "This account is temporarily locked for security purposes. Access will be restored in {minutes} minutes. Contact administrator if needed."
     },
     "auditLogs": {
       "title": "Audit Logs",

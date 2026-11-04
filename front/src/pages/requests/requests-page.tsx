@@ -34,7 +34,7 @@ export default function RequestsPage() {
     user?.role === 'ORG_ADMIN' ||
     user?.role === 'ORG_OMBORCHI';
 
-  const canViewAll = canManage || user?.role === 'KADR';
+  const canViewAll = canManage;
 
   const isMinistry =
     user?.role === 'SUPER_ADMIN' ||

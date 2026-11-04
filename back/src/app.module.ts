@@ -29,23 +29,27 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000,
-        limit: 30, // Max 30 req / sec
-      },
-      {
-        name: 'medium',
-        ttl: 10000,
-        limit: 150, // Max 150 req / 10 sec
-      },
-      {
-        name: 'long',
-        ttl: 60000,
-        limit: 500, // Max 500 req / min
-      },
-    ]),
+    ThrottlerModule.forRoot({
+      errorMessage:
+        "Juda ko'p so'rov yuborildi. Iltimos, biroz kutib qayta urinib ko'ring.",
+      throttlers: [
+        {
+          name: 'short',
+          ttl: 1000,
+          limit: 30, // Max 30 req / sec
+        },
+        {
+          name: 'medium',
+          ttl: 10000,
+          limit: 150, // Max 150 req / 10 sec
+        },
+        {
+          name: 'long',
+          ttl: 60000,
+          limit: 500, // Max 500 req / min
+        },
+      ],
+    }),
     I18nModule.forRoot({
       fallbackLanguage: 'uz',
       loaderOptions: {

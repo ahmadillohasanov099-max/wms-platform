@@ -170,6 +170,10 @@ model User {
   isActive         Boolean          @default(true)
   telegramChatId   String?          @unique
 
+  // Rate Limiting & Account Lockout
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 

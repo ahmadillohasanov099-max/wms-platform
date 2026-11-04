@@ -2,8 +2,6 @@ import { Controller, Get, Post, Body, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../../prisma';
 import { TelegramService } from './telegram.service';
-import { AiService } from './ai.service';
-import { AskAiDto } from './dto/ask-ai.dto';
 import { TelegramLoginDto } from './dto/telegram-login.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -12,16 +10,7 @@ export class TelegramController {
   constructor(
     private prisma: PrismaService,
     private telegramService: TelegramService,
-    private aiService: AiService,
   ) {}
-
-  @Post('ask-ai')
-  async handleAskAi(@Body() dto: AskAiDto) {
-    const { query, user } = dto;
-    const boundUser = user || { fullName: 'Foydalanuvchi', role: 'SUPER_ADMIN' };
-    const answer = await this.aiService.askAi(query, boundUser);
-    return { success: true, answer };
-  }
 
   /**
    * Telegram WebApp Modal Login sahifasi (HTML)
