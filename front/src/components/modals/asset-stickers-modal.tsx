@@ -94,7 +94,7 @@ export default function AssetStickersModal({ open, onClose, assets }: Props) {
 
     let isMounted = true;
     const generatePreviewQrs = async () => {
-      const origin = window.location.origin;
+      const origin = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
       const newMap: Record<string, string> = {};
 
       for (const asset of currentPageAssets) {
@@ -163,7 +163,7 @@ export default function AssetStickersModal({ open, onClose, assets }: Props) {
     setIsPreparingPrint(true);
     setPrintProgress(0);
 
-    const origin = window.location.origin;
+    const origin = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
     const qrSvgMap: Record<string, string> = {};
     const batchSize = 40;
 
