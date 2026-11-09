@@ -277,6 +277,76 @@ export class InventoryService {
     });
   }
 
+  async getAllAssets(targetOrgId?: string, currentUser?: any) {
+    const resolvedOrgId = enforceTenantOrgId(currentUser, targetOrgId);
+    const orgFilter: any = resolvedOrgId ? { organizationId: resolvedOrgId } : {};
+
+    const assets = await this.prisma.asset.findMany({
+      where: {
+        deletedAt: null,
+        status: { not: 'WRITTEN_OFF' },
+        product: {
+          deletedAt: null,
+          ...orgFilter,
+        },
+      },
+      select: {
+        id: true,
+        inventoryNumber: true,
+        serialNumber: true,
+        status: true,
+        createdAt: true,
+        organization: {
+          select: { id: true, name: true },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            organization: { select: { id: true, name: true } },
+          },
+        },
+        assignments: {
+          where: { returnedAt: null },
+          take: 1,
+          select: {
+            id: true,
+            user: { select: { fullName: true } },
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2000,
+    });
+
+    return assets.map((a) => {
+      const activeAsgn = a.assignments?.[0];
+      const isAssigned = !!activeAsgn;
+      const holderName = isAssigned
+        ? activeAsgn.user?.fullName || activeAsgn.department?.name || 'Biriktirilgan'
+        : 'Omborda';
+      const departmentName = isAssigned
+        ? activeAsgn.department?.name || '—'
+        : 'Ombor';
+      const organizationName = a.organization?.name || a.product?.organization?.name || 'Vazirlik';
+
+      return {
+        id: a.id,
+        productId: a.product?.id,
+        productName: a.product?.name || "Noma'lum",
+        inventoryNumber: a.inventoryNumber,
+        serialNumber: a.serialNumber || '—',
+        status: a.status,
+        isAssigned,
+        holderName,
+        departmentName,
+        organizationName,
+        createdAt: a.createdAt,
+      };
+    });
+  }
+
   async getLowStock(organizationId?: string): Promise<any[]> {
     if (organizationId) {
       return this.prisma.$queryRaw`

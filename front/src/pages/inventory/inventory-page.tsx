@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, AlertTriangle, History as HistoryIcon, Edit2, Trash2, Boxes, PackageCheck, TrendingUp, Sparkles, Wrench, CheckCircle2 } from 'lucide-react';
+import { Plus, AlertTriangle, History as HistoryIcon, Edit2, Trash2, Boxes, PackageCheck, TrendingUp, Sparkles, Wrench, CheckCircle2, QrCode } from 'lucide-react';
 import { inventoryApi, productsApi, operationsApi } from '../../api';
 import { Card, Button, Select, Table, Pagination, ConfirmDialog, ProductTypeBadge, PageHeader, SearchFilterCard, StatsCard } from '../../components/ui';
 import { formatCurrency, formatCompactCurrency, formatDate, invalidateAppQueries } from '../../lib/utils';
@@ -12,6 +12,7 @@ import ProductFormModal from '../products/product-form-modal';
 import ProductHistoryModal from '../products/product-history-modal';
 import ProductDetailModal from '../products/product-detail-modal';
 import RepairCompleteModal from '../../components/modals/repair-complete-modal';
+import AssetStickersModal from '../../components/modals/asset-stickers-modal';
 import CopyableInventoryNumber from '../../components/ui/copyable-inventory-number';
 import { useAuthStore } from '../../store/auth.store';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -53,6 +54,22 @@ export default function InventoryPage() {
   const [minLevelEdit, setMinLevelEdit] = useState<string | null>(null);
   const [minLevelValue, setMinLevelValue] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
+  const [stickersModalOpen, setStickersModalOpen] = useState(false);
+  const [allAssetsList, setAllAssetsList] = useState<any[]>([]);
+  const [loadingAllAssets, setLoadingAllAssets] = useState(false);
+
+  const handleOpenAllStickers = async () => {
+    try {
+      setLoadingAllAssets(true);
+      const res = await inventoryApi.getAllAssets();
+      setAllAssetsList(res || []);
+      setStickersModalOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Jihozlar ro'yxatini yuklashda xatolik");
+    } finally {
+      setLoadingAllAssets(false);
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory', debouncedSearch],
@@ -535,6 +552,17 @@ export default function InventoryPage() {
             >
               {t('common.excel')}
             </Button>
+            {isSuperAdmin && (
+              <Button
+                variant="outline"
+                className="border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-bold"
+                icon={<QrCode className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                onClick={handleOpenAllStickers}
+                loading={loadingAllAssets}
+              >
+                🏷️ Barcha QR Stikerlar
+              </Button>
+            )}
             {isAdmin && (
               <>
                 <Button
@@ -859,6 +887,22 @@ export default function InventoryPage() {
           });
         }}
       />
+
+      {stickersModalOpen && (
+        <AssetStickersModal
+          open={stickersModalOpen}
+          onClose={() => setStickersModalOpen(false)}
+          assets={allAssetsList.map((a: any) => ({
+            id: a.id,
+            inventoryNumber: a.inventoryNumber,
+            serialNumber: a.serialNumber,
+            productName: a.productName,
+            organizationName: a.organizationName,
+            departmentName: a.departmentName,
+            status: a.status,
+          }))}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { InventoryController } from './inventory.controller';
+import { PublicAssetController } from './public-asset.controller';
 import { InventoryService } from './inventory.service';
 import { InventoryExcelService } from './services/inventory-excel.service';
 
 @Module({
-  controllers: [InventoryController],
+  controllers: [InventoryController, PublicAssetController],
   providers: [InventoryService, InventoryExcelService],
   exports: [InventoryService, InventoryExcelService],
 })

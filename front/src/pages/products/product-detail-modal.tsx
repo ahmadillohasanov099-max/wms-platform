@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { productsApi } from "../../api";
@@ -8,8 +9,9 @@ import { ProductTypeBadge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
 import CopyableInventoryNumber from "../../components/ui/copyable-inventory-number";
 import { formatProductQuantity, getUnitLabel } from "../../lib/quantity-utils";
+import AssetStickersModal from "../../components/modals/asset-stickers-modal";
 
-import { ShieldCheck, User, Building2, History, Edit2, PackageCheck, Wrench } from "lucide-react";
+import { ShieldCheck, User, Building2, History, Edit2, PackageCheck, Wrench, Tag } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -23,6 +25,7 @@ interface Props {
 export default function ProductDetailModal({ open, onClose, productId, onOpenHistory, onOpenEdit, disableLinks }: Props) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [showStickersModal, setShowStickersModal] = useState(false);
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
     queryFn: () => (productId ? productsApi.getOne(productId) : null),
@@ -36,12 +39,13 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
   const inventory = product?.inventory;
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={product ? product.name : t('productDetail.title')}
-      size="xl"
-    >
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={product ? product.name : t('productDetail.title')}
+        size="xl"
+      >
       {isLoading ? (
         <TableSkeleton rows={5} cols={4} />
       ) : !product ? (
@@ -106,6 +110,17 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
                 <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 {t('productDetail.invAssetsTitle', { count: assets.length })}
               </h4>
+              {assets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowStickersModal(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 rounded-lg transition-colors cursor-pointer"
+                  title="Ushbu mahsulotning barcha jihozlari uchun QR stikerlar chiqarish"
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  QR Stikerlar ({assets.length})
+                </button>
+              )}
             </div>
 
             {assets.length === 0 ? (
@@ -285,5 +300,25 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
         </div>
       )}
     </Modal>
+
+    {showStickersModal && (
+      <AssetStickersModal
+        open={showStickersModal}
+        onClose={() => setShowStickersModal(false)}
+        assets={assets.map((a: any) => ({
+          id: a.id,
+          inventoryNumber: a.inventoryNumber,
+          serialNumber: a.serialNumber,
+          productName: product?.name || '',
+          organizationName: (product as any)?.organization?.name,
+          departmentName:
+            a.assignments?.find((asgn: any) => !asgn.returnedAt)?.department?.name ||
+            a.assignments?.find((asgn: any) => !asgn.returnedAt)?.user?.department?.name ||
+            (a.assignments?.find((asgn: any) => !asgn.returnedAt)?.user ? 'Xodimda' : 'Omborda'),
+          status: a.status,
+        }))}
+      />
+    )}
+  </>
   );
 }

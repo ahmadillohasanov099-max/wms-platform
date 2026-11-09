@@ -2,14 +2,50 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { StatsAnalyticsService } from './services/stats-analytics.service';
 
+interface CacheItem<T> {
+  data: T;
+  expiresAt: number;
+}
+
 @Injectable()
 export class StatsService {
+  private readonly memoryCache = new Map<string, CacheItem<any>>();
+  private readonly DEFAULT_TTL_MS = 30 * 1000; // 30 soniyalik tezkor kesh
+
   constructor(
     private prisma: PrismaService,
     private analyticsService: StatsAnalyticsService,
   ) {}
 
+  private getCached<T>(key: string): T | null {
+    const item = this.memoryCache.get(key);
+    if (!item) return null;
+    if (Date.now() > item.expiresAt) {
+      this.memoryCache.delete(key);
+      return null;
+    }
+    return item.data;
+  }
+
+  private setCached<T>(key: string, data: T, ttlMs = this.DEFAULT_TTL_MS): T {
+    if (this.memoryCache.size > 500) {
+      const now = Date.now();
+      for (const [k, v] of this.memoryCache.entries()) {
+        if (now > v.expiresAt) this.memoryCache.delete(k);
+      }
+    }
+    this.memoryCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+    return data;
+  }
+
+  public clearCache(): void {
+    this.memoryCache.clear();
+  }
+
   async getOverview(organizationId?: string) {
+    const cacheKey = `stats_overview_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -115,7 +151,7 @@ export class StatsService {
     const assetProductsCount = productTypeCounts.find((p) => p.productType === 'BERILADIGAN')?._count.id ?? 0;
     const consumableProductsCount = productTypeCounts.find((p) => p.productType === 'SARFLANADIGAN')?._count.id ?? 0;
 
-    return {
+    const result = {
       totalProducts,
       totalUsers,
       totalDepartments,
@@ -137,9 +173,15 @@ export class StatsService {
         assignments: assignmentsTrend,
       },
     };
+
+    return this.setCached(cacheKey, result);
   }
 
   async getByDepartment(organizationId?: string) {
+    const cacheKey = `stats_by_dept_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
     const orgFilter = organizationId ? { organizationId } : {};
 
     const [departments, deptAssetSums] = await Promise.all([
@@ -178,7 +220,7 @@ export class StatsService {
       }
     }
 
-    return departments.map((dept) => {
+    const result = departments.map((dept) => {
       let assetCount = 0;
       let consumableCount = 0;
       for (const da of dept.departmentAssets) {
@@ -204,9 +246,15 @@ export class StatsService {
         })),
       };
     });
+
+    return this.setCached(cacheKey, result);
   }
 
   async getByProduct(organizationId?: string) {
+    const cacheKey = `stats_by_product_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
     const orgFilter = organizationId ? { organizationId } : {};
 
     const [operations, products] = await Promise.all([
@@ -236,7 +284,7 @@ export class StatsService {
       }
     });
 
-    return products.map((product) => ({
+    const result = products.map((product) => ({
       id: product.id,
       name: product.name,
       productType: product.productType,
@@ -244,9 +292,15 @@ export class StatsService {
       minLevel: product.inventory?.minLevel ?? 0,
       totalOut: opsMap.get(product.id) || 0,
     }));
+
+    return this.setCached(cacheKey, result);
   }
 
   async getLowStock(organizationId?: string) {
+    const cacheKey = `stats_low_stock_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
     const rows = await this.prisma.$queryRaw<
       Array<{
         productId: string;
@@ -273,7 +327,7 @@ export class StatsService {
       LIMIT 100
     `;
 
-    return rows.map((item) => ({
+    const result = rows.map((item) => ({
       productId: item.productId,
       name: item.name,
       productType: item.productType,
@@ -282,15 +336,21 @@ export class StatsService {
       minLevel: item.minLevel,
       shortage: Math.max(0, item.minLevel - item.quantity),
     }));
+
+    return this.setCached(cacheKey, result);
   }
 
   async getMonthly(organizationId?: string) {
+    const cacheKey = `stats_monthly_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
     sixMonthsAgo.setDate(1);
     sixMonthsAgo.setHours(0, 0, 0, 0);
 
-    const result = await this.prisma.$queryRaw<
+    const resultRows = await this.prisma.$queryRaw<
       Array<{ month: string; stock_in: bigint; stock_out: bigint }>
     >`
       SELECT
@@ -304,18 +364,28 @@ export class StatsService {
       ORDER BY month ASC
     `;
 
-    return result.map((r) => ({
+    const result = resultRows.map((r) => ({
       month: r.month,
       stockIn: Number(r.stock_in),
       stockOut: Number(r.stock_out),
     }));
+
+    return this.setCached(cacheKey, result);
   }
 
   async getComparison(organizationId?: string) {
-    return this.analyticsService.getComparison(organizationId);
+    const cacheKey = `stats_comparison_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await this.analyticsService.getComparison(organizationId);
+    return this.setCached(cacheKey, result);
   }
 
   async getByUser(organizationId?: string) {
+    const cacheKey = `stats_by_user_${organizationId || 'all'}`;
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
     const userAssetStats = await this.prisma.$queryRaw<
       Array<{ user_id: string; asset_count: bigint; total_value: number }>
     >`
@@ -362,7 +432,7 @@ export class StatsService {
       }
     }
 
-    return users.map((user) => {
+    const result = users.map((user) => {
       const stats = statsMap.get(user.id);
       return {
         id: user.id,
@@ -375,10 +445,17 @@ export class StatsService {
         assets: [],
       };
     }).sort((a, b) => b.assetCount - a.assetCount);
+
+    return this.setCached(cacheKey, result);
   }
 
   async getConsolidatedStats() {
-    return this.analyticsService.getConsolidatedStats();
+    const cacheKey = 'stats_consolidated';
+    const cached = this.getCached<any>(cacheKey);
+    if (cached) return cached;
+
+    const result = await this.analyticsService.getConsolidatedStats();
+    return this.setCached(cacheKey, result);
   }
 }
 

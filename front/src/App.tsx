@@ -1,32 +1,34 @@
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/layout/app-layout";
 import { PageLoader } from "./components/ui/spinner";
 import type { UserRole } from "./types";
 import { useAuthStore } from "./store/auth.store";
-
-import LoginPage from "./pages/auth/login-page";
-import DashboardPage from "./pages/dashboard/dashboard-page";
-import InventoryPage from "./pages/inventory/inventory-page";
-import WriteOffPage from "./pages/inventory/write-off-page";
-import DepartmentsPage from "./pages/departments/departments-page";
-import UsersPage from "./pages/users/users-page";
-import UserDetailPage from "./pages/users/user-detail-page";
-import OperationsPage from "./pages/operations/operations-page";
-import HistoryPage from "./pages/history/history-page";
-import AssignedAssetsPage from "./pages/assigned-assets/assigned-assets-page";
-import StatsPage from "./pages/stats/stats-page";
-import ProfileInfoPage from "./pages/profile/profile-info-page";
-import ProfileDepartmentPage from "./pages/profile/profile-department-page";
-import ProfileAssetsPage from "./pages/profile/profile-assets-page";
-import ProfileSecurityPage from "./pages/profile/profile-security-page";
-import RequestsPage from "./pages/requests/requests-page";
-import AuditLogsPage from "./pages/audit/audit-logs-page";
-import AuditLogDetailPage from "./pages/audit/audit-log-detail-page";
-import OrganizationsPage from "./pages/organizations/organizations-page";
-import OrganizationDetailPage from "./pages/organizations/organization-detail-page";
-import SupplyRequestsPage from "./pages/departments/supply-requests-page";
 import { getDefaultRouteForRole } from "./lib/utils";
+
+// Route Lazy Loading for maximal bundle optimization and instant page transitions
+const LoginPage = lazy(() => import("./pages/auth/login-page"));
+const DashboardPage = lazy(() => import("./pages/dashboard/dashboard-page"));
+const InventoryPage = lazy(() => import("./pages/inventory/inventory-page"));
+const WriteOffPage = lazy(() => import("./pages/inventory/write-off-page"));
+const DepartmentsPage = lazy(() => import("./pages/departments/departments-page"));
+const UsersPage = lazy(() => import("./pages/users/users-page"));
+const UserDetailPage = lazy(() => import("./pages/users/user-detail-page"));
+const OperationsPage = lazy(() => import("./pages/operations/operations-page"));
+const HistoryPage = lazy(() => import("./pages/history/history-page"));
+const AssignedAssetsPage = lazy(() => import("./pages/assigned-assets/assigned-assets-page"));
+const StatsPage = lazy(() => import("./pages/stats/stats-page"));
+const ProfileInfoPage = lazy(() => import("./pages/profile/profile-info-page"));
+const ProfileDepartmentPage = lazy(() => import("./pages/profile/profile-department-page"));
+const ProfileAssetsPage = lazy(() => import("./pages/profile/profile-assets-page"));
+const ProfileSecurityPage = lazy(() => import("./pages/profile/profile-security-page"));
+const RequestsPage = lazy(() => import("./pages/requests/requests-page"));
+const AuditLogsPage = lazy(() => import("./pages/audit/audit-logs-page"));
+const AuditLogDetailPage = lazy(() => import("./pages/audit/audit-log-detail-page"));
+const OrganizationsPage = lazy(() => import("./pages/organizations/organizations-page"));
+const OrganizationDetailPage = lazy(() => import("./pages/organizations/organization-detail-page"));
+const SupplyRequestsPage = lazy(() => import("./pages/departments/supply-requests-page"));
+const AssetScanPage = lazy(() => import("./pages/public/asset-scan-page"));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -97,6 +99,11 @@ export default function App() {
               <LoginPage />
             </GuestOnly>
           }
+        />
+
+        <Route
+          path="/scan/:inventoryNumber"
+          element={<AssetScanPage />}
         />
 
         <Route

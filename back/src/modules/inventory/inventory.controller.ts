@@ -81,6 +81,17 @@ export class InventoryController {
     return this.inventoryService.getInRepairAssets(targetOrgId, user);
   }
 
+  @ApiOperation({ summary: "Barcha asosiy vositalar ro'yxati (QR stikerlar va monitoring uchun)" })
+  @Roles(...INVENTORY_VIEWERS)
+  @Get('all-assets')
+  getAllAssets(
+    @Query('organizationId') organizationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const targetOrgId = organizationId ? organizationId : user?.organizationId;
+    return this.inventoryService.getAllAssets(targetOrgId, user);
+  }
+
   @ApiOperation({ summary: 'Ombor hisobotini Excel (.xlsx) formatda eksport qilish' })
   @Roles(...INVENTORY_VIEWERS)
   @Get('export')

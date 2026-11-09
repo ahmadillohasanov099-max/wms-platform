@@ -8,8 +8,10 @@ import {
   Wallet,
   Download,
   Search,
+  QrCode,
 } from 'lucide-react';
 import { inventoryApi, departmentsApi } from '../../api';
+import AssetStickersModal from '../../components/modals/asset-stickers-modal';
 import {
   Card,
   CardContent,
@@ -40,6 +42,8 @@ export default function AssignedAssetsPage() {
   const [holderTypeFilter, setHolderTypeFilter] = useState<'ALL' | 'USER' | 'DEPARTMENT'>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
   const [exportLoading, setExportLoading] = useState(false);
+  const [stickerModalOpen, setStickerModalOpen] = useState(false);
+  const [singleStickerAsset, setSingleStickerAsset] = useState<any | null>(null);
 
   // Fetch all active assigned assets directly from backend
   const { data: assignedAssetsData, isLoading: assetsLoading } = useQuery({
@@ -315,6 +319,24 @@ export default function AssignedAssetsPage() {
         </span>
       ),
     },
+    {
+      key: 'qrSticker',
+      title: 'QR',
+      className: 'w-12 text-center',
+      render: (_: any, row: any) => (
+        <button
+          type="button"
+          onClick={() => {
+            setSingleStickerAsset(row);
+            setStickerModalOpen(true);
+          }}
+          title="QR Stikerni chop etish"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
+        >
+          <QrCode className="w-4 h-4" />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -324,16 +346,31 @@ export default function AssignedAssetsPage() {
         title={t('assignedAssets.title')}
         subtitle={t('assignedAssets.subtitle')}
         actions={
-          <Button
-            onClick={handleExport}
-            variant="outline"
-            loading={exportLoading}
-            disabled={exportLoading || filteredItems.length === 0}
-            className="flex items-center gap-2 font-bold"
-          >
-            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>{t('assignedAssets.exportExcel')}</span>
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <Button
+              onClick={() => {
+                setSingleStickerAsset(null);
+                setStickerModalOpen(true);
+              }}
+              variant="outline"
+              disabled={filteredItems.length === 0}
+              className="flex items-center gap-2 font-bold border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+            >
+              <QrCode className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>QR Stikerlar</span>
+            </Button>
+
+            <Button
+              onClick={handleExport}
+              variant="outline"
+              loading={exportLoading}
+              disabled={exportLoading || filteredItems.length === 0}
+              className="flex items-center gap-2 font-bold"
+            >
+              <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('assignedAssets.exportExcel')}</span>
+            </Button>
+          </div>
         }
       />
 
@@ -456,6 +493,36 @@ export default function AssignedAssetsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* QR Stickers Print Modal */}
+      <AssetStickersModal
+        open={stickerModalOpen}
+        onClose={() => {
+          setStickerModalOpen(false);
+          setSingleStickerAsset(null);
+        }}
+        assets={
+          singleStickerAsset
+            ? [
+                {
+                  id: singleStickerAsset.id || singleStickerAsset.inventoryNumber,
+                  inventoryNumber: singleStickerAsset.inventoryNumber,
+                  serialNumber: singleStickerAsset.serialNumber,
+                  productName: singleStickerAsset.productName,
+                  organizationName: singleStickerAsset.organizationName,
+                  departmentName: singleStickerAsset.departmentName,
+                },
+              ]
+            : filteredItems.map((item) => ({
+                id: item.id || item.inventoryNumber,
+                inventoryNumber: item.inventoryNumber,
+                serialNumber: item.serialNumber,
+                productName: item.productName,
+                organizationName: item.organizationName,
+                departmentName: item.departmentName,
+              }))
+        }
+      />
     </div>
   );
 }

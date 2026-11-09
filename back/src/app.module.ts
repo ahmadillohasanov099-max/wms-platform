@@ -19,6 +19,7 @@ import { OperationsModule } from './modules/operations';
 import { StatsModule } from './modules/stats';
 import { MailModule } from './modules/nodemailer';
 import { LimitsModule } from './modules/limits/limits.module';
+import { HealthModule } from './modules/health';
 import { EventsModule } from './modules/events';
 import { OrganizationsModule } from './modules/organizations';
 import { RequestsModule } from './modules/requests';
@@ -78,6 +79,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     LimitsModule,
     StatsModule,
     MailModule,
+    HealthModule,
   ],
   providers: [
     {

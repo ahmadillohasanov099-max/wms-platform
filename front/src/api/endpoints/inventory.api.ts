@@ -1,5 +1,6 @@
 import api from "../axios";
 import type { Inventory, SetMinLevelDto, BulkStockInDto } from "../../types/inventory.types";
+
 export const inventoryApi = {
   getAll: (params?: { organizationId?: string; search?: string }) =>
     api.get<Inventory[]>("/inventory", { params }).then((r) => r.data),
@@ -7,6 +8,8 @@ export const inventoryApi = {
     api.get<any[]>("/inventory/assigned-assets", { params }).then((r) => r.data),
   getInRepairAssets: (params?: { organizationId?: string }) =>
     api.get<any[]>("/inventory/in-repair", { params }).then((r) => r.data),
+  getAllAssets: (params?: { organizationId?: string }) =>
+    api.get<any[]>("/inventory/all-assets", { params }).then((r) => r.data),
   getOne: (productId: string) =>
     api.get<Inventory>(`/inventory/${productId}`).then((r) => r.data),
   getLowStock: () =>
@@ -100,4 +103,8 @@ export const inventoryApi = {
   exportCsv: async (organizationId?: string, productType?: string) => {
     return inventoryApi.exportExcel(organizationId, productType);
   },
+  getPublicAssetPassport: (invNumber: string) =>
+    api
+      .get<any>(`/public/assets/${encodeURIComponent(invNumber)}`)
+      .then((r) => r.data),
 };

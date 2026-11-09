@@ -58,4 +58,16 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
 
+# Database Backups
+backups/
+*.dump
+*.backup
+*.sql.gz
+
 /generated/prisma
+
+# Database Backups
+backups/
+*.dump
+*.backup
+*.sql.gz
