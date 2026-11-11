@@ -240,6 +240,42 @@ export class TelegramSenderService {
     return successCount > 0;
   }
 
+  /**
+   * Telegram API ga so'rov yuborish (429 Flood Control va Auto-Retry bilan)
+   */
+  private async postTelegramApi(endpoint: string, body: any, retryCount = 0): Promise<any> {
+    const { token } = this.getCredentials();
+    if (!token) return null;
+
+    try {
+      const url = `https://api.telegram.org/bot${token}/${endpoint}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      // Telegram 429 Flood Control: retry_after soniya kutib qayta urinish
+      if (!data.ok && data.error_code === 429 && retryCount < 2) {
+        const waitSec = data.parameters?.retry_after || 1;
+        this.logger.warn(`Telegram Rate Limit (429)! ${waitSec}s kutilmoqda... (qayta urinish: ${retryCount + 1})`);
+        await new Promise((r) => setTimeout(r, (waitSec + 0.5) * 1000));
+        return this.postTelegramApi(endpoint, body, retryCount + 1);
+      }
+
+      return data;
+    } catch (err: any) {
+      if (retryCount < 1) {
+        await new Promise((r) => setTimeout(r, 500));
+        return this.postTelegramApi(endpoint, body, retryCount + 1);
+      }
+      this.logger.error(`Telegram API (${endpoint}) xatosi: ${err.message}`);
+      return null;
+    }
+  }
+
   async sendMessage(message: string, overrideChatId?: string, organizationId?: string): Promise<boolean> {
     const { token } = this.getCredentials();
     if (!token) return false;
@@ -247,45 +283,31 @@ export class TelegramSenderService {
     const chatIds = await this.getAdminChatIds(overrideChatId, organizationId);
     if (chatIds.length === 0) return false;
 
-    let successCount = 0;
+    const results = await Promise.allSettled(
+      chatIds.map(async (targetChatId) => {
+        const payload: any = {
+          chat_id: targetChatId,
+          text: message,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        };
 
-    for (const targetChatId of chatIds) {
-      try {
-        const url = `https://api.telegram.org/bot${token}/sendMessage`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: targetChatId,
-            text: message,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true,
-          }),
+        const data = await this.postTelegramApi('sendMessage', payload);
+        if (data?.ok) return true;
+
+        // Agar HTML parse xato bersa, oddiy matn sifatida fallback
+        const plainText = message.replace(/<[^>]*>/g, '');
+        const fallbackData = await this.postTelegramApi('sendMessage', {
+          ...payload,
+          text: plainText,
+          parse_mode: undefined,
         });
-        const data = await res.json();
-        if (data.ok) {
-          successCount++;
-        } else {
-          const plainText = message.replace(/<[^>]*>/g, '');
-          const fallbackRes = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: targetChatId,
-              text: plainText,
-              disable_web_page_preview: true,
-            }),
-          });
-          const fallbackData = await fallbackRes.json();
-          if (fallbackData.ok) {
-            successCount++;
-          }
-        }
-      } catch (err: any) {
-        this.logger.error(`Telegram error (${targetChatId}): ${err.message}`);
-      }
-    }
-    return successCount > 0;
+
+        return Boolean(fallbackData?.ok);
+      }),
+    );
+
+    return results.some((r) => r.status === 'fulfilled' && r.value === true);
   }
 
   async sendMessageWithKeyboard(message: string, keyboard: any, overrideChatId?: string): Promise<boolean> {
@@ -294,33 +316,41 @@ export class TelegramSenderService {
     if (!token || !rawTarget) return false;
 
     const chatIds = rawTarget.split(',').map((id) => id.trim()).filter(Boolean);
-    let successCount = 0;
+    if (chatIds.length === 0) return false;
 
-    for (const targetChatId of chatIds) {
-      try {
-        const url = `https://api.telegram.org/bot${token}/sendMessage`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: targetChatId,
-            text: message,
-            parse_mode: 'HTML',
-            reply_markup: keyboard,
-            disable_web_page_preview: true,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          successCount++;
-        } else {
-          this.logger.error(`Telegram sendMessageWithKeyboard error (${targetChatId}): ${data.description}`);
-        }
-      } catch (err: any) {
-        this.logger.error(`Telegram error (${targetChatId}): ${err.message}`);
-      }
+    const results = await Promise.allSettled(
+      chatIds.map(async (targetChatId) => {
+        const payload = {
+          chat_id: targetChatId,
+          text: message,
+          parse_mode: 'HTML',
+          reply_markup: keyboard,
+          disable_web_page_preview: true,
+        };
+
+        const data = await this.postTelegramApi('sendMessage', payload);
+        return Boolean(data?.ok);
+      }),
+    );
+
+    return results.some((r) => r.status === 'fulfilled' && r.value === true);
+  }
+
+  async editMessageText(chatId: string, messageId: number, text: string, replyMarkup?: any): Promise<boolean> {
+    if (!chatId || !messageId) return false;
+
+    const body: any = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+    };
+    if (replyMarkup !== undefined) {
+      body.reply_markup = replyMarkup;
     }
-    return successCount > 0;
+
+    const data = await this.postTelegramApi('editMessageText', body);
+    return Boolean(data?.ok);
   }
 
   async sendDocumentBuffer(filename: string, buffer: Buffer, caption: string, overrideChatId?: string, organizationId?: string): Promise<boolean> {

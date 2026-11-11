@@ -15,7 +15,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
-  @MaxLength(100)
+  @MaxLength(300)
   name?: string;
 
   @ApiPropertyOptional({ example: 'PRD-001' })

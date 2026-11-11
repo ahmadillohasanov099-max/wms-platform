@@ -259,7 +259,7 @@ export const translations = {
       "inventoryNumbersPlaceholder": "Har bir raqamni yangi qatordan yoki vergul bilan ajratib kiriting. Masalan: INV-001, INV-002",
       "serialNumbersPlaceholder": "Seriya raqamlarini newline yoki vergul bilan ajratib kiriting",
       "validationInvQtyMismatch": "Kiritilgan inventar raqamlari soni ({entered}) miqdorga ({expected}) teng bo'lishi kerak!",
-      "masterImportBtn": "Yagona Master Kirim",
+      "masterImportBtn": "Master Kirim",
       "validationInvRequired": "Inventar raqami kiritilishi shart",
       "validationInvUnique": "Inventar raqamlari takrorlanmasligi shart!",
       "bulkImportNotice": "* 100 dan ortiq mahsulotlar uchun Ommaviy kirim (Bulk) xizmatidan foydalaning.",
@@ -320,6 +320,24 @@ export const translations = {
         "dropOrBrowse": "yoki bosib kompyuterdan tanlang (.xlsx, .xlsm, .xls)",
         "startImport": "Kirim Qilish"
       }
+    },
+    "qrStickers": {
+      "title": "QR Stikerlar",
+      "subtitle": "30 ta stiker / A4",
+      "btnAll": "QR Stikerlar",
+      "sheet1": "1 varoq ({count})",
+      "sheet2": "2 varoq ({count})",
+      "all": "Barchasi ({count})",
+      "clear": "Tozalash",
+      "selected": "Tanlandi",
+      "sheets": "({sheets} varoq)",
+      "selectCurrentPage": "+ Varoqdagilarni tanlash",
+      "empty": "Jihozlar topilmadi.",
+      "notFound": "\"{query}\" bo‘yicha topilmadi.",
+      "preparing": "Stikerlar tayyorlanmoqda...",
+      "preparingDesc": "Vektorli QR-kodlar generatsiya qilinmoqda ({progress}%)",
+      "printBtn": "Chop etish ({count} ta • {sheets} varoq)",
+      "preparingBtn": "Tayyorlanmoqda ({progress}%)"
     },
     "products": {
       "title": "Mahsulotlar",
@@ -1584,7 +1602,7 @@ export const translations = {
       "inventoryNumbersPlaceholder": "Введите каждый номер с новой строки или через запятую. Например: INV-001, INV-002",
       "serialNumbersPlaceholder": "Введите серийные номера с новой строки или через запятую",
       "validationInvQtyMismatch": "Количество введенных инвентарных номеров ({entered}) должно соответствовать количеству ({expected})!",
-      "masterImportBtn": "Единый мастер-приход",
+      "masterImportBtn": "Мастер-приход",
       "validationInvRequired": "Инвентарный номер обязателен",
       "validationInvUnique": "Инвентарные номера не должны повторяться!",
       "bulkImportNotice": "* Для более чем 100 товаров используйте массовый импорт (Bulk).",
@@ -1645,6 +1663,24 @@ export const translations = {
         "dropOrBrowse": "или нажмите для выбора с компьютера (.xlsx, .xlsm, .xls)",
         "startImport": "Оприходовать"
       }
+    },
+    "qrStickers": {
+      "title": "QR-стикеры",
+      "subtitle": "30 стикеров / A4",
+      "btnAll": "QR-стикеры",
+      "sheet1": "1 лист ({count})",
+      "sheet2": "2 листа ({count})",
+      "all": "Все ({count})",
+      "clear": "Очистить",
+      "selected": "Выбрано",
+      "sheets": "({sheets} стр.)",
+      "selectCurrentPage": "+ Выбрать на этой странице",
+      "empty": "Имущество не найдено.",
+      "notFound": "По запросу \"{query}\" ничего не найдено.",
+      "preparing": "Стикеры готовятся...",
+      "preparingDesc": "Генерация векторных QR-кодов ({progress}%)",
+      "printBtn": "Печать ({count} шт. • {sheets} стр.)",
+      "preparingBtn": "Подготовка ({progress}%)"
     },
     "products": {
       "title": "Товары",
@@ -2909,7 +2945,7 @@ export const translations = {
       "inventoryNumbersPlaceholder": "Enter each number on a new line or separated by commas. E.g.: INV-001, INV-002",
       "serialNumbersPlaceholder": "Enter serial numbers on a new line or separated by commas",
       "validationInvQtyMismatch": "The number of entered inventory numbers ({entered}) must match the quantity ({expected})!",
-      "masterImportBtn": "Unified Master Import",
+      "masterImportBtn": "Master Import",
       "validationInvRequired": "Inventory number is required",
       "validationInvUnique": "Inventory numbers must be unique!",
       "bulkImportNotice": "* For more than 100 products, please use the Bulk Import feature.",
@@ -2970,6 +3006,24 @@ export const translations = {
         "dropOrBrowse": "or click to select from computer (.xlsx, .xlsm, .xls)",
         "startImport": "Stock In"
       }
+    },
+    "qrStickers": {
+      "title": "QR Stickers",
+      "subtitle": "30 stickers / A4",
+      "btnAll": "QR Stickers",
+      "sheet1": "1 page ({count})",
+      "sheet2": "2 pages ({count})",
+      "all": "All ({count})",
+      "clear": "Clear",
+      "selected": "Selected",
+      "sheets": "({sheets} sheets)",
+      "selectCurrentPage": "+ Select page items",
+      "empty": "No assets found.",
+      "notFound": "No results for \"{query}\".",
+      "preparing": "Preparing stickers...",
+      "preparingDesc": "Generating vector QR codes ({progress}%)",
+      "printBtn": "Print ({count} pcs • {sheets} sheets)",
+      "preparingBtn": "Preparing ({progress}%)"
     },
     "products": {
       "title": "Products",

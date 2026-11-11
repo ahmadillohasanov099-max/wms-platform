@@ -7,6 +7,11 @@ import { TelegramExcelService } from './services/telegram-excel.service';
 import { TelegramReportsService } from './services/telegram-reports.service';
 import { TelegramAuthService } from './services/telegram-auth.service';
 
+export interface AssignmentActionHandler {
+  accept: (assignmentId: string, userId: string) => Promise<any>;
+  reject: (assignmentId: string, reason: string, userId: string) => Promise<any>;
+}
+
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
@@ -14,6 +19,44 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private lastUpdateId = 0;
   private isPollingActive = false;
   private processedUpdateIds = new Set<number>();
+  private assignmentHandler?: AssignmentActionHandler;
+  private pendingRejections = new Map<
+    string,
+    { assignmentId: string; messageId?: number; assetName: string; invNumber: string; timestamp: number }
+  >();
+  private abortController: AbortController | null = null;
+  private userCache = new Map<string, { user: any; expiresAt: number }>();
+  private readonly USER_CACHE_TTL = 60 * 1000; // 60s in-memory TTL
+  private activeChatLocks = new Set<string>();
+
+  async getBoundUser(chatId: string) {
+    const cached = this.userCache.get(chatId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.user;
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { telegramChatId: chatId, deletedAt: null, isActive: true },
+      include: { department: true, organization: true },
+    });
+    if (user) {
+      this.userCache.set(chatId, { user, expiresAt: Date.now() + this.USER_CACHE_TTL });
+    } else {
+      this.userCache.delete(chatId);
+    }
+    return user;
+  }
+
+  invalidateUserCache(chatId?: string) {
+    if (chatId) {
+      this.userCache.delete(chatId);
+    } else {
+      this.userCache.clear();
+    }
+  }
+
+  setAssignmentHandler(handler: AssignmentActionHandler) {
+    this.assignmentHandler = handler;
+  }
 
   constructor(
     private prisma: PrismaService,
@@ -31,6 +74,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
+    this.isPollingActive = false;
+    if (this.abortController) {
+      this.abortController.abort();
+    }
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
@@ -85,52 +132,103 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=false`);
     } catch {}
 
-    this.pollingInterval = setInterval(async () => {
-      if (this.isPollingActive) return;
-      this.isPollingActive = true;
+    this.isPollingActive = true;
+    this.abortController = new AbortController();
+
+    // Yuqori unumdorlikdagi Long Polling (Doimiy uzluksiz oqim)
+    void this.runLongPollingLoop();
+  }
+
+  private async runLongPollingLoop() {
+    this.logger.log('🚀 Telegram High-Performance Long-Polling (Continuous Stream) ishga tushirildi');
+    while (this.isPollingActive) {
       try {
         const { token: currentToken } = this.getCredentials();
         if (!currentToken) {
-          this.isPollingActive = false;
-          return;
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
         }
 
-        const url = `https://api.telegram.org/bot${currentToken}/getUpdates?offset=${this.lastUpdateId + 1}&timeout=1`;
-        const res = await fetch(url);
+        // Long Polling: timeout=25s (server 25s ochiq kutadi, yangi xabar kelishi bilan 0ms da uzatadi)
+        // limit=100: bir vaqtda 100 tagacha kelgan harakatlarni to'plam bilan oladi
+        const url = `https://api.telegram.org/bot${currentToken}/getUpdates?offset=${this.lastUpdateId + 1}&limit=100&timeout=25&allowed_updates=["message","callback_query"]`;
+        const res = await fetch(url, { signal: this.abortController?.signal });
         const data = await res.json();
 
-        if (data.ok && Array.isArray(data.result)) {
-          for (const update of data.result) {
-            if (this.processedUpdateIds.has(update.update_id)) {
-              continue;
-            }
-            this.processedUpdateIds.add(update.update_id);
-            if (this.processedUpdateIds.size > 2000) {
-              this.processedUpdateIds.clear();
-            }
+        if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
+          const updates = data.result;
 
-            this.lastUpdateId = update.update_id;
+          // Yangi offsetni zudlik bilan siljitamiz (keyingi getUpdates navbat kutmasligi uchun)
+          for (const u of updates) {
+            if (u.update_id > this.lastUpdateId) {
+              this.lastUpdateId = u.update_id;
+            }
+          }
 
-            // 1. Callback query (Inline keyboard)
-            if (update.callback_query) {
+          // Yangilanishlarni parallel va asinxron qayta ishlaymiz (birorta amal boshqasini to'xtatmaydi)
+          void Promise.allSettled(
+            updates.map((update: any) => this.handleSingleUpdate(update)),
+          );
+        }
+      } catch (err: any) {
+        if (!this.isPollingActive) break;
+        if (err.name !== 'AbortError') {
+          // Tarmoq uzilsa yoki xato bersa 1 soniya kutib qayta ulanadi
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+  }
+
+  /**
+   * Har bir xabar/harakatni alohida parallel ishlovchi metod (1000+ parallel foydalanuvchilar uchun)
+   */
+  async handleSingleUpdate(update: any) {
+    if (!update || !update.update_id) return;
+
+    if (this.processedUpdateIds.has(update.update_id)) {
+      return;
+    }
+    this.processedUpdateIds.add(update.update_id);
+    if (this.processedUpdateIds.size > 5000) {
+      this.processedUpdateIds.clear();
+    }
+
+    const chatId = String(
+      update.message?.chat?.id ||
+      update.callback_query?.message?.chat?.id ||
+      update.callback_query?.from?.id ||
+      ''
+    );
+    if (!chatId) return;
+
+    // Per-Chat Lock: Bir xil foydalanuvchi tugmani tez-tez bosganda race-condition va dublikat oldini oladi
+    if (this.activeChatLocks.has(chatId)) {
+      if (update.callback_query) {
+        void this.sender.answerCallbackQuery(update.callback_query.id);
+      }
+      return;
+    }
+
+    this.activeChatLocks.add(chatId);
+    try {
+      if (update.callback_query) {
               const cb = update.callback_query;
               const chatId = String(cb.message?.chat?.id || cb.from?.id);
               const dataStr = cb.data || '';
+              const messageId = cb.message?.message_id;
 
-              await this.sender.answerCallbackQuery(cb.id);
+              void this.sender.answerCallbackQuery(cb.id);
 
-              const boundUser = await this.prisma.user.findFirst({
-                where: { telegramChatId: chatId, deletedAt: null, isActive: true },
-                include: { department: true, organization: true },
-              });
+              const boundUser = await this.getBoundUser(chatId);
 
               if (!boundUser) {
                 await this.auth.sendLoginPrompt(chatId);
-                continue;
+                return;
               }
 
-              await this.handleCallbackAction(dataStr, chatId, boundUser);
-              continue;
+              await this.handleCallbackAction(dataStr, chatId, boundUser, messageId);
+              return;
             }
 
             // 2. Text messages handler
@@ -139,10 +237,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               const text = msg.text.trim();
               const chatId = String(msg.chat.id);
 
-              const boundUser = await this.prisma.user.findFirst({
-                where: { telegramChatId: chatId, deletedAt: null, isActive: true },
-                include: { department: true, organization: true },
-              });
+              const boundUser = await this.getBoundUser(chatId);
 
               const lower = text.toLowerCase().trim();
               const isLogoutCmd =
@@ -164,7 +259,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     chatId,
                   );
                   await this.auth.sendLoginPrompt(chatId);
-                  continue;
+                  return;
                 }
 
                 if (
@@ -179,13 +274,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 } else {
                   await this.auth.sendLoginPrompt(chatId);
                 }
-                continue;
+                return;
               }
 
               // Avtorizatsiyadan o'tgan barcha foydalanuvchilar uchun universal chiqish (Logout)
               if (isLogoutCmd) {
                 await this.auth.handleLogoutAccount(chatId);
-                continue;
+                return;
+              }
+
+              // Agar xodim jihozni rad etish sababini kiritayotgan bo'lsa
+              if (this.pendingRejections.has(chatId)) {
+                await this.handlePendingRejectionReason(text, chatId, boundUser);
+                return;
               }
 
               const isSuperAdmin = boundUser.role === 'SUPER_ADMIN';
@@ -204,7 +305,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 📊 Excel Ombor Holati
@@ -218,7 +319,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendStockExcel(chatId);
-                  continue;
+                  return;
                 }
 
                 // 2. 👥 Excel Xodimlar
@@ -231,7 +332,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendUsersExcel(chatId);
-                  continue;
+                  return;
                 }
 
                 // 3. 🏢 Excel Bo'lim Jihozlari
@@ -246,7 +347,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendAssignmentsExcel(chatId);
-                  continue;
+                  return;
                 }
 
                 // 4. 📦 Excel Operatsiyalar
@@ -257,7 +358,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendOperationsExcel(chatId);
-                  continue;
+                  return;
                 }
 
                 // 5. 📜 Excel Tarix
@@ -269,7 +370,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendOperationsExcel(chatId);
-                  continue;
+                  return;
                 }
 
                 // 6. 📄 Server Loglari
@@ -285,20 +386,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   const parts = text.split(' ');
                   const linesArg = parseInt(parts[1], 10) || 1000;
                   await this.reports.sendServerLogsFile(chatId, linesArg);
-                  continue;
+                  return;
                 }
 
                 // Inventar raqam yozilgan bo'lsa darhol tezkor kartochkani ko'rsatish
                 const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
                 if (foundAsset) {
-                  continue;
+                  return;
                 }
 
                 // Xodim ism-familiyasi yoki boshqa savollar berilganda AI javob beradi
                 await this.sender.sendChatAction('typing', chatId);
                 const aiResponse = await this.aiService.askAi(text, boundUser);
                 await this.sender.sendMessage(aiResponse, chatId);
-                continue;
+                return;
               }
 
               // ========================================================
@@ -310,7 +411,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     `⚠️ <b>Xavfsizlik ogohlantirishi!</b>\n\nSizning akkauntingizga biror tashkilot (organization) biriktirilmagan. Xavfsizlik qoidalariga binoan ma'lumotlarni ko'rish qat'iyan cheklangan. Iltimos, bosh administratorga murojaat qiling.`,
                     chatId,
                   );
-                  continue;
+                  return;
                 }
 
                 const lower = text.toLowerCase().trim();
@@ -319,7 +420,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 📊 Excel Ombor Holati (faqat o'z tashkiloti bo'yicha)
@@ -333,7 +434,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendStockExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 2. 👥 Excel Xodimlar (faqat o'z tashkiloti xodimlari)
@@ -346,7 +447,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendUsersExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 3. 🏢 Excel Bo'lim Jihozlari (faqat o'z tashkiloti bo'lim va aktivlari)
@@ -361,7 +462,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendAssignmentsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 4. 📜 Excel Tarix (faqat o'z tashkiloti operatsiyalari)
@@ -373,7 +474,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendOperationsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 5. 📋 Tashkilot Talabnomalari (faqat o'z tashkiloti xodimlaridan kelgan so'rovlar)
@@ -385,19 +486,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   text === '/requests'
                 ) {
                   await this.sendPendingRequests(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 6. Jihoz Inventar yoki Seriya raqami bo'yicha qidiruv (faqat o'z tashkiloti doirasida)
                 const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
                 if (foundAsset) {
-                  continue;
+                  return;
                 }
 
                 // 7. Xodim F.I.SH yoki username bo'yicha qidiruv (faqat o'z tashkiloti doirasida)
                 const foundUser = await this.searchUserByName(text, chatId, boundUser);
                 if (foundUser) {
-                  continue;
+                  return;
                 }
 
                 // Natija topilmaganda
@@ -407,7 +508,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   `💡 <i>Iltimos, inventar raqamni yoki xodim ismini to'g'ri kiritganingizni tekshiring yoki menyu tugmalaridan foydalaning.</i>`,
                   chatId,
                 );
-                continue;
+                return;
               }
 
               // ========================================================
@@ -419,7 +520,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     `⚠️ <b>Xavfsizlik ogohlantirishi!</b>\n\nSizning akkauntingizga biror tashkilot (organization) biriktirilmagan. Xavfsizlik qoidalariga binoan ma'lumotlarni ko'rish qat'iyan cheklangan. Iltimos, bosh administratorga murojaat qiling.`,
                     chatId,
                   );
-                  continue;
+                  return;
                 }
 
                 const lower = text.toLowerCase().trim();
@@ -428,7 +529,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 📊 Excel Ombor Holati
@@ -442,7 +543,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendStockExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 2. 📜 Excel Tarix
@@ -454,7 +555,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendOperationsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 3. 👥 Excel Xodimlar
@@ -467,7 +568,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendUsersExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 4. 🏢 Excel Berilgan Jihozlar
@@ -483,7 +584,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendAssignmentsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 5. 📋 Yangi Talabnomalar
@@ -494,13 +595,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   text === '/requests'
                 ) {
                   await this.sendPendingRequests(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 6. Inventar raqam bo'yicha qidiruv
                 const found = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
                 if (found) {
-                  continue;
+                  return;
                 }
 
                 // Agar topilmasa va raqam yoki qisqa kod bo'lsa
@@ -518,7 +619,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     chatId,
                   );
                 }
-                continue;
+                return;
               }
 
               // ========================================================
@@ -530,7 +631,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 📱 Mening Jihozlarim
@@ -544,7 +645,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sender.sendChatAction('typing', chatId);
                   const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
                   await this.reports.sendMyAssets(chatId, boundUser, page);
-                  continue;
+                  return;
                 }
 
                 // 2. 📜 Mening Tarixim
@@ -557,7 +658,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sender.sendChatAction('typing', chatId);
                   const page = parseInt(text.replace('/myhistory', '').trim(), 10) || 1;
                   await this.reports.sendUserPersonalHistory(chatId, boundUser, page);
-                  continue;
+                  return;
                 }
 
                 // 3. 🏢 Mening Bo‘limim
@@ -570,7 +671,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('typing', chatId);
                   await this.reports.sendUserMyDeptInfo(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 4. 📋 Mening So‘rovlarim
@@ -583,7 +684,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('typing', chatId);
                   await this.reports.sendUserMyRequests(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 5. ❓ Qo‘llanma / Aloqa
@@ -596,13 +697,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   text === '/contacts'
                 ) {
                   await this.reports.sendOrganizationContacts(chatId);
-                  continue;
+                  return;
                 }
 
                 // 6. Xodim o'z jihozining inventar raqamini yuborgan bo'lsa
                 const foundMyAsset = await this.searchMyAssetByInventoryNumber(text, chatId, boundUser);
                 if (foundMyAsset) {
-                  continue;
+                  return;
                 }
 
                 // 7. Agar xodim ma'murlar buyruqlarini yozmoqchi bo'lsa (Qat'iy bloklash)
@@ -622,7 +723,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     `Siz o'zingizga biriktirilgan aktivlar va tarixingizni ko'rish uchun quyidagi menyu tugmalaridan foydalanishingiz mumkin.`,
                     chatId,
                   );
-                  continue;
+                  return;
                 }
 
                 // Noma'lum matn yozilganda yo'naltirish
@@ -632,7 +733,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   `Marhamat, quyidagi menyu tugmalaridan birini tanlang yoki jihozingizning <b>Inventar raqamini</b> yuboring:`,
                   chatId,
                 );
-                continue;
+                return;
               }
 
               // ========================================================
@@ -645,7 +746,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 👥 Excel Xodimlar
@@ -658,7 +759,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendUsersExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 2. 🚨 Bo‘shash Jarayonlari (Offboarding)
@@ -672,7 +773,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('typing', chatId);
                   await this.reports.sendOffboardingReport(chatId, 1, orgId);
-                  continue;
+                  return;
                 }
 
                 // 3. 🏢 Bo‘limlar Ro‘yxati
@@ -686,7 +787,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('typing', chatId);
                   await this.reports.sendDepartmentsReport(chatId, 1, orgId);
-                  continue;
+                  return;
                 }
 
                 // 4. 🔍 Xodim Qidirish
@@ -701,7 +802,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                     `<i>Misol: <code>Aliyev</code> yoki <code>+998901234567</code></i>`,
                     chatId,
                   );
-                  continue;
+                  return;
                 }
 
                 // 5. 📱 Mening Jihozlarim
@@ -715,7 +816,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sender.sendChatAction('typing', chatId);
                   const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
                   await this.reports.sendMyAssets(chatId, boundUser, page);
-                  continue;
+                  return;
                 }
 
                 // 6. 📜 Mening Tarixim
@@ -728,19 +829,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sender.sendChatAction('typing', chatId);
                   const page = parseInt(text.replace('/myhistory', '').trim(), 10) || 1;
                   await this.reports.sendUserPersonalHistory(chatId, boundUser, page);
-                  continue;
+                  return;
                 }
 
                 // 7. Xodim F.I.SH yoki telefoni bo'yicha qidirish
                 const foundUser = await this.searchUserByName(text, chatId, boundUser);
                 if (foundUser) {
-                  continue;
+                  return;
                 }
 
                 // 8. Jihoz inventar raqami bo'yicha qidirish
                 const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
                 if (foundAsset) {
-                  continue;
+                  return;
                 }
 
                 // Noma'lum matn yozilganda yo'naltirish
@@ -749,7 +850,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   `Kadrlar xizmati bo'yicha ma'lumotlarni olish uchun menyu tugmalaridan foydalaning yoki xodimning <b>F.I.SH/telefon raqami</b>ni yuboring:`,
                   chatId,
                 );
-                continue;
+                return;
               }
 
               // ========================================================
@@ -762,7 +863,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 // Asosiy menyu
                 if (text === '/start' || text === '/menu' || text === '📋 Asosiy Menyu 🏛️' || text === '📋 Bosh Menyu') {
                   await this.sendMenuWithWelcome(chatId, boundUser);
-                  continue;
+                  return;
                 }
 
                 // 1. 📊 Umumiy Statistika
@@ -775,7 +876,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('typing', chatId);
                   await this.reports.sendStatusReport(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 2. 📦 Excel Ombor Holati
@@ -788,7 +889,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendStockExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 3. 🏢 Excel Bo‘lim Jihozlari
@@ -802,7 +903,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendAssignmentsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 4. 👥 Excel Xodimlar
@@ -814,7 +915,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendUsersExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 5. 📜 Excel Tarix
@@ -826,7 +927,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 ) {
                   await this.sender.sendChatAction('upload_document', chatId);
                   await this.excelReports.sendOperationsExcel(chatId, orgId);
-                  continue;
+                  return;
                 }
 
                 // 6. 📱 Mening Jihozlarim
@@ -840,19 +941,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   await this.sender.sendChatAction('typing', chatId);
                   const page = parseInt(text.replace('/myassets', '').trim(), 10) || 1;
                   await this.reports.sendMyAssets(chatId, boundUser, page);
-                  continue;
+                  return;
                 }
 
                 // 7. Jihoz inventar raqami bo'yicha qidirish
                 const foundAsset = await this.searchAssetByInventoryNumber(text, chatId, boundUser);
                 if (foundAsset) {
-                  continue;
+                  return;
                 }
 
                 // 8. Xodim F.I.SH bo'yicha qidirish
                 const foundUser = await this.searchUserByName(text, chatId, boundUser);
                 if (foundUser) {
-                  continue;
+                  return;
                 }
 
                 // Noma'lum matn yozilganda yo'naltirish
@@ -861,7 +962,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                   `Rahbariyat tahliliy ma'lumotlarini olish uchun quyidagi menyu tugmalaridan foydalaning yoki tekshirmoqchi bo'lgan jihozning <b>Inventar raqamini</b> yuboring:`,
                   chatId,
                 );
-                continue;
+                return;
               }
 
               // ========================================================
@@ -893,20 +994,30 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 );
               }
             }
-          }
-        }
-      } catch (err) {
-        // Silent catch for network glitches
-      } finally {
-        this.isPollingActive = false;
-      }
-    }, 2500);
+    } catch (err: any) {
+      this.logger.error(`Chat ${chatId} uchun xatolik: ${err.message}`);
+    } finally {
+      this.activeChatLocks.delete(chatId);
+    }
   }
 
   /**
    * Dynamic Callback Parser with RBAC Enforcement & Excel Exports
    */
-  private async handleCallbackAction(dataStr: string, chatId: string, boundUser: any) {
+  private async handleCallbackAction(dataStr: string, chatId: string, boundUser: any, messageId?: number) {
+    // 📦 Jihozni qabul qilish / rad etish callbacklari
+    if (dataStr.startsWith('cb_asgn_acc_')) {
+      const assignmentId = dataStr.replace('cb_asgn_acc_', '');
+      await this.handleAcceptAssignmentCallback(assignmentId, chatId, messageId, boundUser);
+      return;
+    }
+
+    if (dataStr.startsWith('cb_asgn_rej_')) {
+      const assignmentId = dataStr.replace('cb_asgn_rej_', '');
+      await this.handleRejectAssignmentPrompt(assignmentId, chatId, messageId, boundUser);
+      return;
+    }
+
     const isStaff = STAFF_ROLES.includes(boundUser?.role);
     const isSuperAdmin = boundUser?.role === 'SUPER_ADMIN';
 
@@ -1321,6 +1432,260 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       return this.sender.sendMessage(fullText, user.telegramChatId);
     } catch (err) {
       return false;
+    }
+  }
+
+  /**
+   * Yangi jihoz biriktirilganda xodimga interaktiv tasdiqlash/rad etish xabarini yuborish
+   */
+  async sendAssignmentConfirmationRequest(assignmentId: string): Promise<boolean> {
+    try {
+      const assignment = await this.prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          user: { select: { id: true, fullName: true, telegramChatId: true } },
+          asset: {
+            include: {
+              product: { select: { name: true } },
+              organization: { select: { name: true } },
+            },
+          },
+          assignedBy: { select: { fullName: true } },
+          fromUser: { select: { fullName: true } },
+        },
+      });
+
+      if (!assignment || !assignment.user || !assignment.user.telegramChatId) {
+        return false;
+      }
+
+      const userChatId = assignment.user.telegramChatId;
+      const assetName = assignment.asset?.product?.name || 'Jihoz';
+      const invNumber = assignment.asset?.inventoryNumber || '—';
+      const serialNumber = assignment.asset?.serialNumber;
+      const price = assignment.asset?.purchasePrice ? Number(assignment.asset.purchasePrice) : null;
+      const assigner = assignment.fromUser?.fullName
+        ? `Xodimdan o'tkazma: ${assignment.fromUser.fullName}`
+        : (assignment.assignedBy?.fullName || 'Omborchi');
+
+      const message =
+        `📦 <b>YANGI JIHOZ BIRIKTIRILDI</b>\n\n` +
+        `Hurmatli <b>${escapeHtml(assignment.user.fullName)}</b>!\n` +
+        `Sizning nomingizga quyidagi asosiy vosita (jihoz) biriktirilmoqda:\n\n` +
+        `🏷 <b>Jihoz:</b> ${escapeHtml(assetName)}\n` +
+        `🔢 <b>Inventar raqami:</b> <code>${escapeHtml(invNumber)}</code>\n` +
+        (serialNumber && !['—', '-', 'null', 'undefined'].includes(serialNumber.trim()) ? `📋 <b>Seriya raqami:</b> <code>${escapeHtml(serialNumber.trim())}</code>\n` : '') +
+        (price ? `💰 <b>Boshlang'ich narxi:</b> ${Math.round(price).toLocaleString()} so'm\n` : '') +
+        `🏢 <b>Topshiruvchi:</b> ${escapeHtml(assigner)}\n` +
+        `📅 <b>Sana:</b> ${new Date().toLocaleDateString('uz-UZ')}\n\n` +
+        `<i>Siz ushbu jihozni qabul qilib oldingizmi? Iltimos, pastdagi tugmalar orqali tasdiqlang yoki rad eting:</i>`;
+
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: '✅ Qabul qildim', callback_data: `cb_asgn_acc_${assignment.id}` },
+            { text: '❌ Rad etish', callback_data: `cb_asgn_rej_${assignment.id}` },
+          ],
+        ],
+      };
+
+      return this.sender.sendMessageWithKeyboard(message, keyboard, userChatId);
+    } catch (err: any) {
+      this.logger.error(`sendAssignmentConfirmationRequest error: ${err.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Telegram orqali jihozni qabul qilish callbacki
+   */
+  async handleAcceptAssignmentCallback(
+    assignmentId: string,
+    chatId: string,
+    messageId: number | undefined,
+    boundUser: any,
+  ) {
+    if (!this.assignmentHandler) {
+      await this.sender.sendMessage(`⚠️ Tizim xizmati vaqtincha band, iltimos keyinroq urinib ko'ring.`, chatId);
+      return;
+    }
+
+    try {
+      const assignment = await this.prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          asset: { include: { product: true } },
+          user: true,
+        },
+      });
+
+      if (!assignment) {
+        await this.sender.sendMessage(`❌ Biriktirish topilmadi yoki o'chirilgan.`, chatId);
+        return;
+      }
+
+      if (assignment.userId !== boundUser.id) {
+        await this.sender.sendMessage(`⛔ Ushbu jihoz sizning nomingizga biriktirilmagan!`, chatId);
+        return;
+      }
+
+      if (assignment.status === 'ACCEPTED') {
+        const text = `✅ <b>Ushbu jihoz allaqachon qabul qilingan!</b>\n\n🏷 <b>Jihoz:</b> ${escapeHtml(assignment.asset?.product?.name || '')}\n🔢 <b>Inventar raqami:</b> <code>${escapeHtml(assignment.asset?.inventoryNumber || '')}</code>`;
+        if (messageId) {
+          await this.sender.editMessageText(chatId, messageId, text, { inline_keyboard: [] });
+        } else {
+          await this.sender.sendMessage(text, chatId);
+        }
+        return;
+      }
+
+      if (assignment.status === 'REJECTED') {
+        const text = `❌ <b>Ushbu jihoz allaqachon rad etilgan.</b>`;
+        if (messageId) {
+          await this.sender.editMessageText(chatId, messageId, text, { inline_keyboard: [] });
+        } else {
+          await this.sender.sendMessage(text, chatId);
+        }
+        return;
+      }
+
+      // Backenddagi asosiy tasdiqlash operatsiyasini chaqiramiz
+      await this.assignmentHandler.accept(assignmentId, boundUser.id);
+
+      const successText =
+        `✅ <b>JIHOZ MUVAFFAQIYATLI QABUL QILINDI</b>\n\n` +
+        `Hurmatli <b>${escapeHtml(boundUser.fullName)}</b>!\n` +
+        `Siz quyidagi jihozni qabul qildingiz va moddiy javobgarlik zimmangizga o'tdi:\n\n` +
+        `🏷 <b>Jihoz:</b> ${escapeHtml(assignment.asset?.product?.name || '')}\n` +
+        `🔢 <b>Inventar raqami:</b> <code>${escapeHtml(assignment.asset?.inventoryNumber || '')}</code>\n` +
+        `📅 <b>Tasdiqlangan vaqt:</b> ${new Date().toLocaleString('uz-UZ')}\n\n` +
+        `<i>Tizimda ma'lumotlar avtomatik yangilandi.</i>`;
+
+      if (messageId) {
+        await this.sender.editMessageText(chatId, messageId, successText, { inline_keyboard: [] });
+      } else {
+        await this.sender.sendMessage(successText, chatId);
+      }
+    } catch (err: any) {
+      this.logger.error(`handleAcceptAssignmentCallback error: ${err.message}`);
+      await this.sender.sendMessage(`❌ Xatolik yuz berdi: ${err.message || 'Qabul qilib bo‘lmadi'}`, chatId);
+    }
+  }
+
+  /**
+   * Telegram orqali jihozni rad etish so'rovi
+   */
+  async handleRejectAssignmentPrompt(
+    assignmentId: string,
+    chatId: string,
+    messageId: number | undefined,
+    boundUser: any,
+  ) {
+    try {
+      const assignment = await this.prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          asset: { include: { product: true } },
+          user: true,
+        },
+      });
+
+      if (!assignment) {
+        await this.sender.sendMessage(`❌ Biriktirish topilmadi yoki o'chirilgan.`, chatId);
+        return;
+      }
+
+      if (assignment.userId !== boundUser.id) {
+        await this.sender.sendMessage(`⛔ Ushbu jihoz sizning nomingizga biriktirilmagan!`, chatId);
+        return;
+      }
+
+      if (assignment.status === 'ACCEPTED') {
+        await this.sender.sendMessage(`✅ Bu jihoz allaqachon qabul qilingan. Uni faqat omborga qaytarish orqali topshirish mumkin.`, chatId);
+        return;
+      }
+
+      if (assignment.status === 'REJECTED') {
+        await this.sender.sendMessage(`❌ Ushbu jihoz allaqachon rad etilgan.`, chatId);
+        return;
+      }
+
+      const assetName = assignment.asset?.product?.name || 'Jihoz';
+      const invNumber = assignment.asset?.inventoryNumber || '—';
+
+      // Save into pending rejections state
+      this.pendingRejections.set(chatId, {
+        assignmentId,
+        messageId,
+        assetName,
+        invNumber,
+        timestamp: Date.now(),
+      });
+
+      const promptText =
+        `❓ <b>JIHOZNI RAD ETISH SABABINI YOZING</b>\n\n` +
+        `🏷 <b>Jihoz:</b> ${escapeHtml(assetName)} (<code>${escapeHtml(invNumber)}</code>)\n\n` +
+        `Iltimos, nima sababdan rad etayotganingizni qisqacha yozib yuboring:\n` +
+        `<i>(Masalan: Jihoz menga yetib kelmadi / Jihoz nosoz / Boshqa model topshirildi)</i>\n\n` +
+        `<i>Jarayonni bekor qilish uchun <b>/cancel</b> deb yozing.</i>`;
+
+      await this.sender.sendMessage(promptText, chatId);
+    } catch (err: any) {
+      this.logger.error(`handleRejectAssignmentPrompt error: ${err.message}`);
+      await this.sender.sendMessage(`❌ Xatolik yuz berdi: ${err.message}`, chatId);
+    }
+  }
+
+  /**
+   * Xodim rad etish sababini yozganda qayta ishlash
+   */
+  async handlePendingRejectionReason(text: string, chatId: string, boundUser: any) {
+    const pending = this.pendingRejections.get(chatId);
+    if (!pending) return;
+
+    // Check timeout (15 minutes)
+    if (Date.now() - pending.timestamp > 15 * 60 * 1000) {
+      this.pendingRejections.delete(chatId);
+      await this.sender.sendMessage(`⚠️ Rad etish so'rovi vaqti tugadi. Qayta urinib ko'ring.`, chatId);
+      return;
+    }
+
+    if (text === '/cancel' || text.toLowerCase() === 'bekor qilish' || text.toLowerCase() === 'cancel') {
+      this.pendingRejections.delete(chatId);
+      await this.sender.sendMessage(`ℹ️ Rad etish jarayoni bekor qilindi.`, chatId);
+      return;
+    }
+
+    if (!this.assignmentHandler) {
+      this.pendingRejections.delete(chatId);
+      await this.sender.sendMessage(`⚠️ Tizim xizmati vaqtincha band, iltimos keyinroq urinib ko'ring.`, chatId);
+      return;
+    }
+
+    this.pendingRejections.delete(chatId);
+
+    try {
+      const cleanReason = text.trim();
+      await this.assignmentHandler.reject(pending.assignmentId, cleanReason, boundUser.id);
+
+      const rejectedText =
+        `❌ <b>JIHOZ RAD ETILDI VA OMBORGA QAYTARILDI</b>\n\n` +
+        `Hurmatli <b>${escapeHtml(boundUser.fullName)}</b>!\n` +
+        `Siz quyidagi jihozni qabul qilishni rad etdingiz:\n\n` +
+        `🏷 <b>Jihoz:</b> ${escapeHtml(pending.assetName)}\n` +
+        `🔢 <b>Inventar raqami:</b> <code>${escapeHtml(pending.invNumber)}</code>\n` +
+        `📝 <b>Kiritilgan sabab:</b> <i>"${escapeHtml(cleanReason)}"</i>\n` +
+        `📅 <b>Sana:</b> ${new Date().toLocaleString('uz-UZ')}\n\n` +
+        `<i>Jihoz ombor hisobiga qaytarildi va mas'ul omborchiga bildirishnoma yuborildi.</i>`;
+
+      if (pending.messageId) {
+        await this.sender.editMessageText(chatId, pending.messageId, rejectedText, { inline_keyboard: [] });
+      }
+
+      await this.sender.sendMessage(rejectedText, chatId);
+    } catch (err: any) {
+      this.logger.error(`handlePendingRejectionReason error: ${err.message}`);
+      await this.sender.sendMessage(`❌ Rad etishda xatolik yuz berdi: ${err.message || 'Xatolik'}`, chatId);
     }
   }
 

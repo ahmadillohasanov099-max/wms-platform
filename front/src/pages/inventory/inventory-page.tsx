@@ -560,7 +560,7 @@ export default function InventoryPage() {
                 onClick={handleOpenAllStickers}
                 loading={loadingAllAssets}
               >
-                🏷️ Barcha QR Stikerlar
+                {t('qrStickers.btnAll')}
               </Button>
             )}
             {isAdmin && (

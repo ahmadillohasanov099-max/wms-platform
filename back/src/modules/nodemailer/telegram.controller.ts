@@ -230,6 +230,7 @@ export class TelegramController {
       });
 
       // Telegram boti orqali muvaffaqiyatli xabarni yuborib menyuni ochamiz
+      this.telegramService.invalidateUserCache(chatId);
       await this.telegramService.sendMessage(
         `✅ <b>MUVAFFAQIYATLI KIRILDINGIZ!</b>\n\n` +
         `Xush kelibsiz, <b>${updatedUser.fullName}</b>!\n` +
@@ -244,5 +245,16 @@ export class TelegramController {
     } catch (err) {
       return { success: false, message: 'Tizimda xatolik yuz berdi' };
     }
+  }
+
+  /**
+   * Telegram Webhook endpoint (Production yuqori yuklamalar va 1000+ foydalanuvchilar uchun)
+   */
+  @Post('webhook')
+  async handleWebhook(@Body() update: any) {
+    if (update && update.update_id) {
+      void this.telegramService.handleSingleUpdate(update);
+    }
+    return { ok: true };
   }
 }

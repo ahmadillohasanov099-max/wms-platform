@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma';
 import { OperationType, ProductType } from '@prisma/client';
@@ -17,7 +18,7 @@ import { TelegramService } from '../../nodemailer';
 import { LimitsService } from '../../limits/limits.service';
 
 @Injectable()
-export class OperationsAssignmentService {
+export class OperationsAssignmentService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
@@ -25,6 +26,17 @@ export class OperationsAssignmentService {
     private telegramService: TelegramService,
     private limitsService: LimitsService,
   ) {}
+
+  onModuleInit() {
+    this.telegramService.setAssignmentHandler({
+      accept: async (assignmentId: string, userId: string) => {
+        return this.acceptAssignment(assignmentId, userId, 'EMPLOYEE');
+      },
+      reject: async (assignmentId: string, reason: string, userId: string) => {
+        return this.rejectAssignment(assignmentId, reason, userId, 'EMPLOYEE');
+      },
+    });
+  }
 
   async getPerformerOrg(performedById: string) {
     const user = await this.prisma.user.findUnique({
@@ -160,7 +172,7 @@ export class OperationsAssignmentService {
         });
       }
 
-      await tx.assignment.create({
+      const createdAssignment = await tx.assignment.create({
         data: {
           userId: dto.userId,
           assetId,
@@ -179,7 +191,7 @@ export class OperationsAssignmentService {
         throw new BadRequestException("Omborda yetarli miqdor yo'q");
       }
 
-      return tx.asset.findUnique({
+      const asset = await tx.asset.findUnique({
         where: { id: assetId },
         include: {
           product: { select: { id: true, name: true } },
@@ -189,6 +201,8 @@ export class OperationsAssignmentService {
           },
         },
       });
+
+      return { asset, assignmentId: createdAssignment.id };
     });
 
     void this.notifierService.checkStockAndAlert(dto.productId);
@@ -203,13 +217,9 @@ export class OperationsAssignmentService {
       assignedAt: new Date().toISOString(),
     });
 
-    void this.telegramService.sendUserNotificationAlert(
-      dto.userId,
-      "📦 Yangi jihoz biriktirildi (Tasdiqlash kutilmoqda)",
-      `Sizga "${product?.name || 'Jihoz'}" (Inv: ${existingAsset.inventoryNumber}) biriktirildi. Qabul qilish yoki rad etish uchun tizimga kiring.`,
-    );
+    void this.telegramService.sendAssignmentConfirmationRequest(result.assignmentId);
 
-    return result;
+    return result.asset;
   }
 
   async assignToDept(dto: AssignToDeptDto, performedById: string) {
@@ -461,11 +471,7 @@ export class OperationsAssignmentService {
       assignedAt: new Date().toISOString(),
     });
 
-    void this.telegramService.sendUserNotificationAlert(
-      dto.toUserId,
-      "📦 Sizga jihoz o'tkazildi (Tasdiqlash kutilmoqda)",
-      `Sizga "${asset.product?.name || 'Jihoz'}" (Inv: ${asset.inventoryNumber}) o'tkazildi. Qabul qilish yoki rad etish uchun tizimga kiring.`,
-    );
+    void this.telegramService.sendAssignmentConfirmationRequest(result.newAssignment.id);
 
     return { message: result.message };
   }
@@ -825,6 +831,16 @@ export class OperationsAssignmentService {
       assignmentId,
     });
     this.eventsGateway.broadcastOperationCreated(op);
+
+    // Jihozni biriktirgan mas'ulga (omborchiga) xodim qabul qilgani haqida bildirishnoma yuboramiz
+    const assignerId = assignment.assignedById;
+    if (assignerId && assignerId !== currentUserId) {
+      void this.telegramService.sendUserNotificationAlert(
+        assignerId,
+        "✅ Jihoz xodim tomonidan qabul qilindi",
+        `Xodim ${assignment.user?.fullName || 'Xodim'} siz biriktirgan "${assignment.asset.product.name}" (Inv: ${assignment.asset.inventoryNumber || '—'}) jihozini muvaffaqiyatli qabul qildi.`,
+      );
+    }
 
     return {
       message: `"${assignment.asset.product.name}" jihozi muvaffaqiyatli qabul qilindi`,

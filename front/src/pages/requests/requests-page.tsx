@@ -631,7 +631,7 @@ export default function RequestsPage() {
               onClick={() => setPdfModalOpen(true)}
               icon={<FileText className="w-4 h-4 text-blue-600" />}
             >
-              PDF / Chop etish
+              PDF yuklash
             </Button>
           </div>
         }

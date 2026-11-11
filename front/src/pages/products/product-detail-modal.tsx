@@ -41,7 +41,7 @@ export default function ProductDetailModal({ open, onClose, productId, onOpenHis
   return (
     <>
       <Modal
-        open={open}
+        open={open && !showStickersModal}
         onClose={onClose}
         title={product ? product.name : t('productDetail.title')}
         size="xl"

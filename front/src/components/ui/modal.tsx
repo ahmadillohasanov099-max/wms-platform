@@ -72,7 +72,7 @@ export default function Modal({
       }}
     >
       {/* Dimmed backdrop */}
-      <div className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-xs transition-opacity" />
+      <div className="fixed inset-0 bg-slate-950/70 dark:bg-slate-950/80 backdrop-blur-xs transition-opacity" />
 
       {/* Modal Dialog Card */}
       <div

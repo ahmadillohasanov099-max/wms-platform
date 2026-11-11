@@ -262,16 +262,13 @@ export class OperationsNotifierService {
         await this.telegramService.sendDocumentBuffer(filename, pdfBuffer, caption, undefined, opOrgId);
       }
 
-      // Xodimga shaxsiy bildirishnoma yuborish (GIVE_TO_USER va RETURN_FROM_USER holatlarida)
+      // Xodimga shaxsiy bildirishnoma yuborish (GIVE_TO_USER faqat sarflanadigan materiallar uchun, asosiy vositalar interaktiv tasdiqlanadi)
       if (mainOp.user && mainOp.user.telegramChatId) {
-        if (mainOp.type === 'GIVE_TO_USER') {
-          const invStr = mainOp.asset?.inventoryNumber ? `№ <code>${escapeHtml(mainOp.asset.inventoryNumber)}</code>` : '';
+        if (mainOp.type === 'GIVE_TO_USER' && !isAsosiyVosita) {
           const senderName = mainOp.performedBy?.fullName ? escapeHtml(mainOp.performedBy.fullName) : 'Bosh omborchi';
           const personalMsg =
-            `📦 <b>Yangi jihoz biriktirildi</b>\n\n` +
-            `<b>${escapeHtml(mainOp.product?.name || 'Jihoz')}</b>\n` +
-            (invStr ? `${invStr}\n\n` : '\n') +
-            `<blockquote>ℹ️ <b>Javobgarlik:</b>\nJihoz shaxsiy foydalanishingizga biriktirildi va moddiy hisobingizga kiritildi.</blockquote>\n\n` +
+            `📦 <b>Material topshirildi</b>\n\n` +
+            `<b>${escapeHtml(mainOp.product?.name || 'Material')}</b> (${mainOp.quantity} ${mainOp.product?.unit || 'ta'})\n\n` +
             `📍 Bosh omborxona • ${senderName}`;
 
           void this.telegramService.sendMessage(personalMsg, mainOp.user.telegramChatId);

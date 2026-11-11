@@ -358,6 +358,8 @@ export class RequestsService {
               leader: { select: { id: true, fullName: true, username: true } },
             },
           },
+          assignedBy: { select: { id: true, fullName: true, username: true } },
+          fromUser: { select: { id: true, fullName: true, username: true } },
           asset: {
             include: {
               product: { select: { id: true, name: true } },
@@ -379,8 +381,8 @@ export class RequestsService {
 
       formattedAssignments = assignments.map((a) => {
         const latestOp = a.asset?.operations?.[0];
-        const giver = latestOp?.performedBy || null;
-        const giverId = latestOp?.performedById || '';
+        const giver = a.assignedBy || a.fromUser || latestOp?.performedBy || null;
+        const giverId = a.assignedById || a.fromUserId || latestOp?.performedById || '';
 
         const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
         const recipientName = a.user
@@ -528,6 +530,8 @@ export class RequestsService {
                 leader: { select: { id: true, fullName: true, username: true } },
               },
             },
+            assignedBy: { select: { id: true, fullName: true, username: true } },
+            fromUser: { select: { id: true, fullName: true, username: true } },
             asset: {
               include: {
                 product: { select: { id: true, name: true } },
@@ -550,8 +554,8 @@ export class RequestsService {
 
       formattedAssignments = myAssignments.map((a) => {
         const latestOp = a.asset?.operations?.[0];
-        const giver = latestOp?.performedBy || null;
-        const giverId = latestOp?.performedById || '';
+        const giver = a.assignedBy || a.fromUser || latestOp?.performedBy || null;
+        const giverId = a.assignedById || a.fromUserId || latestOp?.performedById || '';
 
         const entityName = `${a.asset?.product?.name || 'Jihoz'} (Inv: ${a.asset?.inventoryNumber || '—'})`;
         const recipientName = a.user
@@ -614,6 +618,8 @@ export class RequestsService {
             leader: { select: { id: true, fullName: true, username: true } },
           },
         },
+        assignedBy: { select: { id: true, fullName: true, username: true } },
+        fromUser: { select: { id: true, fullName: true, username: true } },
         asset: {
           include: {
             product: { select: { id: true, name: true } },
@@ -633,8 +639,8 @@ export class RequestsService {
 
     if (assignment) {
       const latestOp = assignment.asset?.operations?.[0];
-      const giver = latestOp?.performedBy || null;
-      const giverId = latestOp?.performedById || '';
+      const giver = assignment.assignedBy || assignment.fromUser || latestOp?.performedBy || null;
+      const giverId = assignment.assignedById || assignment.fromUserId || latestOp?.performedById || '';
 
       const entityName = `${assignment.asset?.product?.name || 'Jihoz'} (Inv: ${assignment.asset?.inventoryNumber || '—'})`;
       const recipientName = assignment.user
